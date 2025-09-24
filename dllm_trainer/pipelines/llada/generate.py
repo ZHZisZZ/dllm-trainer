@@ -49,6 +49,7 @@ def generate(
     block_length: int = 128, 
     temperature: float = 0.,
     cfg_scale: float = 0., 
+    cfg_keep_tokens: list = None,
     remasking: str = "random", 
     return_dict_in_generate: bool = False,
     stochastic_transfer: bool = False,
@@ -139,9 +140,13 @@ def generate(
         x[i, :prompt_lens[i]] = p                                            # keep original prompt tokens
         x[i, prompt_lens[i]:prompt_lens[i]+max_new_tokens] = mask_id         # append `max_new_tokens` masks to be generated
 
-    # Positions that were *given* initially (non-mask, non-EOS).
-    # In the unconditional branch of CFG we mask these out.
-    prompt_index = (x != mask_id) & (x != eos_id)
+    # Tokens that were *given* at the start (non-mask, non-EOS).
+    # These will be masked in the unconditional forward pass for CFG.
+    # Tokens from `cfg_keep_tokens` should *not* be treated as "given" for CFG
+    unmasked_index = (x != mask_id) & (x != eos_id)
+    if not (cfg_keep_tokens is None or len(cfg_keep_tokens) == 0):
+        keep_mask = torch.isin(x, torch.as_tensor(cfg_keep_tokens, device=model.device))
+        unmasked_index = unmasked_index & ~keep_mask
 
     # ----- Block scheduling over the appended mask tail -----
     num_blocks = math.ceil(max_new_tokens / block_length)
@@ -179,7 +184,7 @@ def generate(
             # Optional CFG: second forward where original prompt tokens are masked out
             if cfg_scale > 0.:
                 un_x = x.clone()
-                un_x[prompt_index] = mask_id
+                un_x[unmasked_index] = mask_id
                 x_ = torch.cat([x, un_x], dim=0)
                 logits = model(x_).logits
                 logits, un_logits = torch.chunk(logits, 2, dim=0)
@@ -238,7 +243,8 @@ def fill_in_blanks(
     block_length: int | None = None,
     temperature: float = 0.,
     cfg_scale: float = 0., 
-    remasking: str ='random', 
+    cfg_keep_tokens: list = None,
+    remasking: str = "random", 
     return_dict_in_generate: bool = False,
     stochastic_transfer: bool = False,
 ) -> torch.Tensor | dict:
@@ -278,7 +284,11 @@ def fill_in_blanks(
 
     # Tokens that were *given* at the start (non-mask, non-EOS).
     # These will be masked in the unconditional forward pass for CFG.
+    # Tokens from `cfg_keep_tokens` should *not* be treated as "given" for CFG
     unmasked_index = (x != mask_id) & (x != eos_id)
+    if not (cfg_keep_tokens is None or len(cfg_keep_tokens) == 0):
+        keep_mask = torch.isin(x, torch.as_tensor(cfg_keep_tokens, device=device))
+        unmasked_index = unmasked_index & ~keep_mask
 
     # ----- Blockwise schedule over the *entire* (padded) sequence -----
     num_blocks = math.ceil(T / block_length)
