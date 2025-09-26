@@ -1,4 +1,4 @@
-from typing import Any, Dict, Union
+from typing import Any, Dict, Union, Optional
 
 import torch
 import torch.nn as nn
@@ -41,11 +41,11 @@ class DreamTrainer(transformers.Trainer):
     def __init__(
         self,
         *args,
-        scheduler: BaseScheduler = LinearScheduler(),  # CART isn't function of time
+        scheduler: Optional[BaseScheduler] = None,  # CART isn't function of time
         geo_p: float = 0.3,
         **kwargs,
     ):
-        self.scheduler = scheduler
+        self.scheduler = scheduler or LinearScheduler()
         self.geo_p = geo_p
         return super().__init__(*args, **kwargs)
 

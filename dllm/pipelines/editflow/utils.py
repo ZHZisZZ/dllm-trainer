@@ -1,63 +1,19 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Callable, Text
+from typing import Any, Dict, List, Optional, Tuple, Callable, Text
 
-# @dataclass
-# class PassThroughCollator:
-#     """
-#     A dummy collator that does NOT batch tensors. It returns a dict mapping each
-#     field name to a list of per-example values (left exactly as they are).
-    
-#     Example input (features list of dicts):
-#       [{"input_ids": [1,2,3], "labels": 0},
-#        {"input_ids": [4,5],   "labels": 1}]
-    
-#     Output:
-#       {
-#         "input_ids": [[1,2,3], [4,5]],
-#         "labels":    [0, 1]
-#       }
-#     """
-#     include_keys: Optional[Sequence[str]] = None  # keep only these keys if provided
-#     drop_keys: Optional[Sequence[str]] = None     # drop these keys if provided
-#     fill_missing_with: Any = None                 # value to use if a key is missing in an example
+import torch
 
-#     def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, List[Any]]:
-#         if not features:
-#             return {}
-
-#         # derive candidate keys from the first example
-#         keys = list(features[0].keys())
-#         if self.include_keys is not None:
-#             keys = [k for k in keys if k in self.include_keys]
-#         if self.drop_keys is not None:
-#             drop = set(self.drop_keys)
-#             keys = [k for k in keys if k not in drop]
-
-#         batch: Dict[str, List[Any]] = {}
-#         for k in keys:
-#             batch[k] = [
-#                 (ex[k] if k in ex else self.fill_missing_with)
-#                 for ex in features
-#             ]
-#         return batch
-
+# ------------------------------- Collator (x0 source) --------------------------------
 
 def sample_x0_empty(*arg, **kwargs):
     """Empty/BOS start (we just use empty here)."""
     # return [[] for _ in range(batch_size)]
     return []
 
-class PassThroughCollator:
-    """Return dict[str, list[Any]] without padding/stacking.
-       Assumes all examples share the same keys."""
-    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, List[Any]]:
-        if not features:
-            return {}
-        keys = features[0].keys()
-        return {k: [ex[k] for ex in features] for k in keys}
-
+@dataclass
 class EditFlowCollator:
-    src_func: Callable | Text = sample_x0_empty
+    tokenizer: Any = None
+    src_func: Callable | Text | None = sample_x0_empty
 
     def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, List[Any]]:
         if not features:
@@ -65,11 +21,35 @@ class EditFlowCollator:
         keys = features[0].keys()
         batch = {k: [ex[k] for ex in features] for k in keys}
         batch["x1_ids"] = batch["input_ids"]
-        # TODO: need to move fast, just assume bos and sample x0 empty
-        batch["x0_ids"] = [x1_ids[:1] for x1_ids in batch["x1_ids"]]
-        batch["return_loss"] = True
-        batch["input_ids"].pop()
-        return batch
+        if not "labels" in batch:
+            # TODO: need to move fast, just assume bos and sample x0 empty
+            assert all(x1_ids[0] == self.tokenizer.bos_token_id for x1_ids in batch["x1_ids"])
+            batch["x0_ids"] = [x1_ids[:1] + self.src_func(x1_ids) for x1_ids in batch["x1_ids"]]
+            batch["return_loss"] = True
+            # batch["input_ids"].pop()
+            return batch
+        else:
+            raise NotImplementedError
+
+
+# ------------------------------- Trainer utils --------------------------------
+
+def pad_1d(batch_lists: List[List[int]], pad_val: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Pads a list of variable-length integer lists into a tensor [B, Lmax] plus mask [B, Lmax].
+    """
+    B = len(batch_lists)
+    Lmax = max((len(x) for x in batch_lists), default=0)
+    out = torch.full((B, Lmax), pad_val, dtype=torch.long)
+    mask = torch.zeros((B, Lmax), dtype=torch.bool)
+    for b, x in enumerate(batch_lists):
+        if len(x) == 0:
+            continue
+        out[b, :len(x)] = torch.tensor(x, dtype=torch.long)
+        mask[b, :len(x)] = True
+    return out, mask
+
+
 
 if __name__ == "__main__":
     pass

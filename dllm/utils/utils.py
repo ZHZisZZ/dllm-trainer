@@ -1,4 +1,5 @@
 import os
+from contextlib import contextmanager
 
 import torch
 
@@ -10,6 +11,7 @@ def looks_like_url_or_scheme(path: str) -> bool:
     return any(path.startswith(pfx) for pfx in (
         "http://", "https://", "hf://", "s3://", "gs://", "azure://"
     )) or ("://" in path)
+
 
 def resolve_with_base_env(path: str, env_name: str) -> str:
     """
@@ -25,6 +27,7 @@ def resolve_with_base_env(path: str, env_name: str) -> str:
     if os.path.exists(path):
         return path
     return os.path.join(base.rstrip("/"), path.lstrip("/"))
+
 
 def get_num_transfer_tokens(
     mask_index: torch.Tensor, 
@@ -65,3 +68,27 @@ def get_num_transfer_tokens(
             r = torch.cat([r, pad])
         padded_rows.append(r)
     return torch.stack(padded_rows, dim=0)
+
+
+@contextmanager
+def init_on(device: str | torch.device, dtype: torch.dtype):
+    """
+    Temporarily set torch default dtype and default device so that tensors
+    created inside the context are allocated on `device` with dtype `dtype`.
+    Restores previous settings on exit.
+    """
+    # Save previous defaults
+    prev_dtype = torch.get_default_dtype()
+    prev_device = None
+    try:
+        torch.set_default_dtype(dtype)
+        # set_default_device exists in PyTorch >= 2.0
+        if hasattr(torch, "set_default_device"):
+            # Query current default device if available (optional)
+            prev_device = "cpu"
+            torch.set_default_device(device)
+        yield
+    finally:
+        torch.set_default_dtype(prev_dtype)
+        if hasattr(torch, "set_default_device"):
+            torch.set_default_device("cpu")  # revert so DataLoader RNGs stay on CPU
