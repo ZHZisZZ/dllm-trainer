@@ -162,7 +162,8 @@ def load_sft_dataset(dataset_args: str):
         elif _match(dataset_name_or_path, "allenai/tulu-3-sft-mixture"):
             ds = load_dataset(dataset_name_or_path)
             ds = ds["train"].train_test_split(test_size=0.1, seed=42)
-        elif _match(dataset_name_or_path, "OpenCoder-LLM/opc-sft-stage2"):
+        elif (_match(dataset_name_or_path, "OpenCoder-LLM/opc-sft-stage1") or 
+              _match(dataset_name_or_path, "OpenCoder-LLM/opc-sft-stage2")):
             name = kvs.pop("name", None)
             ds = load_dataset_opc(dataset_name_or_path, name)
         elif _match(dataset_name_or_path, "HuggingFaceH4/ultrachat_200k"):

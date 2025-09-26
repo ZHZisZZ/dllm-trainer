@@ -1,75 +1,101 @@
+import math
+import random
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Callable, Text
+from typing import Any, Dict, List, Optional, Tuple, Callable, Text
 
-# @dataclass
-# class PassThroughCollator:
-#     """
-#     A dummy collator that does NOT batch tensors. It returns a dict mapping each
-#     field name to a list of per-example values (left exactly as they are).
-    
-#     Example input (features list of dicts):
-#       [{"input_ids": [1,2,3], "labels": 0},
-#        {"input_ids": [4,5],   "labels": 1}]
-    
-#     Output:
-#       {
-#         "input_ids": [[1,2,3], [4,5]],
-#         "labels":    [0, 1]
-#       }
-#     """
-#     include_keys: Optional[Sequence[str]] = None  # keep only these keys if provided
-#     drop_keys: Optional[Sequence[str]] = None     # drop these keys if provided
-#     fill_missing_with: Any = None                 # value to use if a key is missing in an example
+import torch
+import transformers
 
-#     def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, List[Any]]:
-#         if not features:
-#             return {}
+# ------------------------------- Collator (x0 source) --------------------------------
+# ---------------- Implementations ---------------- #
 
-#         # derive candidate keys from the first example
-#         keys = list(features[0].keys())
-#         if self.include_keys is not None:
-#             keys = [k for k in keys if k in self.include_keys]
-#         if self.drop_keys is not None:
-#             drop = set(self.drop_keys)
-#             keys = [k for k in keys if k not in drop]
-
-#         batch: Dict[str, List[Any]] = {}
-#         for k in keys:
-#             batch[k] = [
-#                 (ex[k] if k in ex else self.fill_missing_with)
-#                 for ex in features
-#             ]
-#         return batch
-
-
-def sample_x0_empty(*arg, **kwargs):
-    """Empty/BOS start (we just use empty here)."""
-    # return [[] for _ in range(batch_size)]
+def sample_x0_empty(*args, **kwargs) -> List[int]:
+    """Return BOS-only (i.e. no tokens after BOS)."""
     return []
 
-class PassThroughCollator:
-    """Return dict[str, list[Any]] without padding/stacking.
-       Assumes all examples share the same keys."""
-    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, List[Any]]:
-        if not features:
-            return {}
-        keys = features[0].keys()
-        return {k: [ex[k] for ex in features] for k in keys}
+def sample_x0_with_masks(x1_ids: List[int], tokenizer: Any) -> List[int]:
+    """
+    Return a run of mask tokens of length ~ Uniform(0.75*|x1_wo_bos|, 1.25*|x1_wo_bos|).
+    Ensures at least 1 token so there’s something to edit.
+    """
+    L = max(0, len(x1_ids) - 1)   # exclude BOS
+    if L == 0:
+        target_len = 1
+    else:
+        low = max(1, math.floor(0.75 * L))
+        high = max(low, math.ceil(1.25 * L))
+        target_len = random.randint(low, high)
 
+    mask_id = getattr(tokenizer, "mask_token_id", None)
+    if mask_id is None:
+        raise ValueError("tokenizer needs mask_token_id for mask-based sampler")
+    return [int(mask_id)] * target_len
+
+# ---------------- Factory ---------------- #
+
+_X0_SAMPLERS: Dict[str, Callable[[List[int], Any], List[int]]] = {
+    "sample_x0_empty": sample_x0_empty,
+    "sample_x0_with_masks": sample_x0_with_masks,
+}
+
+def make_x0_sampler(name: str) -> Callable[[List[int], Any], List[int]]:
+    try:
+        return _X0_SAMPLERS[name.lower()]
+    except KeyError:
+        raise ValueError(f"Unknown x0 sampler '{name}'. Available: {list(_X0_SAMPLERS)}")
+
+@dataclass
 class EditFlowCollator:
-    src_func: Callable | Text = sample_x0_empty
+    tokenizer: transformers.PreTrainedTokenizer = None
+    x0_sampler: Callable | Text | None = sample_x0_with_masks  # can be func OR name
+
+    def _get_sampler(self) -> Callable[[List[int], Any], List[int]]:
+        if callable(self.x0_sampler):
+            return self.x0_sampler
+        if isinstance(self.x0_sampler, str):
+            return make_x0_sampler(self.x0_sampler)
+        # default fallback
+        return sample_x0_with_masks
 
     def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, List[Any]]:
         if not features:
             return {}
+
         keys = features[0].keys()
         batch = {k: [ex[k] for ex in features] for k in keys}
         batch["x1_ids"] = batch["input_ids"]
-        # TODO: need to move fast, just assume bos and sample x0 empty
-        batch["x0_ids"] = [x1_ids[:1] for x1_ids in batch["x1_ids"]]
-        batch["return_loss"] = True
-        batch["input_ids"].pop()
-        return batch
+
+        if "labels" not in batch:
+            assert all(x1_ids[0] == self.tokenizer.bos_token_id for x1_ids in batch["x1_ids"])
+            sampler = self._get_sampler()
+            batch["x0_ids"] = [
+                x1_ids[:1] + sampler(x1_ids=x1_ids, tokenizer=self.tokenizer)
+                for x1_ids in batch["x1_ids"]
+            ]
+            batch["return_loss"] = True
+            return batch
+        else:
+            raise NotImplementedError
+
+
+# ------------------------------- Trainer utils --------------------------------
+
+def pad_1d(batch_lists: List[List[int]], pad_val: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Pads a list of variable-length integer lists into a tensor [B, Lmax] plus mask [B, Lmax].
+    """
+    B = len(batch_lists)
+    Lmax = max((len(x) for x in batch_lists), default=0)
+    out = torch.full((B, Lmax), pad_val, dtype=torch.long)
+    mask = torch.zeros((B, Lmax), dtype=torch.bool)
+    for b, x in enumerate(batch_lists):
+        if len(x) == 0:
+            continue
+        out[b, :len(x)] = torch.tensor(x, dtype=torch.long)
+        mask[b, :len(x)] = True
+    return out, mask
+
+
 
 if __name__ == "__main__":
     pass

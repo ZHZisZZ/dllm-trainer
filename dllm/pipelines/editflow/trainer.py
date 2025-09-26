@@ -1,7 +1,5 @@
 from typing import Any, Dict, Union, List, Tuple, Optional
 from dataclasses import dataclass
-import math
-import random
 
 import torch
 import torch.nn as nn
@@ -9,7 +7,8 @@ import torch.nn.functional as F
 
 import transformers
 
-from dllm.utils.schedulers import BaseScheduler, LinearScheduler
+from dllm.pipelines.editflow.schedulers import BaseKappaScheduler, CubicKappaScheduler
+from dllm.pipelines.editflow.utils import pad_1d
 
 
 BLANK = -1
@@ -65,7 +64,8 @@ def align_with_blanks(x0: List[int], x1: List[int], sub_cost: int = 1, gap_cost:
             j -= 1
     z0.reverse(); z1.reverse()
     # return Alignment(z0=z0, z1=z1)
-    return 
+    # return {"z0": z0, "z1": z1}
+    return dict(z0=z0, z1=z1)
 
 
 def strip_blanks(z: List[int]) -> List[int]:
@@ -73,66 +73,10 @@ def strip_blanks(z: List[int]) -> List[int]:
     return [t for t in z if t != BLANK]
 
 
-# -----------------------------
-# κ(t) schedule
-# -----------------------------
-
-def kappa(t: torch.Tensor) -> torch.Tensor:
-    """
-    Monotone schedule κ: [0,1]->[0,1].
-    We use smooth cosine (slower start, faster end): κ(t) = (1 - cos(π t)) / 2
-    """
-    return 0.5 * (1 - torch.cos(math.pi * t))
-
-
-def kappa_dot(t: torch.Tensor) -> torch.Tensor:
-    """Derivative of κ(t) used for weighting: κ˙(t) = (π/2) sin(π t)."""
-    return 0.5 * math.pi * torch.sin(math.pi * t)
-
-
-# -----------------------------
-# Collation helpers (ragged -> padded tensors)
-# -----------------------------
-
-def pad_1d(batch_lists: List[List[int]], pad_val: int) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Pads a list of variable-length integer lists into a tensor [B, Lmax] plus mask [B, Lmax].
-    """
-    B = len(batch_lists)
-    Lmax = max((len(x) for x in batch_lists), default=0)
-    out = torch.full((B, Lmax), pad_val, dtype=torch.long)
-    mask = torch.zeros((B, Lmax), dtype=torch.bool)
-    for b, x in enumerate(batch_lists):
-        if len(x) == 0:
-            continue
-        out[b, :len(x)] = torch.tensor(x, dtype=torch.long)
-        mask[b, :len(x)] = True
-    return out, mask
-
-
-# -----------------------------
-# Loss utilities
-# -----------------------------
-
-# def mask_out_current_token(sub_logits: torch.Tensor, x_tok: torch.Tensor, x_mask: torch.Tensor, V: int) -> torch.Tensor:
-#     """
-#     Zero probability (−inf logit) for substituting a token with itself, at valid positions.
-#     sub_logits : [B,L,V]
-#     x_tok      : [B,L]
-#     x_mask     : [B,L]
-#     """
-#     B, L, Vv = sub_logits.shape
-#     assert Vv == V
-#     idx = torch.clamp(x_tok, min=0).unsqueeze(-1)  # [B,L,1]
-#     big_neg = -1e9
-#     sub_logits = sub_logits.scatter(2, idx, big_neg)
-#     return sub_logits
-
-
 @dataclass
 class Edit:
     kind: str            # "SUB" | "DEL" | "INS"
-    pos_or_gap: int      # position (for SUB/DEL) or token-row idx for INS (incl. BOS row 0)
+    pos: int      # position (for SUB/DEL) or token-row idx for INS (incl. BOS row 0)
     token: Optional[int] # token for SUB/INS, else None
 
 
@@ -169,130 +113,163 @@ def build_remaining_edits(zt: List[int], z1: List[int]) -> List[Edit]:
     return edits
 
 
-
 class EditFlowTrainer(transformers.Trainer):
+    """
+    Trainer for Edit Flows where the model returns:
+      - sub_logits: [B,L,V]   (token dist for SUB)
+      - ins_logits: [B,L,V]   (token dist for INS)
+      - sub_rate_hat: [B,L]   (normalized rates; NO kappa factor)
+      - del_rate_hat: [B,L]
+      - ins_rate_hat: [B,L]
+    True intensities are  w * rate_hat, with w = kappa_dot(t) / (1 - kappa(t)).
+    """
 
     def __init__(
         self,
         *args,
-        # scheduler: BaseScheduler = LinearScheduler(),
-        **kawrgs,
+        scheduler: Optional[BaseKappaScheduler] = None,
+        normalize_per_position: bool = True,
+        time_epsilon: float = 1e-3,
+        max_w: Optional[float] = None, 
+        **kwargs,
     ):
-        # self.scheduler = scheduler
-        return super().__init__(*args, **kawrgs)
+        self.scheduler = scheduler or CubicKappaScheduler()
+        self.normalize_per_position = normalize_per_position
+        self.time_epsilon = time_epsilon
+        self.max_w = max_w
+        return super().__init__(*args, **kwargs)
 
     def compute_loss(
         self,
         model: Union[transformers.PreTrainedModel, nn.Module],
         inputs: Dict[str, Union[torch.Tensor, Any]],
-        return_outputs = False,
+        return_outputs: bool = False,
         **kwargs,
     ):
-        # Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md
-        # input_ids, labels = inputs["input_ids"], inputs["labels"]
-        # input_ids, attention_mask = inputs["input_ids"], inputs["attention_mask"]
-        # breakpoint()
-        # pass
         device = self.model.device
+        B = len(inputs["x0_ids"])
+
+        # -------- 1) Align with blanks (z0,z1) and sample time t --------
         aligns = [align_with_blanks(x0, x1) for x0, x1 in zip(inputs["x0_ids"], inputs["x1_ids"])]
         z0_list = [a["z0"] for a in aligns]
         z1_list = [a["z1"] for a in aligns]
-        assert all(len(z0)==len(z1) for z0, z1 in zip(z0_list, z1_list))
+        assert all(len(z0) == len(z1) for z0, z1 in zip(z0_list, z1_list))
+        assert all(z0[0] != BLANK for z0 in z0_list)  # BOS must remain
 
-        # 2) Sample time and z_t via Bernoulli(κ(t))
-        t = torch.rand(len(z0_list), 1, device=device)  # [B,1]
-        k = kappa(t)                                    # [B,1]
+        t = (1-self.time_epsilon) * torch.rand(B, 1, device=device)                         # [B,1]
+        k = self.scheduler.kappa(t).to(device)                      # [B,1]
+        w = self.scheduler.scaling_factor(t).squeeze(1).to(device)  # [B]
+        if self.max_w: w = w.clamp(max=self.max_w)  # TODO: prevent extreme weights, only needed when applying scaling factor to survival loss
+
+        # -------- 2) Sample z_t by κ-mixing (vectorized per example) --------
+        # Keep python lists -> tensors per-example to reuse build_remaining_edits
         zt_list: List[List[int]] = []
-        for b, (z0, z1) in enumerate(zip(z0_list, z1_list)):
-            M = len(z0)
-            kb = k[b].item()
-            zt = []
-            for j in range(M):
-                take_target = (random.random() < kb)
-                # BOS is the same token in z0/z1; mixing preserves it automatically
-                zt.append(z1[j] if take_target else z0[j])
+        for z0, z1, kb in zip(z0_list, z1_list, k.squeeze(1).tolist()):
+            # per-column Bernoulli(κ) mix; BOS is equal in z0/z1 so it stays BOS
+            choose_target = torch.rand(len(z0)) < kb
+            zt = [b if choose_target[j] else a for j, (a, b) in enumerate(zip(z0, z1))]
             zt_list.append(zt)
 
-        # 3) Strip blanks -> x_t and build remaining edits (BOS remains)
+        # -------- 3) Strip blanks to x_t and compute remaining edits --------
         xt_list = [strip_blanks(zt) for zt in zt_list]
         edits_list: List[List[Edit]] = [build_remaining_edits(zt, z1) for zt, z1 in zip(zt_list, z1_list)]
 
-        # 4) Collate x_t for the model
-        x_tok, x_mask = pad_1d(xt_list, pad_val=self.processing_class.pad_token)  # [B,Lmax], [B,Lmax]
+        # -------- 4) Collate x_t for the model --------
+        pad_id = getattr(self.processing_class, "pad_token_id", getattr(self.processing_class, "pad_token_id", 0))
+        x_tok, x_mask = pad_1d(xt_list, pad_val=pad_id)     # [B,Lmax], [B,Lmax]
         x_tok = x_tok.to(device)
         x_mask = x_mask.to(device)
 
-        # 5) Forward
-        out = model(x_tok, x_mask, t.to(device))  # dict of tensors
-        # Token/Gap distributions
-        # sub_logits = mask_out_current_token(out["sub_logits"], x_tok, x_mask, V) # NOTE: i think this is optional; but better keep it
-        Q_sub = F.log_softmax(out["sub_logits"], dim=-1)  # log-probs for stability
-        Q_ins = F.log_softmax(out["ins_logits"], dim=-1)
+        # -------- 5) Forward pass --------
+        out = model(input_ids=x_tok, attention_mask=x_mask, t=t.to(device))
+        # Rename for clarity: model returns normalized rates (no kappa)
+        sub_rate_hat = out["sub_rate_hat"]     # [B,L]
+        del_rate_hat = out["del_rate_hat"]     # [B,L]
+        ins_rate_hat = out["ins_rate_hat"]     # [B,L]
+        logQ_sub = F.log_softmax(out["sub_logits"], dim=-1)  # [B,L,V]
+        logQ_ins = F.log_softmax(out["ins_logits"], dim=-1)  # [B,L,V]
 
-        # 6) Build loss
-        # Per Eq. 23: survival (sum of intensities) UNWEIGHTED,
-        # positive selected-edit term weighted by w = κ˙/(1-κ).
-        w = (kappa_dot(t) / (1 - k + 1e-6)).squeeze(1)  # [B]
-        loss_surv = torch.tensor(0.0, device=device)
-        loss_pos = torch.tensor(0.0, device=device)
-        n_pos = 0
-
-        # # Survival: sum of intensities at current x_t
-        # Lambda_all = (
-        #     out["sub_intensity"].sum(dim=1)  # [B]
-        #     + out["del_intensity"].sum(dim=1)
-        #     + out["ins_intensity"].sum(dim=1)
-        # )  # [B]
-        # loss_surv = Lambda_all.mean()  # UNWEIGHTED survival term
-        # Build masks in the loss
-        # cur_len = x_mask.sum(dim=1)                    # includes BOS
-        # pos_mask = x_mask.clone()                      # valid token rows
-        # pos_mask[:, 0] = False                         # exclude BOS row for sub/del
-
-        # Survival term with masks applied here (no need to mask in forward)
-        Lambda_all = (
-                (out["sub_intensity"] * x_mask.float()).sum(dim=1)
-            + (out["del_intensity"] * x_mask.float()).sum(dim=1)
-            + (out["ins_intensity"] * x_mask.float()).sum(dim=1)  # insert allowed at BOS
+        # *** NEW: zero-cost anchor to "touch" every head even if unused this step ***
+        # Using .sum() * 0.0 keeps a graph dependency without changing the loss value.
+        # Include both logits (for SUB/INS heads) and rates (for SUB/DEL/INS heads).
+        # This is important for Deepspeed ZeRO stage 2/3 to avoid skipping unused parameters.
+        anchor = (
+            sub_rate_hat.sum() * 0.0
+            + del_rate_hat.sum() * 0.0
+            + ins_rate_hat.sum() * 0.0
+            + logQ_sub.sum() * 0.0
+            + logQ_ins.sum() * 0.0
         )
-        loss_surv = Lambda_all.mean()
 
-        # Positive terms: -w * log(rate) for each remaining edit
+        # Utility
+        def safe_log(x: torch.Tensor) -> torch.Tensor:
+            return torch.log(x.clamp_min(1e-12))
+
+        # -------- 6) Survival term --------
+        # Survival = E[sum of true intensities over valid rows]
+        # true intensity = w[b] * rate_hat[b, i]
+        mask_f = x_mask.float()
+        # L = mask_f.sum(dim=1).clamp_min(1.0)           # [B] number of positions (incl. BOS)
+        L1 = torch.tensor([len(x1) for x1 in inputs["x1_ids"]], device=device, dtype=torch.float).clamp_min(1.0)
+        denom = L1 if self.normalize_per_position else torch.ones_like(L1)
+
+        Lambda_hat = ((sub_rate_hat + del_rate_hat + ins_rate_hat) * mask_f).sum(dim=1)  # [B]
+        loss_surv = ((w * Lambda_hat) / denom).mean()
+
+        # -------- 7) Positive edit terms --------
+        # For each remaining edit e:  -log true rate(e)  - log token prob(e) if tokenized
+        loss_pos_per = sub_rate_hat.new_zeros(B)       # [B]
         for b, edits in enumerate(edits_list):
-            if len(edits) == 0:
+            if not edits:
                 continue
-            n_pos += len(edits)
-            cur_len = int(x_mask[b].sum().item())  # includes BOS
+            cur_len = int(x_mask[b].sum().item())
             for e in edits:
+                pos = e.pos
+                assert 0 <= pos < cur_len, f"pos {pos} out of range {cur_len}"
                 if e.kind == "SUB":
-                    pos = e.pos_or_gap
-                    tok = e.token
-                    if pos >= cur_len or pos == 0:  # skip BOS row
-                        continue
-                    log_q = Q_sub[b, pos, tok]                    # log Q_sub
-                    lam = out["sub_intensity"][b, pos]           # λ_sub
-                    loss_pos = loss_pos - w[b] * (log_q + torch.log(lam + 1e-12))
+                    loss_pos_per[b] -= (logQ_sub[b, pos, e.token] + safe_log(sub_rate_hat[b, pos]))
                 elif e.kind == "DEL":
-                    pos = e.pos_or_gap
-                    if pos >= cur_len or pos == 0:  # skip BOS row
-                        continue
-                    lam = out["del_intensity"][b, pos]           # λ_del
-                    loss_pos = loss_pos - w[b] * torch.log(lam + 1e-12)
+                    loss_pos_per[b] -= safe_log(del_rate_hat[b, pos])
                 else:  # "INS"
-                    gap = e.pos_or_gap  # now a token row index incl. BOS
-                    tok = e.token
-                    gap_max = cur_len  # valid gaps are rows [0..cur_len-1]
-                    if gap >= gap_max:
-                        continue
-                    log_q = Q_ins[b, gap, tok]                   # log Q_ins
-                    lam = out["ins_intensity"][b, gap]           # λ_ins
-                    loss_pos = loss_pos - w[b] * (log_q + torch.log(lam + 1e-12))
+                    loss_pos_per[b] -= (logQ_ins[b, pos, e.token] + safe_log(ins_rate_hat[b, pos]))
 
-        if n_pos > 0:
-            loss_pos = loss_pos / n_pos
+        # -------- 7) Positive edit terms (vectorized) --------
+        # pos_sub, tok_sub, pos_ins, tok_ins, pos_del = [], [], [], [], []
+        # for b, edits in enumerate(edits_list):
+        #     cur_len = int(x_mask[b].sum().item())
+        #     ps, ts, pi, ti, pd = [], [], [], [], []
+        #     for e in edits:
+        #         if not (0 <= e.pos < cur_len):
+        #             raise AssertionError(f"pos {e.pos} out of range {cur_len} for b={b}")
+        #         if e.kind == "SUB":
+        #             ps.append(e.pos); ts.append(e.token)
+        #         elif e.kind == "INS":
+        #             pi.append(e.pos); ti.append(e.token)
+        #         else:
+        #             pd.append(e.pos)
+        #     pos_sub.append(torch.tensor(ps, device=x_tok.device, dtype=torch.long) if ps else None)
+        #     tok_sub.append(torch.tensor(ts, device=x_tok.device, dtype=torch.long) if ts else None)
+        #     pos_ins.append(torch.tensor(pi, device=x_tok.device, dtype=torch.long) if pi else None)
+        #     tok_ins.append(torch.tensor(ti, device=x_tok.device, dtype=torch.long) if ti else None)
+        #     pos_del.append(torch.tensor(pd, device=x_tok.device, dtype=torch.long) if pd else None)
 
-        loss = loss_surv + loss_pos
+        # loss_pos_terms = []
+        # for b in range(B):
+        #     lp = x_tok.new_zeros(())
+        #     if pos_sub[b] is not None:
+        #         lp = lp - (logQ_sub[b, pos_sub[b], tok_sub[b]] + safe_log(sub_rate_hat[b, pos_sub[b]])).sum()
+        #     if pos_ins[b] is not None:
+        #         lp = lp - (logQ_ins[b, pos_ins[b], tok_ins[b]] + safe_log(ins_rate_hat[b, pos_ins[b]])).sum()
+        #     if pos_del[b] is not None:
+        #         lp = lp - safe_log(del_rate_hat[b, pos_del[b]]).sum()
+        #     loss_pos_terms.append(lp)
+        # loss_pos_per = torch.stack(loss_pos_terms)  # [B]
 
+        # # Average positive term per sequence (MC estimator across batch)
+        loss_pos = ((w * loss_pos_per) / denom).mean()
+
+        # -------- 8) Total --------
+        loss = loss_surv + loss_pos + anchor
         return (loss, out) if return_outputs else loss
 
 

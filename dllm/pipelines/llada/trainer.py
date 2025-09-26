@@ -1,4 +1,4 @@
-from typing import Any, Dict, Union
+from typing import Any, Dict, Union, Optional
 
 import torch
 import torch.nn as nn
@@ -14,10 +14,14 @@ class LLaDATrainer(transformers.Trainer):
     def __init__(
         self,
         *args,
-        scheduler: BaseScheduler = LinearScheduler(),
+        scheduler: Optional[BaseScheduler] = None,
+        time_epsilon: float = 1e-3,
         **kawrgs,
     ):
-        self.scheduler = scheduler
+        self.scheduler = scheduler or LinearScheduler()
+        if not (0.0 < time_epsilon < 1.0):
+            raise ValueError("eps must be in the open interval (0, 1).")
+        self.time_epsilon = time_epsilon
         return super().__init__(*args, **kawrgs)
 
     def compute_loss(
@@ -30,8 +34,9 @@ class LLaDATrainer(transformers.Trainer):
         # Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md
         input_ids, labels = inputs["input_ids"], inputs["labels"]
 
-        b, l = inputs["input_ids"].shape
-        t = torch.rand(b, device=input_ids.device)
+        b, l = input_ids.shape
+        # affine transform: t ∈ [eps, 1)
+        t = self.time_epsilon + (1 - self.time_epsilon) * torch.rand(b, device=input_ids.device)
         p_mask = 1 - self.scheduler(t).unsqueeze(1).repeat(1, l)  # b, 1
         loss_weight = - self.scheduler.loss_weight(t).unsqueeze(1).repeat(1, l)  # b, 1
         masked_indices = torch.rand((b, l), device=input_ids.device) < p_mask
