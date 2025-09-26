@@ -89,7 +89,7 @@ def load_dataset_ultrachat(dataset_name_or_path: str) -> DatasetDict:
 
 if __name__ == "__main__":
     # Mirrors the style from your previous loaders: resolve path via env helper if available.
-    from dllm_trainer.utils import resolve_with_base_env
+    from dllm.utils import resolve_with_base_env
     dataset_name_or_path = resolve_with_base_env("HuggingFaceH4/ultrachat_200k", "BASE_DATASETS_DIR")
     dataset = load_dataset_ultrachat(dataset_name_or_path)
     breakpoint()

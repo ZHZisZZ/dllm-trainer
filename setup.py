@@ -2,7 +2,7 @@
 from setuptools import setup
 
 setup(
-    name='dllm-trainer',
+    name='dllm',
     version='0.1.0',
-    packages=['dllm_trainer'],
+    packages=['dllm'],
 )

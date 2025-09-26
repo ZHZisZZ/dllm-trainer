@@ -58,8 +58,8 @@ import transformers
 import accelerate
 import peft
 
-import dllm_trainer
-from dllm_trainer.pipelines import dream
+import dllm
+from dllm.pipelines import dream
 
 @dataclass
 class ModelArguments:
@@ -122,7 +122,7 @@ def train():
         _mu.caching_allocator_warmup = _noop
     except Exception:
         pass
-    model_name_or_path = dllm_trainer.utils.resolve_with_base_env(
+    model_name_or_path = dllm.utils.resolve_with_base_env(
         model_args.model_name_or_path, "BASE_MODELS_DIR")
     model = transformers.AutoModel.from_pretrained(
         model_name_or_path,
@@ -186,7 +186,7 @@ def train():
         }
 
     with accelerate.PartialState().local_main_process_first():
-        dataset = dllm_trainer.data.load_sft_dataset(data_args.dataset_args)
+        dataset = dllm.data.load_sft_dataset(data_args.dataset_args)
         dataset = dataset.map(
             functools.partial(
                 train_map_fn, 

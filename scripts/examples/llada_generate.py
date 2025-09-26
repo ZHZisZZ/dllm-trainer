@@ -14,8 +14,8 @@ import tyro
 import torch
 import transformers
 
-from dllm_trainer.pipelines import llada
-from dllm_trainer.utils.utils import resolve_with_base_env
+from dllm.pipelines import llada
+from dllm.utils.utils import resolve_with_base_env
 
 
 @dataclass

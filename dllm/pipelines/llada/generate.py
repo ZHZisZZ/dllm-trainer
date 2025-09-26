@@ -18,9 +18,9 @@ import torch.nn.functional as F
 
 import transformers
 
-from dllm_trainer.pipelines.llada.utils import postprocess_llada_tokenizer
-from dllm_trainer.utils.utils import get_num_transfer_tokens
-from dllm_trainer.utils.schedulers import BaseScheduler, LinearScheduler
+from dllm.pipelines.llada.utils import postprocess_llada_tokenizer
+from dllm.utils.utils import get_num_transfer_tokens
+from dllm.utils.schedulers import BaseScheduler, LinearScheduler
 
 
 def add_gumbel_noise(logits: torch.Tensor, temperature: float) -> torch.Tensor:
@@ -385,7 +385,7 @@ def test():
     import tyro
     import transformers
 
-    from dllm_trainer.utils.utils import resolve_with_base_env
+    from dllm.utils.utils import resolve_with_base_env
 
     @dataclass
     class ScriptArguments:

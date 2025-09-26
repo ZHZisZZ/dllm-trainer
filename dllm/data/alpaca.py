@@ -45,7 +45,7 @@ def load_dataset_alpaca(dataset_name_or_path: str) -> DatasetDict:
 
 
 if __name__ == "__main__":
-    from dllm_trainer.utils import resolve_with_base_env
+    from dllm.utils import resolve_with_base_env
     dataset_name_or_path = resolve_with_base_env("tatsu-lab/alpaca", "BASE_DATASETS_DIR")
     dataset = load_dataset_alpaca(dataset_name_or_path)
     breakpoint()

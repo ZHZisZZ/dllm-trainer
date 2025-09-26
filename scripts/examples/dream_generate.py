@@ -14,8 +14,8 @@ import tyro
 import torch
 import transformers
 
-from dllm_trainer.pipelines import dream
-from dllm_trainer.utils.utils import resolve_with_base_env
+from dllm.pipelines import dream
+from dllm.utils.utils import resolve_with_base_env
 
 
 @dataclass

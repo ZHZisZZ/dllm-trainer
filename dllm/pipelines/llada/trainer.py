@@ -6,7 +6,7 @@ import torch.nn.functional as F
 
 import transformers
 
-from dllm_trainer.utils.schedulers import BaseScheduler, LinearScheduler
+from dllm.utils.schedulers import BaseScheduler, LinearScheduler
 
 
 class LLaDATrainer(transformers.Trainer):
