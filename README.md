@@ -4,8 +4,8 @@ A lightweight framework for training diffusion language models, built on top of 
 ## Setup
 ```bash
 # create and activate conda environment
-conda create -n dllm-trainer python=3.10 -y
-conda activate dllm-trainer
+conda create -n dllm python=3.10 -y
+conda activate dllm
 
 # install pytorch with CUDA 11.8 (other pytorch/cuda versions should also work)
 pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
@@ -14,7 +14,7 @@ pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
 # install requirements
 pip install -r requirements.txt
 
-# install dllm_trainer package
+# install dllm package
 pip install -e .
 ```
 
@@ -24,11 +24,11 @@ pip install -e .
 <summary>LLaDA / LLaDA-MoE: SFT and Batch Sampling</summary>
 
 ### `SFT`
-Basic usage of [`LLaDATrainer`](https://github.com/ZHZisZZ/dllm-trainer/blob/main/dllm_trainer/pipelines/llada/trainer.py#L12). See [`scripts/examples/llada_sft.py`](https://github.com/ZHZisZZ/dllm-trainer/blob/main/scripts/examples/llada_sft.py) for a complete example.
+Basic usage of [`LLaDATrainer`](https://github.com/ZHZisZZ/dllm/blob/main/dllm/pipelines/llada/trainer.py#L12). See [`scripts/examples/llada_sft.py`](https://github.com/ZHZisZZ/dllm/blob/main/scripts/examples/llada_sft.py) for a complete example.
 ```python
 import transformers
 
-from dllm_trainer.pipelines import llada
+from dllm.pipelines import llada
 
 model_name_or_path = "GSAI-ML/LLaDA-8B-Base" # "inclusionAI/LLaDA-MoE-7B-A1B-Base"
 model = transformers.AutoModel.from_pretrained(model_name_or_path)
@@ -71,7 +71,7 @@ trainer.train()
 
 
 ### `Sampling`
-See [`scripts/examples/llada_generate.py`](https://github.com/ZHZisZZ/dllm-trainer/blob/main/scripts/examples/llada_generate.py) for a complete example of batch sampling (continuation and fill_in_blanks).
+See [`scripts/examples/llada_generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/scripts/examples/llada_generate.py) for a complete example of batch sampling (continuation and fill_in_blanks).
 
 </details>
 
@@ -79,12 +79,12 @@ See [`scripts/examples/llada_generate.py`](https://github.com/ZHZisZZ/dllm-train
 <summary>Dream: SFT and Batch Sampling</summary>
 
 ### `SFT`
-Basic usage of [`DreamTrainer`](https://github.com/ZHZisZZ/dllm-trainer/blob/main/dllm_trainer/pipelines/dream/trainer.py#L39). See [`scripts/examples/dream_sft.py`](https://github.com/ZHZisZZ/dllm-trainer/blob/main/scripts/examples/dream_sft.py) for a complete example.
+Basic usage of [`DreamTrainer`](https://github.com/ZHZisZZ/dllm/blob/main/dllm/pipelines/dream/trainer.py#L39). See [`scripts/examples/dream_sft.py`](https://github.com/ZHZisZZ/dllm/blob/main/scripts/examples/dream_sft.py) for a complete example.
 
 ```python
 import transformers
 
-from dllm_trainer.pipelines import dream
+from dllm.pipelines import dream
 
 model_name_or_path = "Dream-org/Dream-v0-Base-7B"
 model = transformers.AutoModel.from_pretrained(model_name_or_path)
@@ -114,7 +114,7 @@ trainer.train()
 
 
 ### `Sampling`
-See [`scripts/examples/dream_generate.py`](https://github.com/ZHZisZZ/dllm-trainer/blob/main/scripts/examples/dream_generate.py) for a complete example of batch sampling (continuation and fill_in_blanks).
+See [`scripts/examples/dream_generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/scripts/examples/dream_generate.py) for a complete example of batch sampling (continuation and fill_in_blanks).
 
 </details>
 
@@ -129,10 +129,10 @@ See [`scripts/examples/dream_generate.py`](https://github.com/ZHZisZZ/dllm-train
 
 ## Citation
 ```
-@misc{dllm-trainer,
+@misc{dllm,
     author = {Zhanhui Zhou and Lingjie Chen},
-    title = {dLLM-Trainer: Lightweight Trainer for Diffusion Large Language Models},
-    howpublished = {https://github.com/ZHZisZZ/dllm-trainer},
+    title = {dllm: Diffusion Large Language Models Training},
+    howpublished = {https://github.com/ZHZisZZ/dllm},
     note = {Accessed: 2025-09-21},
     year = {2025}
 }

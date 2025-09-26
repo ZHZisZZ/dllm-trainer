@@ -3,9 +3,9 @@ LLaDA attention mask test
 """
 import torch
 import transformers
-import dllm_trainer
+import dllm
 
-model_name_or_path = dllm_trainer.utils.resolve_with_base_env(
+model_name_or_path = dllm.utils.resolve_with_base_env(
     "GSAI-ML/LLaDA-8B-Instruct", "BASE_MODELS_DIR"
 )
 model = transformers.AutoModel.from_pretrained(
@@ -39,7 +39,7 @@ Llama attention mask test
 """
 import torch
 import transformers
-import dllm_trainer
+import dllm
 
 # Load model (AutoModelForCausalLM instead of AutoModel so logits are available)
 model = transformers.AutoModelForCausalLM.from_pretrained(

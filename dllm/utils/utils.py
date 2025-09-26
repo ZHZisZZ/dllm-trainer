@@ -2,7 +2,7 @@ import os
 
 import torch
 
-from dllm_trainer.utils.schedulers import BaseScheduler
+from dllm.utils.schedulers import BaseScheduler
 
 
 def looks_like_url_or_scheme(path: str) -> bool:

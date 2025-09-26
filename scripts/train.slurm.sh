@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=dllm-trainer
+#SBATCH --job-name=dllm
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-task=16
@@ -42,7 +42,7 @@ export NCCL_ASYNC_ERROR_HANDLING=1
 export WANDB_MODE=disabled
 export PYTHONPATH=.
 
-# default args for dllm-trainer
+# default args for dllm
 accelerate_config="deepspeed_zero3"
 script_path="scripts/examples/llada_sft.py"
 script_args=""

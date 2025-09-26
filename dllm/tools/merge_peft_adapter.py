@@ -15,7 +15,7 @@ import torch
 from peft import PeftConfig, PeftModel
 from transformers import AutoModel, AutoTokenizer, HfArgumentParser
 
-import dllm_trainer  # so that no need to trust_remote_code
+import dllm  # so that no need to trust_remote_code
 
 DTYPE_MAP = {"fp16": torch.float16, "bf16": torch.bfloat16, "fp32": torch.float}
 

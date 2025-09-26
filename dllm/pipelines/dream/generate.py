@@ -19,9 +19,9 @@ import torch.distributions as dists
 import transformers
 from transformers.utils import ModelOutput
 
-from dllm_trainer.utils.utils import get_num_transfer_tokens
-from dllm_trainer.utils.schedulers import BaseScheduler, LinearScheduler
-from dllm_trainer.pipelines.dream.utils import top_p_logits, top_k_logits
+from dllm.utils.utils import get_num_transfer_tokens
+from dllm.utils.schedulers import BaseScheduler, LinearScheduler
+from dllm.pipelines.dream.utils import top_p_logits, top_k_logits
 
 
 @dataclass
@@ -368,8 +368,8 @@ def test():
     import torch
     import transformers
 
-    import dllm_trainer
-    from dllm_trainer.utils.utils import resolve_with_base_env
+    import dllm
+    from dllm.utils.utils import resolve_with_base_env
 
     @dataclass
     class ScriptArguments:

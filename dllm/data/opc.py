@@ -20,7 +20,7 @@ def load_dataset_opc(dataset_name_or_path: str, name: Optional[Text] = None) -> 
 
 
 if __name__ == "__main__":
-    from dllm_trainer.utils import resolve_with_base_env
+    from dllm.utils import resolve_with_base_env
     dataset_name_or_path = resolve_with_base_env("OpenCoder-LLM/opc-sft-stage2", "BASE_DATASETS_DIR")
     dataset = load_dataset_opc(dataset_name_or_path, "educational_instruct")
     breakpoint()
