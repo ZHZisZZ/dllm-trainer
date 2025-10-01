@@ -4,7 +4,7 @@ from datasets import Dataset, DatasetDict, load_dataset  # NEW
 from dllm.data.alpaca import load_dataset_alpaca
 from dllm.data.opc import load_dataset_opc
 from dllm.data.saferlhf import load_dataset_pku_rlhf_sft
-from dllm.utils import resolve_with_base_env
+from dllm.utils.utils import resolve_with_base_env
 
 
 def _parse_kv_string(s: str) -> dict:

@@ -57,15 +57,14 @@ from collections import OrderedDict
 import torch
 import transformers
 import accelerate
-import peft
 
 import dllm
 from dllm.pipelines import editflow, dream
 
+
 @dataclass
-class ModelArguments:
-    model_name_or_path:     str = "Dream-org/Dream-v0-Base-7B"
-    load_in_4bit:           bool = False
+class ModelArguments(dllm.utils.ModelArguments):
+    model_name_or_path: str = "Dream-org/Dream-v0-Base-7B"
 
 @dataclass
 class DataArguments:
@@ -74,35 +73,11 @@ class DataArguments:
     max_length: int = 1024
 
 @dataclass
-class PeftArguments:
-    lora:           bool  = False
-    target_modules: str   = "all-linear"
-    r:              int   = 64
-    lora_alpha:     int   = 64
-    lora_dropout:   float = 0.05
-    bias:           str   = "none"
-
-@dataclass
-class TrainingArguments(transformers.TrainingArguments):
+class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = "models/EditFlow-Dream-7B/tulu-3-sft-mixture[train:10000,test:1000]"
-    report_to: str = "wandb"
-    overwrite_output_dir: bool = True
-    seed: int = 42
-    per_device_train_batch_size: int = 4
-    per_device_eval_batch_size: int = 4
     gradient_accumulation_steps: int = 2
     learning_rate: float = 1e-4
-    lr_scheduler_type: str = "cosine"
-    warmup_ratio: float = 0.25
-    bf16: bool = True
-    num_train_epochs: float = 4
-    logging_steps: float = 10
-    eval_on_start: bool = False
-    eval_strategy: str = "steps"
-    eval_steps: float = 0.25
-    save_steps: float = 0.25
-    save_only_model: bool = True
-    # others (dream specific training params)
+    # others (editflow specific training params)
     scheduler_cls: str = "LinearKappaScheduler"
     normalize_per_position: bool = True
     max_w: float | None = None
@@ -176,36 +151,14 @@ def train():
     # ----- Argument parsing -------------------------------------------------------
     parser = transformers.HfArgumentParser((
         ModelArguments, 
-        PeftArguments, 
-        DataArguments, 
+        dllm.utils.PeftArguments, 
+        dllm.utils.DataArguments, 
         TrainingArguments
     ))
     model_args, peft_args, data_args, training_args = parser.parse_args_into_dataclasses()
     training_args.label_names = []
     training_args.remove_unused_columns = False
-
-    dllm.utils.print_main("\n===== Parsed arguments =====")
-    for name, args in [
-        ("model_args", model_args),
-        ("peft_args", peft_args),
-        ("data_args", data_args),
-        ("training_args", training_args),
-    ]:
-        d = asdict(args)
-        # keep it tiny: just show first few entries
-        short = {k: d[k] for k in list(d)}  # adjust number as you like
-        dllm.utils.print_main(f"{name}:")
-        dllm.utils.pprint_main(short, width=100, compact=True)
-    dllm.utils.print_main("============================\n")
-
-    # ----- Optional: patch caching allocator warmup (no-op) -----------------------
-    try:
-        from transformers import modeling_utils as _mu
-        def _noop(*args, **kwargs): 
-            return
-        _mu.caching_allocator_warmup = _noop
-    except Exception:
-        pass
+    dllm.utils.print_args_main(model_args, peft_args, data_args, training_args)
 
     # ----- Load base Dream and initialize EditFlowDream ---------------------------
     model_name_or_path = dllm.utils.resolve_with_base_env(
@@ -227,25 +180,11 @@ def train():
     model.floating_point_ops = _no_flops
 
     # ----- Tokenizer --------------------------------------------------------------
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
-        model_name_or_path,
-        padding_side="right",
-    )
-    if not tokenizer.pad_token: tokenizer.pad_token = tokenizer.eos_token
-
+    tokenizer = dllm.utils.get_tokenizer(model_args)
     # ----- Optional PEFT: LoRA ----------------------------------------------------
-    if peft_args.lora:
-        peft_config = peft.LoraConfig(
-            r=peft_args.r,
-            target_modules=peft_args.target_modules,
-            lora_alpha=peft_args.lora_alpha,
-            lora_dropout=peft_args.lora_dropout,
-            bias=peft_args.bias,
-        )
-        model = peft.get_peft_model(model, peft_config)
-        model.print_trainable_parameters()
+    model = dllm.utils.load_peft(model, peft_args)
 
-    # ----- Dataset ---------------------------------------------------------------
+    # ----- Dataset ----------------------------------------------------------------
     # Build emulated pretraining samples from SFT chats:
     # - `input_ids`` = prompt + response
     # - `prompt_len` marks the prompt span to EXCLUDE from loss.
@@ -304,10 +243,8 @@ def train():
         max_w=training_args.max_w,
     )
     trainer.train()
-    trainer.model.save_pretrained(
-        os.path.join(training_args.output_dir, "checkpoint-final"))
-    trainer.processing_class.save_pretrained(
-        os.path.join(training_args.output_dir, "checkpoint-final"))
+    trainer.save_model(os.path.join(training_args.output_dir, "checkpoint-final"))
+    trainer.processing_class.save_pretrained(os.path.join(training_args.output_dir, "checkpoint-final"))
 
 
 if __name__ == "__main__":

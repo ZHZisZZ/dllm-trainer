@@ -33,12 +33,6 @@ Slurm users
         --accelerate_config "single_gpu" \
         --script_path "scripts/examples/llada_sft.py"
 
-- 1 GPU (4bit quant, LoRA):
-    sbatch scripts/train.slurm.sh \
-        --accelerate_config "single_gpu" \
-        --script_path "scripts/examples/llada_sft.py" \
-        --script_args "--load_in_4bit True --lora True"
-
 - 8 GPUs (DeepSpeed ZeRO-2):
     sbatch scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
@@ -53,135 +47,57 @@ import os
 import functools
 from dataclasses import dataclass
 
-import torch
 import transformers
 import accelerate
-import peft
 
 import dllm
 from dllm.pipelines import llada
 
 @dataclass
-class ModelArguments:
-    model_name_or_path:     str = "GSAI-ML/LLaDA-8B-Base" # "inclusionAI/LLaDA-MoE-7B-A1B-Base"
-    load_in_4bit:           bool = False
+class ModelArguments(dllm.utils.ModelArguments):
+    model_name_or_path: str = "GSAI-ML/LLaDA-8B-Base" # "inclusionAI/LLaDA-MoE-7B-A1B-Base"
 
 @dataclass
-class DataArguments:
-    dataset_args: str = "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
-    num_proc: int = 8
-    max_length: int = 512
-
-@dataclass
-class PeftArguments:
-    lora:           bool  = False
-    target_modules: str   = "all-linear"
-    r:              int   = 64
-    lora_alpha:     int   = 64
-    lora_dropout:   float = 0.05
-    bias:           str   = "none"
-
-@dataclass
-class TrainingArguments(transformers.TrainingArguments):
+class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = "models/LLaDA-8B-SFT"
-    report_to: str = "wandb"
-    overwrite_output_dir: bool = True
-    seed: int = 42
-    per_device_train_batch_size: int = 4
-    per_device_eval_batch_size: int = 4
-    gradient_accumulation_steps: int = 1
-    learning_rate: float = 2.5e-5
-    lr_scheduler_type: str = "cosine"
-    warmup_ratio: float = 0.1
-    bf16: bool = True
-    num_train_epochs: float = 3
-    logging_steps: float = 10
-    eval_on_start: bool = True
-    eval_strategy: str = "steps"
-    eval_steps: float = 0.25
-    save_steps: float = 0.25
-    save_only_model: bool = True
     # others (llada specific training params)
     mask_prompt_loss: bool = True
 
 
 def train():
+    # ----- Argument parsing -------------------------------------------------------
     parser = transformers.HfArgumentParser((
         ModelArguments, 
-        PeftArguments, 
-        DataArguments, 
+        dllm.utils.PeftArguments, 
+        dllm.utils.DataArguments, 
         TrainingArguments
     ))
     model_args, peft_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    dllm.utils.print_args_main(model_args, peft_args, data_args, training_args)
 
-    # loading model and tokenizer
-    try:
-        from transformers import modeling_utils as _mu
-        def _noop(*args, **kwargs): 
-            return
-        _mu.caching_allocator_warmup = _noop
-    except Exception:
-        pass
-    model_name_or_path = dllm.utils.resolve_with_base_env(
-        model_args.model_name_or_path, "BASE_MODELS_DIR")
-    model = transformers.AutoModel.from_pretrained(
-        model_name_or_path,
-        torch_dtype=torch.bfloat16,
-        **(
-            {"device_map": {"": accelerate.PartialState().local_process_index}}
-            if not transformers.modeling_utils.is_deepspeed_zero3_enabled()
-            else {}
-        ),
-        quantization_config=(
-            transformers.BitsAndBytesConfig(load_in_4bit=True) 
-            if model_args.load_in_4bit and transformers.utils.is_bitsandbytes_available() 
-            else None
-        ),
-    )
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
-        model_name_or_path,
-        padding_side="right",
-    )
+    # ----- Model ------------------------------------------------------------------
+    model = dllm.utils.get_model(model_args, training_args)
+    # ----- Tokenizer --------------------------------------------------------------
+    tokenizer = dllm.utils.get_tokenizer(model_args)
     # Note: fix bugs in the chat_template of LLaDA tokenizer
     tokenizer = llada.postprocess_llada_tokenizer(tokenizer, model)
-    if not tokenizer.pad_token: tokenizer.pad_token = tokenizer.eos_token
+    # ----- Optional PEFT: LoRA ----------------------------------------------------
+    model = dllm.utils.load_peft(model, peft_args)
 
-    # peft
-    if peft_args.lora:
-        peft_config = peft.LoraConfig(
-            r=peft_args.r,
-            target_modules=peft_args.target_modules,
-            lora_alpha=peft_args.lora_alpha,
-            lora_dropout=peft_args.lora_dropout,
-            bias=peft_args.bias,
-        )
-        model = peft.get_peft_model(model, peft_config)
-        model.print_trainable_parameters()
-
-    ################
-    # Dataset
-    ################
+    # ----- Dataset ----------------------------------------------------------------
     def train_map_fn(
         row, 
         tokenizer: transformers.PreTrainedTokenizer, 
-        mask_prompt_loss: bool = False, 
+        mask_prompt_loss: bool = True, 
         label_pad_token_id: int = -100
     ) -> dict:
         prompt_tokens = tokenizer.apply_chat_template(
-            row["messages"][:-1], 
-            tokenize=True,
-            add_generation_prompt=True)
+            row["messages"][:-1], tokenize=True, add_generation_prompt=True)
         prompt_response_tokens = tokenizer.apply_chat_template(
-            row["messages"],
-            tokenize=True,
-            add_generation_prompt=False)
+            row["messages"], tokenize=True, add_generation_prompt=False)
         labels = prompt_response_tokens.copy()
-        if mask_prompt_loss:
-            labels[:len(prompt_tokens)] = [label_pad_token_id]*len(prompt_tokens)
-        return {
-            "input_ids": prompt_response_tokens,
-            "labels": labels,
-        }
+        if mask_prompt_loss: labels[:len(prompt_tokens)] = [label_pad_token_id]*len(prompt_tokens)
+        return {"input_ids": prompt_response_tokens, "labels": labels}
 
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_sft_dataset(data_args.dataset_args)
@@ -198,9 +114,7 @@ def train():
             num_proc=data_args.num_proc,
         )
 
-    ################
-    # Training
-    ################
+    # ----- Training --------------------------------------------------------------
     trainer = llada.LLaDATrainer(
         model=model,
         tokenizer=tokenizer,
@@ -216,10 +130,8 @@ def train():
         )
     )
     trainer.train()
-    trainer.model.save_pretrained(
-        os.path.join(training_args.output_dir, "checkpoint-final"))
-    trainer.processing_class.save_pretrained(
-        os.path.join(training_args.output_dir, "checkpoint-final"))
+    trainer.save_model(os.path.join(training_args.output_dir, "checkpoint-final"))
+    trainer.processing_class.save_pretrained(os.path.join(training_args.output_dir, "checkpoint-final"))
 
 
 if __name__ == "__main__":

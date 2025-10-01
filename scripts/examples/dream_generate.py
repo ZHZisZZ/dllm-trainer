@@ -29,20 +29,18 @@ class ScriptArguments:
     alg: str = "entropy"
     alg_temp: float = 0.0
     seed: int = 42
+    def __post_init__(self): self.model_name_or_path = resolve_with_base_env(self.model_name_or_path, "BASE_MODELS_DIR")
 
 
 script_args = tyro.cli(ScriptArguments)
 transformers.set_seed(script_args.seed)
 
 # Load model & tokenizer
-model_name_or_path = resolve_with_base_env(
-    script_args.model_name_or_path, "BASE_MODELS_DIR"
-)
 model = transformers.AutoModel.from_pretrained(
-    model_name_or_path, torch_dtype=torch.bfloat16, device_map="auto", 
+    script_args.model_name_or_path, torch_dtype=torch.bfloat16, device_map="auto", 
 ).eval()
 tokenizer = transformers.AutoTokenizer.from_pretrained(
-    model_name_or_path, padding_side = "left" 
+    script_args.model_name_or_path, padding_side = "left" 
 )
 
 # --- Example 1: Batch generation ---
@@ -130,7 +128,7 @@ out = dream.fill_in_blanks(
 
 filled = tokenizer.batch_decode(out)
 
-for i, (ids, f) in enumerate(zip(fib_input_ids_list, filled), 1):
+for i, (ids, f) in enumerate(zip(fib_input_ids_list, filled)):
     print("\n" + "-" * 80)
     print(f"[Case {i}]")
     print("-" * 80)
