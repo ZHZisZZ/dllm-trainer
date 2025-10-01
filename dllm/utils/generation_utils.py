@@ -1,12 +1,12 @@
 import torch
 
-from dllm.utils.schedulers import BaseScheduler
+from dllm.utils.schedulers import BaseAlphaScheduler
 
 
 def get_num_transfer_tokens(
     mask_index: torch.Tensor, 
     steps: int, 
-    scheduler: BaseScheduler, 
+    scheduler: BaseAlphaScheduler, 
     stochastic: bool = False
 ) -> torch.Tensor:
     mask_num = mask_index.sum(dim=1, keepdim=True)

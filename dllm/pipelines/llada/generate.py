@@ -20,7 +20,7 @@ import transformers
 
 from dllm.pipelines.llada.utils import postprocess_llada_tokenizer
 from dllm.utils.generation_utils import get_num_transfer_tokens
-from dllm.utils.schedulers import BaseScheduler, LinearScheduler
+from dllm.utils.schedulers import BaseAlphaScheduler, LinearAlphaScheduler
 
 
 def add_gumbel_noise(logits: torch.Tensor, temperature: float) -> torch.Tensor:
@@ -42,7 +42,7 @@ def generate(
     model: transformers.PreTrainedModel, 
     tokenizer: transformers.PreTrainedTokenizer,
     prompts: list[torch.Tensor], 
-    scheduler: BaseScheduler = LinearScheduler(),
+    scheduler: BaseAlphaScheduler = LinearAlphaScheduler(),
     steps: int = 128, 
     max_new_tokens: int = 256,
     max_length: int = 1024,
@@ -238,7 +238,7 @@ def fill_in_blanks(
     model: transformers.PreTrainedModel, 
     tokenizer: transformers.PreTrainedTokenizer,
     inputs_with_blanks: list[torch.Tensor], 
-    scheduler: BaseScheduler = LinearScheduler(),
+    scheduler: BaseAlphaScheduler = LinearAlphaScheduler(),
     steps: int = 128,  
     block_length: int | None = None,
     temperature: float = 0.,

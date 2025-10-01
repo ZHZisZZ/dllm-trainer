@@ -232,7 +232,7 @@ def train():
         eval_dataset=dataset["test"],
         args=training_args,
         data_collator=editflow.utils.EditFlowCollator(tokenizer=tokenizer, x0_sampler=training_args.x0_sampler),
-        scheduler=editflow.schedulers.make_kappa_scheduler(training_args.scheduler_cls),
+        scheduler=dllm.utils.schedulers.make_kappa_scheduler(training_args.scheduler_cls),
         normalize_per_position=training_args.normalize_per_position,
         max_w=training_args.max_w,
     )

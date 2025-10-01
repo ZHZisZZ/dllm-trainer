@@ -12,7 +12,7 @@ What changed vs. your original:
     * KEEP tokens are black
     * If any deletions happened in the step, the title shows ⌫N (red)
 """
-# srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --time=03:00:000 python examples/editflow/editflow_generate.py --model_name_or_path "models/EditFlow-Dream-7B/tulu-3-sft-mixture-[mix]-opc-sft-stage2/checkpoint-1260"  --tau 0.1 --mask_length 256 --seed 7070 --make_gif
+# srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --time=03:00:000 python examples/editflow/editflow_generate.py --model_name_or_path "models/EditFlow-Dream-7B/tulu-3-sft-mixture-[mix]-opc-sft-stage2/checkpoint-1260"  --tau 0.1 --mask_length 256 --seed 7070  --prompt "write a romantic story" --make_gif
 
 import math
 from dataclasses import dataclass
@@ -22,7 +22,7 @@ import tyro
 import torch
 from transformers import AutoModel, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
 
-from dllm.pipelines.editflow.schedulers import BaseKappaScheduler, LinearKappaScheduler
+from dllm.utils.schedulers import BaseKappaScheduler, LinearKappaScheduler
 
 # Visualization deps
 from PIL import Image, ImageDraw, ImageFont
@@ -99,7 +99,7 @@ def tau_leap_step_minimal(
 
     # Scale normalized rates to true rates
     tt = torch.tensor([[t]], device=device)
-    w = sched.scaling_factor(tt)          # shape [1] or [1,1] depending on impl
+    w = sched.weight(tt)          # shape [1] or [1,1] depending on impl
     del_rate = del_rate_h * w
     sub_rate = sub_rate_h * w
     ins_rate = ins_rate_h * w

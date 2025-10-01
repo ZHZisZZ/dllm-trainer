@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 import transformers
 
-from dllm.pipelines.editflow.schedulers import BaseKappaScheduler, CubicKappaScheduler
+from dllm.utils.schedulers import BaseKappaScheduler, CubicKappaScheduler
 from dllm.pipelines.editflow.utils import pad_1d
 
 
@@ -158,7 +158,7 @@ class EditFlowTrainer(transformers.Trainer):
 
         t = (1-self.time_epsilon) * torch.rand(B, 1, device=device)                         # [B,1]
         k = self.scheduler.kappa(t).to(device)                      # [B,1]
-        w = self.scheduler.scaling_factor(t).squeeze(1).to(device)  # [B]
+        w = self.scheduler.weight(t).squeeze(1).to(device)  # [B]
         if self.max_w: w = w.clamp(max=self.max_w)  # TODO: prevent extreme weights, only needed when applying scaling factor to survival loss
 
         # -------- 2) Sample z_t by κ-mixing (vectorized per example) --------

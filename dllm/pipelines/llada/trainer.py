@@ -6,7 +6,7 @@ import torch.nn.functional as F
 
 import transformers
 
-from dllm.utils.schedulers import BaseScheduler, LinearScheduler
+from dllm.utils.schedulers import BaseAlphaScheduler, LinearAlphaScheduler
 
 
 class LLaDATrainer(transformers.Trainer):
@@ -14,11 +14,11 @@ class LLaDATrainer(transformers.Trainer):
     def __init__(
         self,
         *args,
-        scheduler: Optional[BaseScheduler] = None,
+        scheduler: Optional[BaseAlphaScheduler] = None,
         time_epsilon: float = 1e-3,
         **kawrgs,
     ):
-        self.scheduler = scheduler or LinearScheduler()
+        self.scheduler = scheduler or LinearAlphaScheduler()
         if not (0.0 < time_epsilon < 1.0):
             raise ValueError("eps must be in the open interval (0, 1).")
         self.time_epsilon = time_epsilon
@@ -38,7 +38,7 @@ class LLaDATrainer(transformers.Trainer):
         # affine transform: t ∈ [eps, 1)
         t = self.time_epsilon + (1 - self.time_epsilon) * torch.rand(b, device=input_ids.device)
         p_mask = 1 - self.scheduler(t).unsqueeze(1).repeat(1, l)  # b, 1
-        loss_weight = - self.scheduler.loss_weight(t).unsqueeze(1).repeat(1, l)  # b, 1
+        loss_weight = - self.scheduler.weight(t).unsqueeze(1).repeat(1, l)  # b, 1
         masked_indices = torch.rand((b, l), device=input_ids.device) < p_mask
         masked_indices = masked_indices & (labels != -100)
         effective_lengths = torch.sum(labels != -100, dim=1, keepdim=True).repeat(1, l)  # b, l

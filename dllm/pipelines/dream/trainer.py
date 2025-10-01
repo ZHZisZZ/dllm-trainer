@@ -6,7 +6,7 @@ import torch.nn.functional as F
 
 import transformers
 
-from dllm.utils.schedulers import BaseScheduler, LinearScheduler
+from dllm.utils.schedulers import BaseAlphaScheduler, LinearAlphaScheduler
 
 
 def cart_weight(masked_indices: torch.Tensor, t: torch.Tensor, p: float = 0.3) -> torch.Tensor:
@@ -41,11 +41,11 @@ class DreamTrainer(transformers.Trainer):
     def __init__(
         self,
         *args,
-        scheduler: Optional[BaseScheduler] = None,  # CART isn't function of time
+        scheduler: Optional[BaseAlphaScheduler] = None,  # CART isn't function of time
         geo_p: float = 0.3,
         **kwargs,
     ):
-        self.scheduler = scheduler or LinearScheduler()
+        self.scheduler = scheduler or LinearAlphaScheduler()
         self.geo_p = geo_p
         return super().__init__(*args, **kwargs)
 

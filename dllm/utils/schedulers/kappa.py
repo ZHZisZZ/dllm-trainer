@@ -37,15 +37,15 @@ class BaseKappaScheduler:
         out = self._kappa_derivative(t_tensor)  # fixed recursion
         return out.item() if isinstance(t, float) else out
 
-    def scaling_factor(self, t: Number) -> Number:
+    def weight(self, t: Number) -> Number:
         # w(t) = κ'(t) / (1 - κ(t))
         return self.kappa_derivative(t) / (1 - self.kappa(t) + 1e-6)
 
     # ---- hooks implemented by subclasses ----
-    def _kappa(self, i: torch.Tensor) -> torch.Tensor:
+    def _kappa(self, t: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError
 
-    def _kappa_derivative(self, i: torch.Tensor) -> torch.Tensor:
+    def _kappa_derivative(self, t: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError
 
 
@@ -56,13 +56,13 @@ class CubicKappaScheduler(BaseKappaScheduler):
     a: float = 1.0
     b: float = 1.0
 
-    def _kappa(self, i: torch.Tensor) -> torch.Tensor:
+    def _kappa(self, t: torch.Tensor) -> torch.Tensor:
         # κ(t) = (a+1) t^3 - (a+b+1) t^2 + (b+1) t
-        return (self.a + 1) * (i ** 3) - (self.a + self.b + 1) * (i ** 2) + (self.b + 1) * i
+        return (self.a + 1) * (t ** 3) - (self.a + self.b + 1) * (t ** 2) + (self.b + 1) * t
 
-    def _kappa_derivative(self, i: torch.Tensor) -> torch.Tensor:
+    def _kappa_derivative(self, t: torch.Tensor) -> torch.Tensor:
         # κ'(t) = 3(a+1) t^2 - 2(a+b+1) t + (b+1)
-        return 3 * (self.a + 1) * (i ** 2) - 2 * (self.a + self.b + 1) * i + (self.b + 1)
+        return 3 * (self.a + 1) * (t ** 2) - 2 * (self.a + self.b + 1) * t + (self.b + 1)
 
 
 @dataclasses.dataclass
@@ -74,14 +74,13 @@ class LinearKappaScheduler(CubicKappaScheduler):
 
 @dataclasses.dataclass
 class CosineKappaScheduler(BaseKappaScheduler):
-    def _kappa(self, i: torch.Tensor) -> torch.Tensor:
-        # κ(t) = (1 - cos(π t)) / 2
-        return 0.5 * (1.0 - torch.cos(math.pi * i))
+    def _kappa(self, t: torch.Tensor) -> torch.Tensor:
+        # κ(t) = 1 - cos((π/2) * t)
+        return 1.0 - torch.cos(0.5 * math.pi * t)
 
-    def _kappa_derivative(self, i: torch.Tensor) -> torch.Tensor:
-        # κ'(t) = (π/2) sin(π t)
-        return 0.5 * math.pi * torch.sin(math.pi * i)
-
+    def _kappa_derivative(self, t: torch.Tensor) -> torch.Tensor:
+        # κ'(t) = (π/2) * sin((π/2) * t)
+        return 0.5 * math.pi * torch.sin(0.5 * math.pi * t)
 
 
 # ---------------- Factory helpers ---------------- #
@@ -105,12 +104,12 @@ def make_kappa_scheduler(name: str, **kwargs: Any) -> BaseKappaScheduler:
 if __name__ == "__main__":
     lin_sched = make_kappa_scheduler("LinearKappaScheduler")
     print("Linear κ(0.5):", lin_sched.kappa(0.5))
-    print("Linear w(0.5):", lin_sched.scaling_factor(0.5))
+    print("Linear w(0.5):", lin_sched.weight(0.5))
     print("Linear κ([.25,.5,.75]):", lin_sched.kappa(torch.tensor([0.25, 0.5, 0.75])))
-    print("Linear w([.25,.5,.75]):", lin_sched.scaling_factor(torch.tensor([0.25, 0.5, 0.75])))
+    print("Linear w([.25,.5,.75]):", lin_sched.weight(torch.tensor([0.25, 0.5, 0.75])))
     print("==========================================")
     cos_sched = make_kappa_scheduler("CosineKappaScheduler")
     print("Cosine κ(0.5):", cos_sched.kappa(0.5))
-    print("Cosine w(0.5):", cos_sched.scaling_factor(0.5))
+    print("Cosine w(0.5):", cos_sched.weight(0.5))
     print("Cosine κ([.25,.5,.75]):", cos_sched.kappa(torch.tensor([0.25, 0.5, 0.75])))
-    print("Cosine w([.25,.5,.75]):", cos_sched.scaling_factor(torch.tensor([0.25, 0.5, 0.75])))
+    print("Cosine w([.25,.5,.75]):", cos_sched.weight(torch.tensor([0.25, 0.5, 0.75])))

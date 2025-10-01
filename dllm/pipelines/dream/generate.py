@@ -20,7 +20,7 @@ import transformers
 from transformers.utils import ModelOutput
 
 from dllm.utils.generation_utils import get_num_transfer_tokens
-from dllm.utils.schedulers import BaseScheduler, LinearScheduler
+from dllm.utils.schedulers import BaseAlphaScheduler, LinearAlphaScheduler
 from dllm.pipelines.dream.utils import top_p_logits, top_k_logits
 
 
@@ -75,7 +75,7 @@ def generate(
     model: transformers.PreTrainedModel,
     tokenizer: transformers.PreTrainedTokenizer,
     prompts: list[torch.Tensor],
-    scheduler: BaseScheduler = LinearScheduler(),
+    scheduler: BaseAlphaScheduler = LinearAlphaScheduler(),
     generation_tokens_hook_func=lambda step, x, logits: x,
     generation_logits_hook_func=lambda step, x, logits: logits,
     output_history: bool = False,
@@ -195,7 +195,7 @@ def fill_in_blanks(
     model,
     tokenizer,
     inputs_with_blanks: list[torch.Tensor],
-    scheduler: BaseScheduler = LinearScheduler(),
+    scheduler: BaseAlphaScheduler = LinearAlphaScheduler(),
     generation_tokens_hook_func=lambda step, x, logits: x,
     generation_logits_hook_func=lambda step, x, logits: logits,
     output_history: bool = False,
@@ -234,7 +234,7 @@ def fill_in_blanks(
         inputs_with_blanks:
             List of 1D LongTensors (token ids). Each may contain `<mask>` tokens
             to be filled; other tokens are treated as fixed context.
-        scheduler (BaseScheduler):
+        scheduler (BaseAlphaScheduler):
             Controls how many masks to commit per step (deterministic or stochastic).
         generation_tokens_hook_func / generation_logits_hook_func:
             Optional hooks to intercept tokens/logits at each step.
