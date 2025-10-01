@@ -156,10 +156,10 @@ class EditFlowTrainer(transformers.Trainer):
         assert all(len(z0) == len(z1) for z0, z1 in zip(z0_list, z1_list))
         assert all(z0[0] != BLANK for z0 in z0_list)  # BOS must remain
 
-        t = (1-self.time_epsilon) * torch.rand(B, 1, device=device)                         # [B,1]
-        k = self.scheduler.kappa(t).to(device)                      # [B,1]
-        w = self.scheduler.weight(t).squeeze(1).to(device)  # [B]
-        if self.max_w: w = w.clamp(max=self.max_w)  # TODO: prevent extreme weights, only needed when applying scaling factor to survival loss
+        t = (1-self.time_epsilon) * torch.rand(B, 1, device=device)  # [B,1]
+        k = self.scheduler.kappa(t).to(device)                       # [B,1]
+        w = self.scheduler.weight(t).squeeze(1).to(device)           # [B]
+        if self.max_w: w = w.clamp(max=self.max_w)
 
         # -------- 2) Sample z_t by κ-mixing (vectorized per example) --------
         # Keep python lists -> tensors per-example to reuse build_remaining_edits

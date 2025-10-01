@@ -74,14 +74,10 @@ def tau_leap_step_minimal(
     Single τ-leap step with deletion/substitution conflict resolution
     and right-insert policy.
 
-    - BOS (index 0) is always protected from delete/substitute.
-    - If cfg.edit_prompt is False, protect the prompt span [0, prompt_len):
-        * del/sub disabled for i in [0, prompt_len)
-        * insertion disabled for i in [0, prompt_len-1), but allowed at i=prompt_len-1
-          (the last prompt token) and anywhere i >= prompt_len.
-
-    Returns:
-        x_next, any_edit, step_trace (dict with all intermediates for visualization)
+    Viz-only convention:
+      • Any local annotated as _Ann[*, "viz-only"] is used only for human-visible
+        tracing / debugging (console logs, GIFs) and does not affect generation.
+      • Such variables are also prefixed with '_' for quick visual scanning.
     """
     device = x.device
     T = x.numel()
@@ -99,7 +95,7 @@ def tau_leap_step_minimal(
 
     # Scale normalized rates to true rates
     tt = torch.tensor([[t]], device=device)
-    w = sched.weight(tt)          # shape [1] or [1,1] depending on impl
+    w = sched.weight(tt)
     del_rate = del_rate_h * w
     sub_rate = sub_rate_h * w
     ins_rate = ins_rate_h * w
@@ -107,15 +103,11 @@ def tau_leap_step_minimal(
     # Clamp prompt_len within current T (robustness)
     prompt_len_clamped = int(max(1, min(prompt_len, T)))
 
-    # Disable deleting and substituting BOS token
-    del_rate[:, 0] = 0.0
-    sub_rate[:, 0] = 0.0
 
     if not cfg.edit_prompt:
         # Protect the entire prompt span from del/sub
         del_rate[:, :prompt_len_clamped] = 0.0
         sub_rate[:, :prompt_len_clamped] = 0.0
-
         # Disallow insertions inside the prompt EXCEPT at the last prompt token
         if prompt_len_clamped >= 2:
             ins_rate[:, :prompt_len_clamped-1] = 0.0
@@ -132,7 +124,7 @@ def tau_leap_step_minimal(
     # Insertions (right of token i)
     ins_fire = _bernoulli_from_rate(ins_rate.squeeze(0), cfg.tau).bool()  # [T]
 
-    # Sample token draws where needed (temperature applied here)
+    # Token draws (algorithmic, not viz-only)
     sub_samples: List[Optional[int]] = [
         _sample_from_logits(sub_logits[0, i], cfg.temperature) if choose_sub[i] else None
         for i in range(T)
@@ -144,56 +136,61 @@ def tau_leap_step_minimal(
 
     # Build new sequence left→right (apply insertions to the RIGHT)
     new_ids: List[int] = []
-    before_ops: List[str] = []  # per "before" position: DEL/SUB/KEEP
-    after_ops: List[str] = []   # per "after" token aligned to new_ids: INS/SUB/KEEP
+
+    # --- viz-only per-position labels (for trace/GIF) ---
+    _before_ops: Annotated[List[str], "viz-only"] = []  # per 'before' position: DEL/SUB/KEEP
+    _after_ops:  Annotated[List[str], "viz-only"] = []  # per 'after' token aligned to new_ids: INS/SUB/KEEP
 
     for i in range(T):
         if choose_del[i]:
-            before_ops.append("DEL")  # dropped below
+            _before_ops.append("DEL")
+            # deletion -> no token appended
         elif choose_sub[i]:
-            before_ops.append("SUB")
+            _before_ops.append("SUB")
             new_tok = sub_samples[i]
             new_ids.append(int(new_tok))
-            after_ops.append("SUB")
+            _after_ops.append("SUB")
         else:
-            before_ops.append("KEEP")
+            _before_ops.append("KEEP")
             new_ids.append(int(x[i].item()))
-            after_ops.append("KEEP")
+            _after_ops.append("KEEP")
+
         if ins_samples[i] is not None:
             new_ids.append(int(ins_samples[i]))
-            after_ops.append("INS")
+            _after_ops.append("INS")
 
-    # Verbose console trace (optional)
+    # Optional verbose console trace (viz-only)
     if cfg.verbose and (comb_fire.any() or ins_fire.any()):
-        def _tok_str(tok_id: int) -> str:
+        def _tok_str(tok_id: int) -> str:  # viz-only helper
             try:
                 s = tokenizer.decode([int(tok_id)])
                 return s if s.strip() else f"<{int(tok_id)}>"
             except Exception:
                 return f"<{int(tok_id)}>"
-        ops = []
+        _ops_strs: Annotated[List[str], "viz-only"] = []
         for i in range(T):
             if choose_del[i]:
-                ops.append(f"DEL@{i}:{_tok_str(int(x[i]))}")
+                _ops_strs.append(f"DEL@{i}:{_tok_str(int(x[i]))}")
             elif choose_sub[i]:
-                ops.append(f"SUB@{i}:{_tok_str(int(x[i]))}->{_tok_str(sub_samples[i])}")
+                _ops_strs.append(f"SUB@{i}:{_tok_str(int(x[i]))}->{_tok_str(sub_samples[i])}")
             if ins_samples[i] is not None:
-                ops.append(f"INS@{i}->{i+1}:{_tok_str(ins_samples[i])}")
+                _ops_strs.append(f"INS@{i}->{i+1}:{_tok_str(ins_samples[i])}")
         print("[time]", f"{t:.4f}")
-        print("[events]", "; ".join(ops))
+        print("[events]", "; ".join(_ops_strs))
         print("[decode]\n", tokenizer.decode(new_ids, skip_special_tokens=True))
         print()
 
     x_next = torch.tensor(new_ids, dtype=torch.long, device=device)
     any_edit = bool(comb_fire.any().item() or ins_fire.any().item())
 
-    # Step trace payload for visualization
-    step_trace = {
+    # --- step trace payload (returned; used only for visualization downstream) ---
+    _step_trace: Annotated[dict, "viz-only"] = {
         "t": float(t),
         "x_before_ids": [int(i) for i in x.tolist()],
         "x_after_ids": [int(i) for i in new_ids],
-        "before_ops": before_ops,  # len = len(x_before_ids), values in {"DEL","SUB","KEEP"}
-        "after_ops": after_ops,    # len = len(x_after_ids), values in {"INS","SUB","KEEP"}
+        "before_ops": _before_ops,   # viz-only labels
+        "after_ops": _after_ops,     # viz-only labels
+        # below are algorithmic signals copied for visualization/analysis
         "choose_del": [bool(v) for v in choose_del.tolist()],
         "choose_sub": [bool(v) for v in choose_sub.tolist()],
         "ins_fire":   [bool(v) for v in ins_fire.tolist()],
@@ -202,22 +199,27 @@ def tau_leap_step_minimal(
         "prompt_len": prompt_len_clamped,
     }
 
-    return x_next, any_edit, step_trace
+    return x_next, any_edit, _step_trace
 
 
 # -------------------------------- top-level generate -------------------------------
 
 @torch.no_grad()
-def generate_editflow_minimal(model, tokenizer, args, cfg: GenCfg):
+def generate_editflow_minimal(
+    model: PreTrainedModel,
+    tokenizer: PreTrainedTokenizer,
+    args,
+    cfg: GenCfg,
+) -> Tuple[str, dict]:
     """
     Returns:
         final_text, trace
-    where trace is:
-        {
-          "steps": [ step_trace_0, step_trace_1, ... ],
-          "init":  { "t": 0.0, "x_ids": [...], "prompt_len": int },
-          "end_t": float
-        }
+
+    Notes on annotations:
+      • Any local annotated with Annotated[..., "viz-only"] is only used to build
+        the decode trace for visualization (e.g., GIF rendering) and has no effect
+        on the actual generation. Such variables are also prefixed with '_' to make
+        this visually obvious in code.
     """
     torch.manual_seed(cfg.seed)
 
@@ -251,15 +253,16 @@ def generate_editflow_minimal(model, tokenizer, args, cfg: GenCfg):
     tau = cfg.tau
     steps = math.ceil(1.0 / max(tau, 1e-9))
 
-    trace = {
+    _trace: Annotated[dict, "viz-only: full decode trace for GIF/inspection"] = {
         "steps": [],
         "init": {"t": 0.0, "x_ids": [int(i) for i in x.tolist()], "prompt_len": int(prompt_len)},
         "end_t": 0.0,
     }
+    # ---------------------------------------------------------------------------
 
     t = 0.0
     for _ in range(steps):
-        x, edited, step_trace = tau_leap_step_minimal(
+        x, edited, _step_trace = tau_leap_step_minimal(
             x=x,
             model=model,
             tokenizer=tokenizer,
@@ -268,16 +271,23 @@ def generate_editflow_minimal(model, tokenizer, args, cfg: GenCfg):
             sched=sched,
             cfg=cfg
         )
-        trace["steps"].append(step_trace)
+
+        # ---- Visualization-only: append the per-step trace --------------------
+        _step_trace: Annotated[dict, "viz-only: per-step intermediates for trace"]
+        _trace["steps"].append(_step_trace)
+        # -----------------------------------------------------------------------
+
         t = min(1.0, t + tau)
         if t >= 1.0 - args.time_epsilon:
             break
 
-    trace["end_t"] = float(t)
+    # ---- Visualization-only: finalize trace metadata --------------------------
+    _trace["end_t"] = float(t)
+    # ---------------------------------------------------------------------------
 
     final_text = tokenizer.decode(x.tolist(), skip_special_tokens=True)
     print("[final]")
-    return final_text, trace
+    return final_text, _trace
 
 
 # ------------------------------ Visualization (NEW) ------------------------------

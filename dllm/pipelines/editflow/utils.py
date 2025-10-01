@@ -41,14 +41,14 @@ def sample_x0_empty(*args, **kwargs) -> List[int]:
     """Return BOS-only (i.e. no tokens after BOS)."""
     return []
 
-def sample_x0_masks(tokenizer: Any, *args, target_len=24, **kwargs) -> List[int]:
+def sample_x0_masks(x1_ids: List[int], tokenizer: Any, *args, **kwargs) -> List[int]:
     """
     Return a run of mask tokens of length `target_len`.
     """
     mask_id = getattr(tokenizer, "mask_token_id", None)
     if mask_id is None:
         raise ValueError("tokenizer needs mask_token_id for mask-based sampler")
-    return [int(mask_id)] * target_len
+    return [int(mask_id)] * len(x1_ids)
 
 def sample_x0_noisy(
     x1_ids: List[int],
@@ -205,17 +205,22 @@ class EditFlowCollator:
 
 def pad_1d(batch_lists: List[List[int]], pad_val: int) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Pads a list of variable-length integer lists into a tensor [B, Lmax] plus mask [B, Lmax].
+    Pads a list of variable-length integer lists into:
+      - out: tensor of shape [B, Lmax] with padding value `pad_val`
+      - mask: tensor of shape [B, Lmax] with 1 for real tokens and 0 for padding (int mask)
     """
     B = len(batch_lists)
     Lmax = max((len(x) for x in batch_lists), default=0)
     out = torch.full((B, Lmax), pad_val, dtype=torch.long)
-    mask = torch.zeros((B, Lmax), dtype=torch.bool)
+    mask = torch.zeros((B, Lmax), dtype=torch.long)  # 0/1 mask (int)
+
     for b, x in enumerate(batch_lists):
-        if len(x) == 0:
+        if not x:
             continue
-        out[b, :len(x)] = torch.tensor(x, dtype=torch.long)
-        mask[b, :len(x)] = True
+        L = len(x)
+        out[b, :L] = torch.tensor(x, dtype=torch.long)
+        mask[b, :L] = 1  # mark valid positions with 1
+
     return out, mask
 
 

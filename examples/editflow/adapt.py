@@ -4,13 +4,13 @@ Local users
 - 1 GPU:
     accelerate launch \
         --config_file scripts/accelerate_configs/single_gpu.yaml \
-        examples/editflow/pt.py
+        examples/editflow/adapt.py
 
 - 1 GPU (4bit quant, LoRA) & Weight merging:
     # train
     accelerate launch \
         --config_file scripts/accelerate_configs/single_gpu.yaml \
-        examples/editflow/pt.py \
+        examples/editflow/adapt.py \
         --load_in_4bit True --lora True
 
     # merge lora weights
@@ -22,7 +22,7 @@ Local users
 - 8 GPUs (DeepSpeed ZeRO-2):
     accelerate launch \
         --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
-        examples/editflow/pt.py
+        examples/editflow/adapt.py
 
 Slurm users
 # Note: run `mkdir logs` before running sbatch; and adjust 
@@ -31,17 +31,17 @@ Slurm users
 - 1 GPU:
     sbatch scripts/train.slurm.sh \
         --accelerate_config "single_gpu" \
-        --script_path "examples/editflow/pt.py"
+        --script_path "examples/editflow/adapt.py"
 
 - 8 GPUs (DeepSpeed ZeRO-2):
     sbatch scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
-        --script_path "examples/editflow/pt.py"
+        --script_path "examples/editflow/adapt.py"
 
 - 2 Nodes, 16 GPUs (DeepSpeed ZeRO-2):
     sbatch --nodes=2 scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
-        --script_path "examples/editflow/pt.py"
+        --script_path "examples/editflow/adapt.py"
 """
 import os
 import functools
@@ -58,19 +58,17 @@ from dllm.pipelines import editflow, dream
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
-    model_name_or_path: str = "Dream-org/Dream-v0-Base-7B"
+    model_name_or_path: str = "Dream-org/Dream-v0-Instruct-7B"
 
 @dataclass
 class DataArguments:
     dataset_args: str = "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
-    num_proc: int = 8
-    max_length: int = 1024
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = "models/EditFlow-Dream-7B/tulu-3-sft-mixture[train:10000,test:1000]"
+    output_dir: str = "models/EditFlow-Dream-Instruct-7B/tulu-3-sft-mixture[train:10000,test:1000]"
     gradient_accumulation_steps: int = 2
-    learning_rate: float = 1e-4
+    learning_rate: float = 5e-5
     # others (editflow specific training params)
     scheduler_cls: str = "LinearKappaScheduler"
     normalize_per_position: bool = True
@@ -198,6 +196,8 @@ def train():
             tokenize=True,
             add_generation_prompt=False,
         )
+        # overwrite "<|im_end|>\n" to "<|im_end|><|endoftext|>"
+        prompt_response_tokens[-1] = tokenizer.eos_token_id
         if mask_prompt_loss:
             return {
                 "input_ids": prompt_response_tokens,

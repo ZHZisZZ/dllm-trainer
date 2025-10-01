@@ -21,9 +21,6 @@ class EditFlowDreamModel(dream.DreamModel):
         super().__init__(config)
         self.sub_logits = copy.deepcopy(self.lm_head)
         self.ins_logits = copy.deepcopy(self.lm_head)
-        # self.sub_rate = nn.Sequential(nn.Linear(config.hidden_size, 1), nn.Softplus())
-        # self.ins_rate = nn.Sequential(nn.Linear(config.hidden_size, 1), nn.Softplus())
-        # self.del_rate = nn.Sequential(nn.Linear(config.hidden_size, 1), nn.Softplus())
         self.rate_heads = nn.Sequential(nn.Linear(config.hidden_size, 3), nn.Softplus())
         self.post_init()
 
@@ -43,17 +40,20 @@ class EditFlowDreamModel(dream.DreamModel):
         )
         h = output["hidden_states"][-1] # final hidden states
         # Position heads
-        sub_log = self.sub_logits(h)                    # [B, L, V]
-        ins_log = self.ins_logits(h)                    # [B, L, V]
-        rates = self.rate_heads(h)               # [B, L, 3]
+        sub_log = self.sub_logits(h)      # [B, L, V]
+        sub_log = torch.concatenate([torch.zeros_like(sub_log)[:, :1], sub_log[:, :-1]], dim=1) # [B, L, V]
+        ins_log = self.ins_logits(h)      # [B, L, V]
+
+        rates = self.rate_heads(h)
         sub_rate_hat, del_rate_hat, ins_rate_hat = rates.unbind(-1)    # [B, L], [B, L], [B, L]
+        sub_rate_hat = torch.concatenate([torch.zeros_like(sub_rate_hat[:, :1]), sub_rate_hat[:, :-1]], dim=1) # [B, L]
+        del_rate_hat = torch.concatenate([torch.zeros_like(del_rate_hat[:, :1]), del_rate_hat[:, :-1]], dim=1) # [B, L]
         return dict(
             sub_rate_hat=sub_rate_hat,    # [B,L]
             del_rate_hat=del_rate_hat,    # [B,L]
             ins_rate_hat=ins_rate_hat,    # [B,L]
-
-            ins_logits=ins_log,       # [B,L,V]
-            sub_logits=sub_log,       # [B,L,V]
+            ins_logits=ins_log,           # [B,L,V]
+            sub_logits=sub_log,           # [B,L,V]
         )
 
 
