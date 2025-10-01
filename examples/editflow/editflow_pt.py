@@ -4,13 +4,13 @@ Local users
 - 1 GPU:
     accelerate launch \
         --config_file scripts/accelerate_configs/single_gpu.yaml \
-        scripts/examples/editflow_pt.py
+        examples/editflow/editflow_pt.py
 
 - 1 GPU (4bit quant, LoRA) & Weight merging:
     # train
     accelerate launch \
         --config_file scripts/accelerate_configs/single_gpu.yaml \
-        scripts/examples/editflow_pt.py \
+        examples/editflow/editflow_pt.py \
         --load_in_4bit True --lora True
 
     # merge lora weights
@@ -22,7 +22,7 @@ Local users
 - 8 GPUs (DeepSpeed ZeRO-2):
     accelerate launch \
         --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
-        scripts/examples/editflow_pt.py
+        examples/editflow/editflow_pt.py
 
 Slurm users
 # Note: run `mkdir logs` before running sbatch; and adjust 
@@ -31,27 +31,21 @@ Slurm users
 - 1 GPU:
     sbatch scripts/train.slurm.sh \
         --accelerate_config "single_gpu" \
-        --script_path "scripts/examples/editflow_pt.py"
-
-- 1 GPU (4bit quant, LoRA):
-    sbatch scripts/train.slurm.sh \
-        --accelerate_config "single_gpu" \
-        --script_path "scripts/examples/editflow_pt.py" \
-        --script_args "--load_in_4bit True --lora True"
+        --script_path "examples/editflow/editflow_pt.py"
 
 - 8 GPUs (DeepSpeed ZeRO-2):
     sbatch scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
-        --script_path "scripts/examples/editflow_pt.py"
+        --script_path "examples/editflow/editflow_pt.py"
 
 - 2 Nodes, 16 GPUs (DeepSpeed ZeRO-2):
     sbatch --nodes=2 scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
-        --script_path "scripts/examples/editflow_pt.py"
+        --script_path "examples/editflow/editflow_pt.py"
 """
 import os
 import functools
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from collections import OrderedDict
 
 import torch

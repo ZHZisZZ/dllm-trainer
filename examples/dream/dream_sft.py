@@ -4,13 +4,13 @@ Local users
 - 1 GPU:
     accelerate launch \
         --config_file scripts/accelerate_configs/single_gpu.yaml \
-        scripts/examples/dream_sft.py
+        examples/dream/dream_sft.py
 
 - 1 GPU (4bit quant, LoRA) & Weight merging:
     # train
     accelerate launch \
         --config_file scripts/accelerate_configs/single_gpu.yaml \
-        scripts/examples/dream_sft.py \
+        examples/dream/dream_sft.py \
         --load_in_4bit True --lora True
 
     # merge lora weights
@@ -22,7 +22,7 @@ Local users
 - 8 GPUs (DeepSpeed ZeRO-2):
     accelerate launch \
         --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
-        scripts/examples/dream_sft.py
+        examples/dream/dream_sft.py
 
 Slurm users
 # Note: run `mkdir logs` before running sbatch; and adjust 
@@ -31,17 +31,17 @@ Slurm users
 - 1 GPU:
     sbatch scripts/train.slurm.sh \
         --accelerate_config "single_gpu" \
-        --script_path "scripts/examples/dream_sft.py"
+        --script_path "examples/dream/dream_sft.py"
 
 - 8 GPUs (DeepSpeed ZeRO-2):
     sbatch scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
-        --script_path "scripts/examples/dream_sft.py"
+        --script_path "examples/dream/dream_sft.py"
 
 - 2 Nodes, 16 GPUs (DeepSpeed ZeRO-2):
     sbatch --nodes=2 scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
-        --script_path "scripts/examples/dream_sft.py"
+        --script_path "examples/dream/dream_sft.py"
 """
 import os
 import functools

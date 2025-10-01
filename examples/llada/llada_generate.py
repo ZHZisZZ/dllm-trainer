@@ -1,12 +1,12 @@
 """
 Local users
 ------------
-python scripts/examples/llada_generate.py --model_name_or_path "YOUR_MODEL_PATH"
+python examples/llada/llada_generate.py --model_name_or_path "YOUR_MODEL_PATH"
 
 Slurm users
 ------------
 srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --time=03:00:000 \
-    python scripts/examples/llada_generate.py --model_name_or_path "YOUR_MODEL_PATH"
+    python examples/llada/llada_generate.py --model_name_or_path "YOUR_MODEL_PATH"
 """
 from dataclasses import dataclass
 

@@ -24,7 +24,7 @@ pip install -e .
 <summary>LLaDA / LLaDA-MoE: SFT and Batch Sampling</summary>
 
 ### `SFT`
-Basic usage of [`LLaDATrainer`](https://github.com/ZHZisZZ/dllm/blob/main/dllm/pipelines/llada/trainer.py#L12). See [`scripts/examples/llada_sft.py`](https://github.com/ZHZisZZ/dllm/blob/main/scripts/examples/llada_sft.py) for a complete example.
+Basic usage of [`LLaDATrainer`](https://github.com/ZHZisZZ/dllm/blob/main/dllm/pipelines/llada/trainer.py#L12). See [`examples/llada/llada_sft.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/llada/llada_sft.py) for a complete example.
 ```python
 import transformers
 
@@ -71,7 +71,7 @@ trainer.train()
 
 
 ### `Sampling`
-See [`scripts/examples/llada_generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/scripts/examples/llada_generate.py) for a complete example of batch sampling (continuation and fill_in_blanks).
+See [`examples/llada/llada_generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/llada/llada_generate.py) for a complete example of batch sampling (continuation and fill_in_blanks).
 
 </details>
 
@@ -79,7 +79,7 @@ See [`scripts/examples/llada_generate.py`](https://github.com/ZHZisZZ/dllm/blob/
 <summary>Dream: SFT and Batch Sampling</summary>
 
 ### `SFT`
-Basic usage of [`DreamTrainer`](https://github.com/ZHZisZZ/dllm/blob/main/dllm/pipelines/dream/trainer.py#L39). See [`scripts/examples/dream_sft.py`](https://github.com/ZHZisZZ/dllm/blob/main/scripts/examples/dream_sft.py) for a complete example.
+Basic usage of [`DreamTrainer`](https://github.com/ZHZisZZ/dllm/blob/main/dllm/pipelines/dream/trainer.py#L39). See [`examples/dream/dream_sft.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/dream/dream_sft.py) for a complete example.
 
 ```python
 import transformers
@@ -114,7 +114,7 @@ trainer.train()
 
 
 ### `Sampling`
-See [`scripts/examples/dream_generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/scripts/examples/dream_generate.py) for a complete example of batch sampling (continuation and fill_in_blanks).
+See [`examples/dream/dream_generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/dream/dream_generate.py) for a complete example of batch sampling (continuation and fill_in_blanks).
 
 </details>
 
