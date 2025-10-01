@@ -69,9 +69,9 @@ class ModelArguments:
 
 @dataclass
 class DataArguments:
-    dataset_args: str = "dataset_name_or_path=dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    dataset_args: str = "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
     num_proc: int = 8
-    max_length: int = 512
+    max_length: int = 1024
 
 @dataclass
 class PeftArguments:
@@ -95,7 +95,7 @@ class TrainingArguments(transformers.TrainingArguments):
     lr_scheduler_type: str = "cosine"
     warmup_ratio: float = 0.25
     bf16: bool = True
-    num_train_epochs: float = 5
+    num_train_epochs: float = 4
     logging_steps: float = 10
     eval_on_start: bool = False
     eval_strategy: str = "steps"
@@ -106,6 +106,8 @@ class TrainingArguments(transformers.TrainingArguments):
     scheduler_cls: str = "LinearKappaScheduler"
     normalize_per_position: bool = True
     max_w: float | None = None
+    x0_sampler: str = "sample_x0_mixture" # sample_x0_masks, sample_x0_empty
+    mask_prompt_loss: bool = True
 
 
 def init_editflow_from_dream(ef_model, dream_model, lm_head_key="lm_head", verbose=True):
@@ -244,34 +246,36 @@ def train():
         model.print_trainable_parameters()
 
     # ----- Dataset ---------------------------------------------------------------
-    # ! Note: Concat the `prompt` and `response` field from the SFT dataset as pretraining data.
-    # ! Note: Replace or extend this to construct the actual pretraining dataset.
+    # Build emulated pretraining samples from SFT chats:
+    # - `input_ids`` = prompt + response
+    # - `prompt_len` marks the prompt span to EXCLUDE from loss.
+    #   (Remove prompt_len to train on all tokens—if so, ensure a BOS is prepended.)
     def train_map_fn(
         row, 
         tokenizer: transformers.PreTrainedTokenizer, 
+        mask_prompt_loss: bool = True, 
     ) -> dict:
-        # Tokenize chat into a single sequence
+        prompt_tokens = tokenizer.apply_chat_template(
+            row["messages"][:-1],
+            tokenize=True,
+            add_generation_prompt=True,
+        )
         prompt_response_tokens = tokenizer.apply_chat_template(
             row["messages"],
             tokenize=True,
             add_generation_prompt=False,
         )
-
-        input_ids = list(prompt_response_tokens)
-
-        # Prepend BOS if missing
-        bos_id = tokenizer.bos_token_id
-        if bos_id is not None and (len(input_ids) == 0 or input_ids[0] != bos_id):
-            input_ids = [bos_id] + input_ids
-
-        # Append EOS if missing
-        eos_id = tokenizer.eos_token_id
-        if eos_id is not None and (len(input_ids) == 0 or input_ids[-1] != eos_id):
-            input_ids = input_ids + [eos_id]
-
-        return {
-            "input_ids": input_ids,
-        }
+        if mask_prompt_loss:
+            return {
+                "input_ids": prompt_response_tokens,
+                "prompt_len": len(prompt_tokens), # ! Note: remove this to train on all "input_ids"
+            }
+        else:
+            # When training on all tokens, prepend a BOS token (if missing)
+            # so the model can insert to the left of the very first token.
+            if prompt_response_tokens[0] != tokenizer.bos_token_id:
+                prompt_response_tokens = [tokenizer.bos_token_id] + prompt_response_tokens
+            return {"input_ids": prompt_response_tokens}
 
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_sft_dataset(data_args.dataset_args)
@@ -294,7 +298,7 @@ def train():
         train_dataset=dataset["train"],
         eval_dataset=dataset["test"],
         args=training_args,
-        data_collator=editflow.utils.EditFlowCollator(tokenizer=tokenizer, x0_sampler="sample_x0_with_masks"),
+        data_collator=editflow.utils.EditFlowCollator(tokenizer=tokenizer, x0_sampler=training_args.x0_sampler),
         scheduler=editflow.schedulers.make_kappa_scheduler(training_args.scheduler_cls),
         normalize_per_position=training_args.normalize_per_position,
         max_w=training_args.max_w,

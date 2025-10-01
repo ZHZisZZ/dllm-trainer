@@ -7,35 +7,153 @@ import torch
 import transformers
 
 # ------------------------------- Collator (x0 source) --------------------------------
+# ---------------- Utilities ---------------- #
+
+def _special_id_set(tokenizer: Any) -> set:
+    s = set()
+    for attr in [
+        "all_special_ids", "bos_token_id", "eos_token_id", "pad_token_id",
+        "unk_token_id", "cls_token_id", "sep_token_id", "mask_token_id"
+    ]:
+        v = getattr(tokenizer, attr, None)
+        if v is None: 
+            continue
+        if isinstance(v, (list, tuple)):
+            s.update(int(x) for x in v if x is not None)
+        else:
+            s.add(int(v))
+    return s
+
+def _rand_vocab_token(tokenizer: Any, *, exclude: set) -> int:
+    # Uniform draw over vocab \ exclude
+    V = getattr(tokenizer, "vocab_size", None)
+    if V is None:
+        # Fallback for some tokenizers
+        V = len(getattr(tokenizer, "get_vocab")())
+    while True:
+        tok = random.randint(0, V - 1)
+        if tok not in exclude:
+            return tok
+
 # ---------------- Implementations ---------------- #
 
 def sample_x0_empty(*args, **kwargs) -> List[int]:
     """Return BOS-only (i.e. no tokens after BOS)."""
     return []
 
-def sample_x0_with_masks(x1_ids: List[int], tokenizer: Any) -> List[int]:
+def sample_x0_masks(tokenizer: Any, *args, target_len=24, **kwargs) -> List[int]:
     """
-    Return a run of mask tokens of length ~ Uniform(0.75*|x1_wo_bos|, 1.25*|x1_wo_bos|).
-    Ensures at least 1 token so there’s something to edit.
+    Return a run of mask tokens of length `target_len`.
     """
-    L = max(0, len(x1_ids) - 1)   # exclude BOS
-    if L == 0:
-        target_len = 1
-    else:
-        low = max(1, math.floor(0.75 * L))
-        high = max(low, math.ceil(1.25 * L))
-        target_len = random.randint(low, high)
-
     mask_id = getattr(tokenizer, "mask_token_id", None)
     if mask_id is None:
         raise ValueError("tokenizer needs mask_token_id for mask-based sampler")
     return [int(mask_id)] * target_len
 
+def sample_x0_noisy(
+    x1_ids: List[int],
+    tokenizer: Any,
+    # Per-token action probs (renormalized; p_mask ignored if tokenizer has no mask id)
+    p_del: float = 0.20,   # delete (teaches later INSERT)
+    p_sub: float = 0.15,   # substitute with a different vocab token (teaches SUB)
+    p_mask: float = 0.05,  # replace with [MASK]
+    p_keep: float = 0.60,  # keep as-is
+    # Independent chance to insert a distractor token *after* each processed position:
+    p_ins_after: float = 0.02,
+    ensure_min_len: bool = True,
+) -> List[int]:
+    """
+    Build x0 by applying Delete/Substitute/Mask/Keep to the provided sequence.
+    NOTE: BOS is *not* expected here (the caller already excluded it).
+    """
+    if not x1_ids:
+        return []
+
+    specials = _special_id_set(tokenizer)
+    mask_id = getattr(tokenizer, "mask_token_id", None)
+
+    # Effective probabilities (drop p_mask if no mask id; renormalize)
+    p_del = max(0.0, p_del)
+    p_sub = max(0.0, p_sub)
+    p_keep = max(0.0, p_keep)
+    p_mask_eff = max(0.0, p_mask) if mask_id is not None else 0.0
+    s = p_del + p_sub + p_mask_eff + p_keep
+    if s <= 0.0:
+        # robust fallback
+        p_del, p_sub, p_mask_eff, p_keep = (0.1, 0.1, 0.2 if mask_id is not None else 0.0, 0.6)
+        s = p_del + p_sub + p_mask_eff + p_keep
+    p_del, p_sub, p_mask_eff, p_keep = (p_del/s, p_sub/s, p_mask_eff/s, p_keep/s)
+
+    out: List[int] = []
+    for tok in x1_ids:
+        r = random.random()
+        if r < p_del:
+            # DELETE
+            pass
+        elif r < p_del + p_sub:
+            # SUBSTITUTE (avoid specials and original token)
+            exclude = specials | {int(tok)}
+            sub_tok = _rand_vocab_token(tokenizer, exclude=exclude)
+            out.append(int(sub_tok))
+        elif r < p_del + p_sub + p_mask_eff:
+            # MASK
+            out.append(int(mask_id))  # type: ignore[arg-type]
+        else:
+            # KEEP
+            out.append(int(tok))
+
+        # Optional distractor INSERT after this position
+        if random.random() < p_ins_after:
+            ins_tok = _rand_vocab_token(tokenizer, exclude=specials)
+            out.append(int(ins_tok))
+
+    # Ensure at least one token emitted
+    if ensure_min_len and len(out) == 0:
+        if mask_id is not None:
+            out = [int(mask_id)]
+        else:
+            # substitute for first token if possible; else random non-special
+            exclude = specials | ({int(x1_ids[0])} if x1_ids else set())
+            out = [_rand_vocab_token(tokenizer, exclude=exclude)]
+
+    return out
+
+def sample_x0_mixture(
+    x1_ids: List[int],
+    tokenizer: Any,
+    *args,
+    w_empty: float = 0.20,          # teaches INSERT beyond prompt
+    w_noisy: float = 0.20,          # teaches SUB + DEL + KEEP
+    w_masks: float = 0.60,          # optional mask-run variety
+    **kwargs,
+    # You can pass through knobs for noisy/mask variants by editing defaults here
+) -> List[int]:
+    """
+    Sample x0 from a mixture:
+      - prompt-only (empty tail): insert-heavy supervision
+      - noisy-tokens: substitution/deletion supervision
+      - masks: optional variety
+    """
+    ws = [max(0.0, w_empty), max(0.0, w_noisy), max(0.0, w_masks)]
+    s = sum(ws)
+    # if s == 0: ws = [0.3, 0.5, 0.2]
+    # else: ws = [w/s for w in ws]
+    ws = [w/s for w in ws]
+    r = random.random()
+    if r < ws[0]:
+        return sample_x0_empty(x1_ids=x1_ids, tokenizer=tokenizer)
+    elif r < ws[0] + ws[1]:
+        return sample_x0_noisy(x1_ids=x1_ids, tokenizer=tokenizer)
+    else:
+        return sample_x0_masks(x1_ids=x1_ids, tokenizer=tokenizer)
+
 # ---------------- Factory ---------------- #
 
 _X0_SAMPLERS: Dict[str, Callable[[List[int], Any], List[int]]] = {
     "sample_x0_empty": sample_x0_empty,
-    "sample_x0_with_masks": sample_x0_with_masks,
+    "sample_x0_masks": sample_x0_masks,
+    "sample_x0_noisy": sample_x0_noisy,
+    "sample_x0_mixture": sample_x0_mixture,
 }
 
 def make_x0_sampler(name: str) -> Callable[[List[int], Any], List[int]]:
@@ -47,7 +165,7 @@ def make_x0_sampler(name: str) -> Callable[[List[int], Any], List[int]]:
 @dataclass
 class EditFlowCollator:
     tokenizer: transformers.PreTrainedTokenizer = None
-    x0_sampler: Callable | Text | None = sample_x0_with_masks  # can be func OR name
+    x0_sampler: Callable | Text | None = sample_x0_masks  # can be func OR name
 
     def _get_sampler(self) -> Callable[[List[int], Any], List[int]]:
         if callable(self.x0_sampler):
@@ -55,7 +173,7 @@ class EditFlowCollator:
         if isinstance(self.x0_sampler, str):
             return make_x0_sampler(self.x0_sampler)
         # default fallback
-        return sample_x0_with_masks
+        return sample_x0_masks
 
     def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, List[Any]]:
         if not features:
@@ -65,17 +183,22 @@ class EditFlowCollator:
         batch = {k: [ex[k] for ex in features] for k in keys}
         batch["x1_ids"] = batch["input_ids"]
 
-        if "labels" not in batch:
+        sampler = self._get_sampler()
+
+        if "prompt_len" not in batch:
             assert all(x1_ids[0] == self.tokenizer.bos_token_id for x1_ids in batch["x1_ids"])
-            sampler = self._get_sampler()
             batch["x0_ids"] = [
-                x1_ids[:1] + sampler(x1_ids=x1_ids, tokenizer=self.tokenizer)
+                x1_ids[:1] + sampler(x1_ids=x1_ids[1:], tokenizer=self.tokenizer)
                 for x1_ids in batch["x1_ids"]
             ]
-            batch["return_loss"] = True
-            return batch
         else:
-            raise NotImplementedError
+            batch["x0_ids"] = [
+                x1_ids[:prompt_len] + sampler(x1_ids=x1_ids[prompt_len:], tokenizer=self.tokenizer)
+                for x1_ids, prompt_len in zip(batch["x1_ids"], batch["prompt_len"])
+            ]
+    
+        batch["return_loss"] = True
+        return batch
 
 
 # ------------------------------- Trainer utils --------------------------------
