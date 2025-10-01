@@ -4,25 +4,25 @@ Local users
 - 1 GPU:
     accelerate launch \
         --config_file scripts/accelerate_configs/single_gpu.yaml \
-        examples/dream/dream_sft.py
+        examples/llada/sft.py
 
 - 1 GPU (4bit quant, LoRA) & Weight merging:
     # train
     accelerate launch \
         --config_file scripts/accelerate_configs/single_gpu.yaml \
-        examples/dream/dream_sft.py \
+        examples/llada/sft.py \
         --load_in_4bit True --lora True
 
     # merge lora weights
     python dllm_trainer/tools/merge_peft_adapter.py \
-        --adapter_model_name_or_path models/Dream-7B-SFT/checkpoint-final \
-        --output_model_name_or_path models/Dream-7B-SFT/checkpoint-final-merged \
+        --adapter_model_name_or_path models/LLaDA-8B-SFT/checkpoint-final \
+        --output_model_name_or_path models/LLaDA-8B-SFT/checkpoint-final-merged \
         --dtype bf16
     
 - 8 GPUs (DeepSpeed ZeRO-2):
     accelerate launch \
         --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
-        examples/dream/dream_sft.py
+        examples/llada/sft.py
 
 Slurm users
 # Note: run `mkdir logs` before running sbatch; and adjust 
@@ -31,17 +31,17 @@ Slurm users
 - 1 GPU:
     sbatch scripts/train.slurm.sh \
         --accelerate_config "single_gpu" \
-        --script_path "examples/dream/dream_sft.py"
+        --script_path "examples/llada/sft.py"
 
 - 8 GPUs (DeepSpeed ZeRO-2):
     sbatch scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
-        --script_path "examples/dream/dream_sft.py"
+        --script_path "examples/llada/sft.py"
 
 - 2 Nodes, 16 GPUs (DeepSpeed ZeRO-2):
     sbatch --nodes=2 scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
-        --script_path "examples/dream/dream_sft.py"
+        --script_path "examples/llada/sft.py"
 """
 import os
 import functools
@@ -51,15 +51,15 @@ import transformers
 import accelerate
 
 import dllm
-from dllm.pipelines import dream
+from dllm.pipelines import llada
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
-    model_name_or_path: str = "Dream-org/Dream-v0-Base-7B"
+    model_name_or_path: str = "GSAI-ML/LLaDA-8B-Base" # "inclusionAI/LLaDA-MoE-7B-A1B-Base"
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = "models/Dream-7B-SFT"
+    output_dir: str = "models/LLaDA-8B-SFT"
     # others (llada specific training params)
     mask_prompt_loss: bool = True
 
@@ -79,10 +79,12 @@ def train():
     model = dllm.utils.get_model(model_args, training_args)
     # ----- Tokenizer --------------------------------------------------------------
     tokenizer = dllm.utils.get_tokenizer(model_args)
+    # Note: fix bugs in the chat_template of LLaDA tokenizer
+    tokenizer = llada.postprocess_llada_tokenizer(tokenizer, model)
     # ----- Optional PEFT: LoRA ----------------------------------------------------
     model = dllm.utils.load_peft(model, peft_args)
 
-    # ----- Dataset ---------------------------------------------------------------
+    # ----- Dataset ----------------------------------------------------------------
     def train_map_fn(
         row, 
         tokenizer: transformers.PreTrainedTokenizer, 
@@ -90,19 +92,12 @@ def train():
         label_pad_token_id: int = -100
     ) -> dict:
         prompt_tokens = tokenizer.apply_chat_template(
-            row["messages"][:-1],  tokenize=True, add_generation_prompt=True)
+            row["messages"][:-1], tokenize=True, add_generation_prompt=True)
         prompt_response_tokens = tokenizer.apply_chat_template(
             row["messages"], tokenize=True, add_generation_prompt=False)
-        # overwrite "<|im_end|>\n" to "<|im_end|><|endoftext|>"
-        prompt_response_tokens[-1] = tokenizer.eos_token_id
         labels = prompt_response_tokens.copy()
-        if mask_prompt_loss: labels[:len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
-        attention_mask = [1.0] * len(prompt_response_tokens)
-        return {
-            "input_ids": prompt_response_tokens,
-            "labels": labels,
-            "attention_mask": attention_mask,
-        }
+        if mask_prompt_loss: labels[:len(prompt_tokens)] = [label_pad_token_id]*len(prompt_tokens)
+        return {"input_ids": prompt_response_tokens, "labels": labels}
 
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_sft_dataset(data_args.dataset_args)
@@ -120,7 +115,7 @@ def train():
         )
 
     # ----- Training --------------------------------------------------------------
-    trainer = dream.DreamTrainer(
+    trainer = llada.LLaDATrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],
@@ -131,7 +126,7 @@ def train():
             pad_to_multiple_of=8, 
             return_tensors="pt", 
             padding=True,
-            label_pad_token_id=-100 # within dream training, the padding tokens are not visible and counted
+            label_pad_token_id=tokenizer.pad_token_id, # LLaDA is trained on padding <eos_token>
         )
     )
     trainer.train()
