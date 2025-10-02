@@ -41,14 +41,14 @@ def sample_x0_empty(*args, **kwargs) -> List[int]:
     """Return BOS-only (i.e. no tokens after BOS)."""
     return []
 
-def sample_x0_masks(x1_ids: List[int], tokenizer: Any, *args, **kwargs) -> List[int]:
+def sample_x0_masks(tokenizer: Any, *args, target_len=128, **kwargs) -> List[int]:
     """
     Return a run of mask tokens of length `target_len`.
     """
     mask_id = getattr(tokenizer, "mask_token_id", None)
     if mask_id is None:
         raise ValueError("tokenizer needs mask_token_id for mask-based sampler")
-    return [int(mask_id)] * len(x1_ids)
+    return [int(mask_id)] * target_len
 
 def sample_x0_noisy(
     x1_ids: List[int],
@@ -56,18 +56,19 @@ def sample_x0_noisy(
     # Per-token action probs (renormalized; p_mask ignored if tokenizer has no mask id)
     p_del: float = 0.20,   # delete (teaches later INSERT)
     p_sub: float = 0.15,   # substitute with a different vocab token (teaches SUB)
-    p_mask: float = 0.05,  # replace with [MASK]
-    p_keep: float = 0.60,  # keep as-is
+    p_mask: float = 0.15,  # replace with [MASK]
+    p_keep: float = 0.50,  # keep as-is
     # Independent chance to insert a distractor token *after* each processed position:
-    p_ins_after: float = 0.02,
-    ensure_min_len: bool = True,
+    p_ins_after: float = 0.05,
+    # ensure_min_len: bool = True,
+    target_len: int = 128,
 ) -> List[int]:
     """
-    Build x0 by applying Delete/Substitute/Mask/Keep to the provided sequence.
-    NOTE: BOS is *not* expected here (the caller already excluded it).
+    Build x0 by applying Delete/Substitute/Mask/Keep to the provided sequence, then
+    right-truncate or pad to exactly `target_len`. BOS is *not* expected here.
     """
     if not x1_ids:
-        return []
+        x1_ids = []
 
     specials = _special_id_set(tokenizer)
     mask_id = getattr(tokenizer, "mask_token_id", None)
@@ -107,14 +108,18 @@ def sample_x0_noisy(
             ins_tok = _rand_vocab_token(tokenizer, exclude=specials)
             out.append(int(ins_tok))
 
-    # Ensure at least one token emitted
-    if ensure_min_len and len(out) == 0:
+    # Enforce exact target length:
+    # 1) truncate on the right if too long
+    if len(out) > target_len:
+        out = out[:target_len]
+    # 2) pad on the right if too short (prefer [MASK], else random non-special)
+    elif len(out) < target_len:
+        pad_needed = target_len - len(out)
         if mask_id is not None:
-            out = [int(mask_id)]
+            out.extend([int(mask_id)] * pad_needed)
         else:
-            # substitute for first token if possible; else random non-special
-            exclude = specials | ({int(x1_ids[0])} if x1_ids else set())
-            out = [_rand_vocab_token(tokenizer, exclude=exclude)]
+            for _ in range(pad_needed):
+                out.append(int(_rand_vocab_token(tokenizer, exclude=specials)))
 
     return out
 
@@ -123,8 +128,8 @@ def sample_x0_mixture(
     tokenizer: Any,
     *args,
     w_empty: float = 0.20,          # teaches INSERT beyond prompt
-    w_noisy: float = 0.20,          # teaches SUB + DEL + KEEP
-    w_masks: float = 0.60,          # optional mask-run variety
+    w_noisy: float = 0.40,          # teaches SUB + DEL + KEEP
+    w_masks: float = 0.40,          # optional mask-run variety
     **kwargs,
     # You can pass through knobs for noisy/mask variants by editing defaults here
 ) -> List[int]:

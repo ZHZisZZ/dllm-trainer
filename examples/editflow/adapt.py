@@ -72,8 +72,8 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     # others (editflow specific training params)
     scheduler_cls: str = "LinearKappaScheduler"
     normalize_per_position: bool = True
-    max_w: float | None = None
-    x0_sampler: str = "sample_x0_mixture" # sample_x0_masks, sample_x0_empty
+    max_w: float = 20
+    x0_sampler: str = "sample_x0_mixture" # sample_x0_masks, sample_x0_empty, sample_x0_noisy, sample_x0_mixture
     mask_prompt_loss: bool = True
 
 
