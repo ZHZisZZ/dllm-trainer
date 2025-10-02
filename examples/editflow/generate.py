@@ -12,7 +12,7 @@ What changed vs. your original:
     * KEEP tokens are black
     * If any deletions happened in the step, the title shows ⌫N (red)
 """
-# srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --time=03:00:000 python examples/editflow/generate.py --model_name_or_path "models/EditFlow-Dream-7B/tulu-3-sft-mixture-[mix]-opc-sft-stage2/checkpoint-1260"  --tau 0.1 --mask_length 256 --seed 7070  --prompt "write a romantic story" --make_gif
+# srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --time=03:00:000 python examples/editflow/generate.py --model_name_or_path "models-bkup/EditFlow-Dream-Instruct-7B/tulu-3-sft-mixture[train:100000,test:10000]/checkpoint-final"  --tau 0.02 --mask_length 128 --seed 7070  --prompt "write a romantic story" --make_gif
 
 import math
 from dataclasses import dataclass
@@ -23,9 +23,6 @@ import torch
 from transformers import AutoModel, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
 
 from dllm.utils.schedulers import BaseKappaScheduler, LinearKappaScheduler
-
-# Visualization deps
-from PIL import Image, ImageDraw, ImageFont
 
 
 # ------------------------------- Small utilities --------------------------------
@@ -52,10 +49,7 @@ class GenCfg:
     edit_prompt: bool = False          # allow editing inside prompt region?
     temperature: float = 0.7           # token sampling temperature (sub/ins)
     verbose: bool = True               # whether to show intermediate decoding traces
-    # Visualization (optional)
-    make_gif: bool = False
-    gif_path: Optional[str] = None     # e.g., "decode_trace.gif"
-    frame_ms: int = 600                # per-frame duration
+    time_independent: bool = True
 
 
 # -------------------------------- τ-leap one step --------------------------------
@@ -69,23 +63,37 @@ def tau_leap_step_minimal(
     t: float,
     sched: BaseKappaScheduler,
     cfg: GenCfg,
-) -> Tuple[torch.Tensor, bool, dict]:
+    prev_out: Optional[dict] = None,      # <-- pass prior step's model outputs
+    reuse_prev: bool = False,             # <-- if True, reuse prev_out instead of forward()
+) -> Tuple[torch.Tensor, bool, dict, dict]:
     """
     Single τ-leap step with deletion/substitution conflict resolution
     and right-insert policy.
+
+    Reuse semantics:
+      • If cfg.time_independent == True and reuse_prev == True and prev_out is not None,
+        we reuse `prev_out` tensors instead of calling model() again.
+      • Otherwise we run a fresh forward().
 
     Viz-only convention:
       • Any local annotated as _Ann[*, "viz-only"] is used only for human-visible
         tracing / debugging (console logs, GIFs) and does not affect generation.
       • Such variables are also prefixed with '_' for quick visual scanning.
+
+    Returns:
+      x_next, any_edit, _step_trace, out_for_next (the freshly used model outputs)
     """
     device = x.device
     T = x.numel()
 
-    attn = torch.ones(1, T, dtype=torch.long, device=device)
-    t_tensor = torch.full((1, 1), float(t), device=device)
-
-    out = model(input_ids=x.unsqueeze(0), attention_mask=attn, t=t_tensor)
+    # Decide whether to reuse the previous forward results
+    use_reuse = bool(cfg.time_independent and reuse_prev and (prev_out is not None))
+    if use_reuse:
+        out = prev_out
+    else:
+        attn = torch.ones(1, T, dtype=torch.long, device=device)
+        t_tensor = torch.full((1, 1), float(t), device=device)
+        out = model(input_ids=x.unsqueeze(0), attention_mask=attn, t=t_tensor)
 
     del_rate_h = out["del_rate_hat"]      # [1, T]
     sub_rate_h = out["sub_rate_hat"]      # [1, T]
@@ -102,7 +110,6 @@ def tau_leap_step_minimal(
 
     # Clamp prompt_len within current T (robustness)
     prompt_len_clamped = int(max(1, min(prompt_len, T)))
-
 
     if not cfg.edit_prompt:
         # Protect the entire prompt span from del/sub
@@ -159,7 +166,12 @@ def tau_leap_step_minimal(
             new_ids.append(int(ins_samples[i]))
             _after_ops.append("INS")
 
-    # Optional verbose console trace (viz-only)
+    x_next = torch.tensor(new_ids, dtype=torch.long, device=device)
+    any_edit = bool(comb_fire.any().item() or ins_fire.any().item())
+    # Provide the exact outputs we used this step for the caller to pass forward
+    out_for_next = out
+
+    # --- (vis) used only for verbose console trace ---
     if cfg.verbose and (comb_fire.any() or ins_fire.any()):
         def _tok_str(tok_id: int) -> str:  # viz-only helper
             try:
@@ -180,10 +192,7 @@ def tau_leap_step_minimal(
         print("[decode]\n", tokenizer.decode(new_ids, skip_special_tokens=True))
         print()
 
-    x_next = torch.tensor(new_ids, dtype=torch.long, device=device)
-    any_edit = bool(comb_fire.any().item() or ins_fire.any().item())
-
-    # --- step trace payload (returned; used only for visualization downstream) ---
+    # --- (vis) step trace payload (returned; used only for visualization downstream) ---
     _step_trace: Annotated[dict, "viz-only"] = {
         "t": float(t),
         "x_before_ids": [int(i) for i in x.tolist()],
@@ -197,12 +206,14 @@ def tau_leap_step_minimal(
         "sub_samples": [int(s) if s is not None else None for s in sub_samples],
         "ins_samples": [int(s) if s is not None else None for s in ins_samples],
         "prompt_len": prompt_len_clamped,
+        "used_reuse": bool(use_reuse),
     }
 
-    return x_next, any_edit, _step_trace
+    return x_next, any_edit, _step_trace, out_for_next
 
 
 # -------------------------------- top-level generate -------------------------------
+
 
 @torch.no_grad()
 def generate_editflow_minimal(
@@ -258,32 +269,39 @@ def generate_editflow_minimal(
         "init": {"t": 0.0, "x_ids": [int(i) for i in x.tolist()], "prompt_len": int(prompt_len)},
         "end_t": 0.0,
     }
-    # ---------------------------------------------------------------------------
+
+    # Local-only reuse: if previous iteration had no edits, reuse its forward.
+    prev_out: Optional[dict] = None
+    prev_had_edits = True  # first iteration must run a forward
 
     t = 0.0
     for _ in range(steps):
-        x, edited, _step_trace = tau_leap_step_minimal(
+        # We can reuse prev_out only if the model is declared time-independent
+        # and the previous step had NO edits (sequence unchanged).
+        reuse_prev = (cfg.time_independent and not prev_had_edits and (prev_out is not None))
+
+        x, edited, _step_trace, prev_out = tau_leap_step_minimal(
             x=x,
             model=model,
             tokenizer=tokenizer,
             prompt_len=prompt_len,
             t=t,
             sched=sched,
-            cfg=cfg
+            cfg=cfg,
+            prev_out=prev_out,
+            reuse_prev=reuse_prev,
         )
 
-        # ---- Visualization-only: append the per-step trace --------------------
         _step_trace: Annotated[dict, "viz-only: per-step intermediates for trace"]
         _trace["steps"].append(_step_trace)
-        # -----------------------------------------------------------------------
+
+        prev_had_edits = edited
 
         t = min(1.0, t + tau)
         if t >= 1.0 - args.time_epsilon:
             break
 
-    # ---- Visualization-only: finalize trace metadata --------------------------
     _trace["end_t"] = float(t)
-    # ---------------------------------------------------------------------------
 
     final_text = tokenizer.decode(x.tolist(), skip_special_tokens=True)
     print("[final]")
@@ -600,6 +618,7 @@ def main():
     class ScriptArgs:
         # Required (no default)
         model_name_or_path: Annotated[str, "Path or hub id for the model"]
+        time_independent: Annotated[bool, "Whether model is conditioned on time step"] = True
 
         prompt: Annotated[Optional[str], "Text prompt. If None, start from BOS alone."] = None
         # Boolean flag: tyro exposes --edit-prompt / --no-edit-prompt automatically for bools
@@ -637,9 +656,10 @@ def main():
         edit_prompt=args.edit_prompt,
         temperature=args.temperature,
         verbose=args.verbose,
-        make_gif=args.make_gif,
-        gif_path=args.gif_path,
-        frame_ms=args.frame_ms,
+        time_independent=args.time_independent,
+        # make_gif=args.make_gif,
+        # gif_path=args.gif_path,
+        # frame_ms=args.frame_ms,
     )
 
     model = AutoModel.from_pretrained(
@@ -652,13 +672,13 @@ def main():
     final_text, trace = generate_editflow_minimal(model, tokenizer, args, cfg)
     print(final_text)
 
-    if cfg.make_gif:
-        out = cfg.gif_path or "decode_trace.gif"
+    if args.make_gif:
+        out = args.gif_path or "decode_trace.gif"
         path = render_consecutive_trace_gif(
             trace,
             tokenizer,
             out_path=out,
-            frame_ms=cfg.frame_ms,
+            frame_ms=args.frame_ms,
         )
         print(f"[gif saved] {path}")
 
