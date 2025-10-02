@@ -21,25 +21,22 @@ pip install -e .
 ## Quick Start
 
 <details>
-<summary>LLaDA / LLaDA-MoE: SFT and Batch Sampling</summary>
+<summary>LLaDA / LLaDA-MoE: SFT and Sampling</summary>
 
 ### `SFT`
 Basic usage of [`LLaDATrainer`](https://github.com/ZHZisZZ/dllm/blob/main/dllm/pipelines/llada/trainer.py#L12). See [`examples/llada/sft.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/llada/sft.py) for a complete example.
 ```python
 import transformers
 
-from dllm.pipelines import llada
+import dllm
 
-model_name_or_path = "GSAI-ML/LLaDA-8B-Base" # "inclusionAI/LLaDA-MoE-7B-A1B-Base"
-model = transformers.AutoModel.from_pretrained(model_name_or_path)
-tokenizer = transformers.AutoTokenizer.from_pretrained(model_name_or_path)
+model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+model = dllm.utils.get_model(model_args, training_args)
+tokenizer = dllm.utils.get_tokenizer(model_args, model)
 dataset = "..."
-training_args = "..."
 
-################
-# Training
-################
-trainer = llada.LLaDATrainer(
+# ----- Training --------------------------------------------------------------
+trainer = dllm.pipelines.llada.LLaDATrainer(
     model=model,
     tokenizer=tokenizer,
     train_dataset=dataset["train"],
@@ -76,7 +73,7 @@ See [`examples/llada/generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/exa
 </details>
 
 <details>
-<summary>Dream: SFT and Batch Sampling</summary>
+<summary>Dream: SFT and Sampling</summary>
 
 ### `SFT`
 
@@ -84,18 +81,15 @@ Basic usage of [`DreamTrainer`](https://github.com/ZHZisZZ/dllm/blob/main/dllm/p
 ```python
 import transformers
 
-from dllm.pipelines import dream
+import dllm
 
-model_name_or_path = "Dream-org/Dream-v0-Base-7B"
-model = transformers.AutoModel.from_pretrained(model_name_or_path)
-tokenizer = transformers.AutoTokenizer.from_pretrained(model_name_or_path)
+model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+model = dllm.utils.get_model(model_args, training_args)
+tokenizer = dllm.utils.get_tokenizer(model_args, model)
 dataset = "..."
-training_args = "..."
 
-################
-# Training
-################
-trainer = dream.DreamTrainer(
+# ----- Training --------------------------------------------------------------
+trainer = dllm.pipelines.dream.DreamTrainer(
     model=model,
     tokenizer=tokenizer,
     train_dataset=dataset["train"],

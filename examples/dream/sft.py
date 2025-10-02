@@ -51,7 +51,6 @@ import transformers
 import accelerate
 
 import dllm
-from dllm.pipelines import dream
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
@@ -68,21 +67,20 @@ def train():
     # ----- Argument parsing -------------------------------------------------------
     parser = transformers.HfArgumentParser((
         ModelArguments, 
-        dllm.utils.PeftArguments, 
         dllm.utils.DataArguments, 
         TrainingArguments
     ))
-    model_args, peft_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    dllm.utils.print_args_main(model_args, peft_args, data_args, training_args)
+    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    dllm.utils.print_args_main(model_args, data_args, training_args)
 
     # ----- Model ------------------------------------------------------------------
     model = dllm.utils.get_model(model_args, training_args)
     # ----- Tokenizer --------------------------------------------------------------
-    tokenizer = dllm.utils.get_tokenizer(model_args)
+    tokenizer = dllm.utils.get_tokenizer(model_args, model)
     # ----- Optional PEFT: LoRA ----------------------------------------------------
-    model = dllm.utils.load_peft(model, peft_args)
+    model = dllm.utils.load_peft(model, model_args)
 
-    # ----- Dataset ---------------------------------------------------------------
+    # ----- Dataset ----------------------------------------------------------------
     def train_map_fn(
         row, 
         tokenizer: transformers.PreTrainedTokenizer, 
@@ -90,10 +88,11 @@ def train():
         label_pad_token_id: int = -100
     ) -> dict:
         prompt_tokens = tokenizer.apply_chat_template(
-            row["messages"][:-1],  tokenize=True, add_generation_prompt=True)
+            row["messages"][:-1], tokenize=True, add_generation_prompt=True)
         prompt_response_tokens = tokenizer.apply_chat_template(
             row["messages"], tokenize=True, add_generation_prompt=False)
         # overwrite "<|im_end|>\n" to "<|im_end|><|endoftext|>"
+        # TODO: delete this after overwriting chat template
         prompt_response_tokens[-1] = tokenizer.eos_token_id
         labels = prompt_response_tokens.copy()
         if mask_prompt_loss: labels[:len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
@@ -120,7 +119,7 @@ def train():
         )
 
     # ----- Training --------------------------------------------------------------
-    trainer = dream.DreamTrainer(
+    trainer = dllm.pipelines.dream.DreamTrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],

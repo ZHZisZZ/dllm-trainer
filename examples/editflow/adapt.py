@@ -143,14 +143,13 @@ def train():
     # ----- Argument parsing -------------------------------------------------------
     parser = transformers.HfArgumentParser((
         ModelArguments, 
-        dllm.utils.PeftArguments, 
         dllm.utils.DataArguments, 
         TrainingArguments
     ))
-    model_args, peft_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     training_args.label_names = []
     training_args.remove_unused_columns = False
-    dllm.utils.print_args_main(model_args, peft_args, data_args, training_args)
+    dllm.utils.print_args_main(model_args, data_args, training_args)
 
     # ----- Load base Dream and initialize EditFlowDream ---------------------------
     model_name_or_path = dllm.utils.resolve_with_base_env(
@@ -174,7 +173,7 @@ def train():
     # ----- Tokenizer --------------------------------------------------------------
     tokenizer = dllm.utils.get_tokenizer(model_args)
     # ----- Optional PEFT: LoRA ----------------------------------------------------
-    model = dllm.utils.load_peft(model, peft_args)
+    model = dllm.utils.load_peft(model, model_args)
 
     # ----- Dataset ----------------------------------------------------------------
     # Build emulated pretraining samples from SFT chats:
@@ -197,6 +196,7 @@ def train():
             add_generation_prompt=False,
         )
         # overwrite "<|im_end|>\n" to "<|im_end|><|endoftext|>"
+        # TODO: delete this after overwriting chat template
         prompt_response_tokens[-1] = tokenizer.eos_token_id
         if mask_prompt_loss:
             return {

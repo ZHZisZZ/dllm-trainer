@@ -10,6 +10,13 @@ class ModelArguments:
     model_name_or_path: str = None # TODO: overwrite this
     load_in_4bit: bool = False
     torch_dtype: str = "bfloat16"
+    # --- fold PEFT args here ---
+    lora:           bool  = False
+    target_modules: str   = "all-linear"
+    r:              int   = 64
+    lora_alpha:     int   = 64
+    lora_dropout:   float = 0.05
+    bias:           str   = "none"
     def __post_init__(self): self.model_name_or_path = resolve_with_base_env(self.model_name_or_path, "BASE_MODELS_DIR")
 
 @dataclass
@@ -17,15 +24,6 @@ class DataArguments:
     dataset_args: str = "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
     num_proc: int = 8
     max_length: int = 1024
-
-@dataclass
-class PeftArguments:
-    lora:           bool  = False
-    target_modules: str   = "all-linear"
-    r:              int   = 64
-    lora_alpha:     int   = 64
-    lora_dropout:   float = 0.05
-    bias:           str   = "none"
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):

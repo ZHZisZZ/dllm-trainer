@@ -18,7 +18,6 @@ import torch.nn.functional as F
 
 import transformers
 
-from dllm.pipelines.llada.utils import postprocess_llada_tokenizer
 from dllm.utils.generation_utils import get_num_transfer_tokens
 from dllm.utils.schedulers import BaseAlphaScheduler, LinearAlphaScheduler
 

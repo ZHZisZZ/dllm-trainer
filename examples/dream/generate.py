@@ -11,9 +11,9 @@ srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --time=03:00:000 \
 from dataclasses import dataclass
 
 import tyro
-import torch
 import transformers
 
+import dllm
 from dllm.pipelines import dream
 from dllm.utils.utils import resolve_with_base_env
 
@@ -36,12 +36,9 @@ script_args = tyro.cli(ScriptArguments)
 transformers.set_seed(script_args.seed)
 
 # Load model & tokenizer
-model = transformers.AutoModel.from_pretrained(
-    script_args.model_name_or_path, torch_dtype=torch.bfloat16, device_map="auto", 
-).eval()
-tokenizer = transformers.AutoTokenizer.from_pretrained(
-    script_args.model_name_or_path, padding_side = "left" 
-)
+model = dllm.utils.get_model(script_args).eval()
+tokenizer = dllm.utils.get_tokenizer(script_args, model)
+tokenizer.padding_side = "left"
 
 # --- Example 1: Batch generation ---
 print("\n" + "=" * 80)

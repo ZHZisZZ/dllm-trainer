@@ -51,7 +51,6 @@ import transformers
 import accelerate
 
 import dllm
-from dllm.pipelines import llada
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
@@ -68,21 +67,18 @@ def train():
     # ----- Argument parsing -------------------------------------------------------
     parser = transformers.HfArgumentParser((
         ModelArguments, 
-        dllm.utils.PeftArguments, 
         dllm.utils.DataArguments, 
         TrainingArguments
     ))
-    model_args, peft_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    dllm.utils.print_args_main(model_args, peft_args, data_args, training_args)
+    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    dllm.utils.print_args_main(model_args, data_args, training_args)
 
     # ----- Model ------------------------------------------------------------------
     model = dllm.utils.get_model(model_args, training_args)
     # ----- Tokenizer --------------------------------------------------------------
-    tokenizer = dllm.utils.get_tokenizer(model_args)
-    # Note: fix bugs in the chat_template of LLaDA tokenizer
-    tokenizer = llada.postprocess_llada_tokenizer(tokenizer, model)
+    tokenizer = dllm.utils.get_tokenizer(model_args, model)
     # ----- Optional PEFT: LoRA ----------------------------------------------------
-    model = dllm.utils.load_peft(model, peft_args)
+    model = dllm.utils.load_peft(model, model_args)
 
     # ----- Dataset ----------------------------------------------------------------
     def train_map_fn(
@@ -96,7 +92,7 @@ def train():
         prompt_response_tokens = tokenizer.apply_chat_template(
             row["messages"], tokenize=True, add_generation_prompt=False)
         labels = prompt_response_tokens.copy()
-        if mask_prompt_loss: labels[:len(prompt_tokens)] = [label_pad_token_id]*len(prompt_tokens)
+        if mask_prompt_loss: labels[:len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
         return {"input_ids": prompt_response_tokens, "labels": labels}
 
     with accelerate.PartialState().local_main_process_first():
@@ -115,7 +111,7 @@ def train():
         )
 
     # ----- Training --------------------------------------------------------------
-    trainer = llada.LLaDATrainer(
+    trainer = dllm.pipelines.llada.LLaDATrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],

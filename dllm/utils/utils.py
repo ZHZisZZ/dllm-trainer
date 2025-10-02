@@ -2,7 +2,7 @@ import os
 from contextlib import contextmanager
 from dataclasses import dataclass, asdict
 from typing import TYPE_CHECKING
-if TYPE_CHECKING: from dllm.utils.configs import ModelArguments, DataArguments, PeftArguments, TrainingArguments
+if TYPE_CHECKING: from dllm.utils.configs import ModelArguments, DataArguments, TrainingArguments
 
 import pprint
 import torch
@@ -76,7 +76,7 @@ def pprint_main(*args, **kwargs):
         pprint.pprint(*args, **kwargs)
 
 
-def load_peft(model: transformers.PreTrainedModel, peft_args: "PeftArguments") -> transformers.PreTrainedModel:
+def load_peft(model: transformers.PreTrainedModel, peft_args: "ModelArguments") -> transformers.PreTrainedModel:
     if not peft_args.lora: return model
     peft_config = peft.LoraConfig(
         r=peft_args.r,
@@ -91,11 +91,10 @@ def load_peft(model: transformers.PreTrainedModel, peft_args: "PeftArguments") -
     return model
 
 
-def print_args_main(model_args: "ModelArguments", peft_args: "PeftArguments", data_args: "DataArguments", training_args: "TrainingArguments"):
+def print_args_main(model_args: "ModelArguments", data_args: "DataArguments", training_args: "TrainingArguments"):
     print_main("\n===== Parsed arguments =====")
     for name, args in [
         ("model_args", model_args),
-        ("peft_args", peft_args),
         ("data_args", data_args),
         ("training_args", training_args),
     ]:
