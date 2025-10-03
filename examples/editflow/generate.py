@@ -12,7 +12,7 @@ What changed vs. your original:
     * KEEP tokens are black
     * If any deletions happened in the step, the title shows ⌫N (red)
 """
-# srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --time=03:00:000 python examples/editflow/generate.py --model_name_or_path "models-bkup/EditFlow-Dream-Instruct-7B/tulu-3-sft-mixture[train:100000,test:10000]/checkpoint-final"  --tau 0.02 --mask_length 128 --seed 7070  --prompt "write a romantic story" --make_gif
+# srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --time=03:00:000 python examples/editflow/generate.py --model_name_or_path "models/EditFlow-Dream-Instruct-7B/tulu-3-sft-mixture/checkpoint-final"  --tau 0.02 --mask_length 128 --seed 7070  --prompt "write a romantic story" --make_gif
 
 import math
 from dataclasses import dataclass
@@ -626,7 +626,7 @@ def main():
             "Allow delete/substitute and insertions in the prompt region (BOS+prompt)."] = False
 
         # Generation-related args
-        tau: Annotated[float, "τ-leap size"] = 0.02
+        tau: Annotated[float, "τ-leap size"] = 0.01
         time_epsilon: Annotated[float,
             "Match this with the `time_epsilon` arg used in your EditFlowTrainer"] = 1e-3
         mask_length: Annotated[

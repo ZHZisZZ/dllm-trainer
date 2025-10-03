@@ -128,8 +128,8 @@ def sample_x0_mixture(
     tokenizer: Any,
     *args,
     w_empty: float = 0.20,          # teaches INSERT beyond prompt
-    w_noisy: float = 0.40,          # teaches SUB + DEL + KEEP
-    w_masks: float = 0.40,          # optional mask-run variety
+    w_noisy: float = 0.20,          # teaches SUB + DEL + KEEP
+    w_masks: float = 0.60,          # optional mask-run variety
     **kwargs,
     # You can pass through knobs for noisy/mask variants by editing defaults here
 ) -> List[int]:
