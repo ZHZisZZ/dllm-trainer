@@ -58,6 +58,11 @@ class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = "Dream-org/Dream-v0-Base-7B"
 
 @dataclass
+class DataArguments(dllm.utils.DataArguments):
+    resp_cutoff_ratio: float = 0.0
+    random_response_truncation: bool = True
+
+@dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = "models/Dream-7B-SFT"
     # others (llada specific training params)
@@ -134,7 +139,9 @@ def train():
             pad_to_multiple_of=8,
             return_tensors="pt",
             padding=True,
-            label_pad_token_id=-100 # within dream training, the padding tokens are not visible and counted
+            label_pad_token_id=-100,
+            random_response_truncation=data_args.random_response_truncation,
+            resp_cutoff_ratio=data_args.resp_cutoff_ratio,
         )
     )
     trainer.train()

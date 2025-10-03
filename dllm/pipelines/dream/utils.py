@@ -97,6 +97,16 @@ class DreamSFTCollator(transformers.DataCollatorForSeq2Seq):
 
         cutoff_len = int(np.random.randint(1, min_resp_len))
         new_seq_len = max(orig_seq_lens) - cutoff_len
+        resp_lens = torch.tensor(
+            [len(f["input_ids"]) - f["prompt_len"] for f in features],
+            dtype=torch.long
+        )
+        min_resp_len = resp_lens.min().item()
+        if min_resp_len <= 1:
+            return batch
+
+        cutoff_len = int(np.random.randint(1, min_resp_len))
+        new_seq_len = max(orig_seq_lens) - cutoff_len
 
         for key in ["input_ids", "labels", "attention_mask"]:
             if key in batch:
