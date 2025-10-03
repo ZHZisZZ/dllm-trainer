@@ -59,6 +59,7 @@ class ModelArguments(dllm.utils.ModelArguments):
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
+    perbatch_cutoff: bool = True
     resp_cutoff_ratio: float = 0.0
 
 @dataclass
@@ -76,6 +77,7 @@ def train():
         TrainingArguments
     ))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    training_args.remove_unused_columns = False
     transformers.set_seed(training_args.seed)
     dllm.utils.print_args_main(model_args, data_args, training_args)
 
@@ -140,6 +142,7 @@ def train():
             return_tensors="pt",
             padding=True,
             label_pad_token_id=-100,
+            perbatch_cutoff=data_args.perbatch_cutoff,
             resp_cutoff_ratio=data_args.resp_cutoff_ratio,
         )
     )
