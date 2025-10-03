@@ -14,7 +14,7 @@ import tyro
 import transformers
 
 import dllm
-
+from dllm.pipelines import dream
 
 @dataclass
 class ScriptArguments:
@@ -58,7 +58,7 @@ input_ids_list = [
     for m in messages
 ]
 
-out = dllm.pipelines.dream.generate(
+out = dream.generate(
     model=model,
     tokenizer=tokenizer,
     prompts=input_ids_list,
@@ -110,7 +110,7 @@ fib_input_ids_list = [
     for m in masked_inputs
 ]
 
-out = dllm.pipelines.dream.fill_in_blanks(
+out = dream.fill_in_blanks(
     model=model,
     tokenizer=tokenizer,
     inputs_with_blanks=fib_input_ids_list,

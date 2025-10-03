@@ -13,12 +13,12 @@ from dllm.pipelines import editflow
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
-    model_name_or_path: str = None # TODO
-    lm_head_key: str = None # TODO
+    model_name_or_path: str = None # TODO: overwrite this
+    lm_head_key: str = None # TODO: overwrite this
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = None # TODO
+    output_dir: str = None # TODO: overwrite this
     gradient_accumulation_steps: int = 2
     learning_rate: float = 5e-5
     # others (editflow specific training params)
@@ -36,6 +36,9 @@ def train(
     ef_config_cls: Type[transformers.PretrainedConfig], 
     ef_model_cls: Type[transformers.PreTrainedModel], 
 ):
+    training_args.label_names = []
+    training_args.remove_unused_columns = False
+    transformers.set_seed(training_args.seed)
     dllm.utils.print_args_main(model_args, data_args, training_args)
 
     # ----- Load base Model and initialize EditFlow Model ---------------------------
@@ -60,7 +63,6 @@ def train(
 
     # ----- Tokenizer --------------------------------------------------------------
     tokenizer = dllm.utils.get_tokenizer(model_args, model)
-    breakpoint()
     # ----- Optional PEFT: LoRA ----------------------------------------------------
     model = dllm.utils.load_peft(model, model_args)
 
@@ -74,17 +76,17 @@ def train(
         tokenizer: transformers.PreTrainedTokenizer, 
         mask_prompt_loss: bool = True, 
     ) -> dict:
-        prompt_tokens = tokenizer.apply_chat_template(
-            row["messages"][:-1],
-            tokenize=True,
-            add_generation_prompt=True,
-        )
         prompt_response_tokens = tokenizer.apply_chat_template(
             row["messages"],
             tokenize=True,
             add_generation_prompt=False,
         )
         if mask_prompt_loss:
+            prompt_tokens = tokenizer.apply_chat_template(
+                row["messages"][:-1],
+                tokenize=True,
+                add_generation_prompt=True,
+            )
             return {
                 "input_ids": prompt_response_tokens,
                 "prompt_len": len(prompt_tokens), # ! Note: remove this to train on all "input_ids"
@@ -117,11 +119,15 @@ def train(
         train_dataset=dataset["train"],
         eval_dataset=dataset["test"],
         args=training_args,
-        data_collator=editflow.utils.EditFlowCollator(tokenizer=tokenizer, x0_sampler=training_args.x0_sampler),
-        scheduler=dllm.utils.schedulers.make_kappa_scheduler(training_args.scheduler_cls),
+        data_collator=editflow.utils.EditFlowCollator(
+            tokenizer=tokenizer, x0_sampler=training_args.x0_sampler),
+        scheduler=dllm.utils.schedulers.make_kappa_scheduler(
+            training_args.scheduler_cls),
         normalize_per_position=training_args.normalize_per_position,
         max_w=training_args.max_w,
     )
     trainer.train()
-    trainer.save_model(os.path.join(training_args.output_dir, "checkpoint-final"))
-    trainer.processing_class.save_pretrained(os.path.join(training_args.output_dir, "checkpoint-final"))
+    trainer.save_model(os.path.join(
+        training_args.output_dir, "checkpoint-final"))
+    trainer.processing_class.save_pretrained(os.path.join(
+        training_args.output_dir, "checkpoint-final"))

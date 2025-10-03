@@ -14,7 +14,7 @@ import tyro
 import transformers
 
 import dllm
-
+from dllm.pipelines import llada
 
 @dataclass
 class ScriptArguments:
@@ -54,7 +54,7 @@ input_ids_list = [
     for m in messages
 ]
 
-out = dllm.pipelines.llada.generate(
+out = llada.generate(
     model,
     tokenizer,
     input_ids_list,
@@ -100,7 +100,7 @@ fib_input_ids_list = [
     for m in masked_inputs
 ]
 
-out = dllm.pipelines.llada.fill_in_blanks(
+out = llada.fill_in_blanks(
     model,
     tokenizer,
     fib_input_ids_list,

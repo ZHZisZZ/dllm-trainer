@@ -51,10 +51,15 @@ import transformers
 import accelerate
 
 import dllm
+from dllm.pipelines import dream
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = "Dream-org/Dream-v0-Base-7B"
+
+@dataclass
+class DataArguments(dllm.utils.DataArguments):
+    resp_cutoff_ratio: float = 0.0
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
@@ -67,10 +72,11 @@ def train():
     # ----- Argument parsing -------------------------------------------------------
     parser = transformers.HfArgumentParser((
         ModelArguments, 
-        dllm.utils.DataArguments, 
+        DataArguments, 
         TrainingArguments
     ))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    transformers.set_seed(training_args.seed)
     dllm.utils.print_args_main(model_args, data_args, training_args)
 
     # ----- Model ------------------------------------------------------------------
@@ -88,16 +94,22 @@ def train():
         label_pad_token_id: int = -100
     ) -> dict:
         prompt_tokens = tokenizer.apply_chat_template(
-            row["messages"][:-1], tokenize=True, add_generation_prompt=True)
+            row["messages"][:-1], 
+            tokenize=True, 
+            add_generation_prompt=True
+        )
         prompt_response_tokens = tokenizer.apply_chat_template(
-            row["messages"], tokenize=True, add_generation_prompt=False)
+            row["messages"], 
+            tokenize=True, 
+            add_generation_prompt=False
+        )
         labels = prompt_response_tokens.copy()
         if mask_prompt_loss: labels[:len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
-        attention_mask = [1.0] * len(prompt_response_tokens)
         return {
             "input_ids": prompt_response_tokens,
             "labels": labels,
-            "attention_mask": attention_mask,
+            "attention_mask": [1.0] * len(prompt_response_tokens),
+            "prompt_len": len(prompt_tokens)
         }
 
     with accelerate.PartialState().local_main_process_first():
@@ -116,23 +128,26 @@ def train():
         )
 
     # ----- Training --------------------------------------------------------------
-    trainer = dllm.pipelines.dream.DreamTrainer(
+    trainer = dream.DreamTrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],
         eval_dataset=dataset["test"],
         args=training_args,
-        data_collator=transformers.DataCollatorForSeq2Seq(
-            tokenizer, 
-            pad_to_multiple_of=8, 
-            return_tensors="pt", 
+        data_collator=dream.utils.DreamSFTCollator(
+            tokenizer,
+            pad_to_multiple_of=8,
+            return_tensors="pt",
             padding=True,
-            label_pad_token_id=-100 # within dream training, the padding tokens are not visible and counted
+            label_pad_token_id=-100,
+            resp_cutoff_ratio=data_args.resp_cutoff_ratio,
         )
     )
     trainer.train()
-    trainer.save_model(os.path.join(training_args.output_dir, "checkpoint-final"))
-    trainer.processing_class.save_pretrained(os.path.join(training_args.output_dir, "checkpoint-final"))
+    trainer.save_model(os.path.join(
+        training_args.output_dir, "checkpoint-final"))
+    trainer.processing_class.save_pretrained(os.path.join(
+        training_args.output_dir, "checkpoint-final"))
 
 
 if __name__ == "__main__":

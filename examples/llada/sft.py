@@ -22,7 +22,7 @@ Local users
 - 8 GPUs (DeepSpeed ZeRO-2):
     accelerate launch \
         --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
-        examples/llada/sft.py
+        examples/llada/sft.py  --output_dir "models-tmp"
 
 Slurm users
 # Note: run `mkdir logs` before running sbatch; and adjust 
@@ -51,6 +51,7 @@ import transformers
 import accelerate
 
 import dllm
+from dllm.pipelines import llada
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
@@ -71,6 +72,7 @@ def train():
         TrainingArguments
     ))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    transformers.set_seed(training_args.seed)
     dllm.utils.print_args_main(model_args, data_args, training_args)
 
     # ----- Model ------------------------------------------------------------------
@@ -87,12 +89,19 @@ def train():
         mask_prompt_loss: bool = True, 
         label_pad_token_id: int = -100
     ) -> dict:
-        prompt_tokens = tokenizer.apply_chat_template(
-            row["messages"][:-1], tokenize=True, add_generation_prompt=True)
         prompt_response_tokens = tokenizer.apply_chat_template(
-            row["messages"], tokenize=True, add_generation_prompt=False)
+            row["messages"], 
+            tokenize=True, 
+            add_generation_prompt=False
+        )
         labels = prompt_response_tokens.copy()
-        if mask_prompt_loss: labels[:len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
+        if mask_prompt_loss: 
+            prompt_tokens = tokenizer.apply_chat_template(
+                row["messages"][:-1], 
+                tokenize=True, 
+                add_generation_prompt=True
+            )
+            labels[:len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
         return {"input_ids": prompt_response_tokens, "labels": labels}
 
     with accelerate.PartialState().local_main_process_first():
@@ -111,7 +120,7 @@ def train():
         )
 
     # ----- Training --------------------------------------------------------------
-    trainer = dllm.pipelines.llada.LLaDATrainer(
+    trainer = llada.LLaDATrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],
@@ -126,8 +135,10 @@ def train():
         )
     )
     trainer.train()
-    trainer.save_model(os.path.join(training_args.output_dir, "checkpoint-final"))
-    trainer.processing_class.save_pretrained(os.path.join(training_args.output_dir, "checkpoint-final"))
+    trainer.save_model(os.path.join(
+        training_args.output_dir, "checkpoint-final"))
+    trainer.processing_class.save_pretrained(os.path.join(
+        training_args.output_dir, "checkpoint-final"))
 
 
 if __name__ == "__main__":
