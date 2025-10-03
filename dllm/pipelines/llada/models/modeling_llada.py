@@ -654,7 +654,7 @@ class LLaDABlock(nn.Module):
                 q,
                 k,
                 v,
-                attn_mask=None,
+                attn_mask=attn_mask,
                 dropout_p=dropout_p,
                 is_causal=False,
             )
@@ -712,7 +712,7 @@ class LLaDABlock(nn.Module):
             q,
             k,
             v,
-            attn_mask=None,
+            attn_mask=attention_bias,
             dropout_p=0.0 if not self.training else self.config.attention_dropout,
             is_causal=False,
         )
@@ -1242,42 +1242,11 @@ class LLaDAModel(nn.Module):
         else:
             attention_mask = None
 
-        # Merge attention mask with attention bias.
-        if (
-            attention_bias is not None
-            or attention_mask is not None
-            or self.config.alibi
-            # NOTE (epwalsh): we need to initialize the attn bias in order for attn to work properly
-            # with key+value cache. Otherwise `F.scaled_dot_product_attention()` doesn't seem to compute
-            # scores correctly.
-            or past_key_values is not None
-        ):
-            if attention_bias is None and self.config.alibi:
-                attention_bias = get_causal_attention_bias(
-                    self.__cache, past_length + seq_len, x.device
-                ) + self.get_alibi_attention_bias(past_length + seq_len, x.device)
-            elif attention_bias is None:
-                attention_bias = get_causal_attention_bias(self.__cache, past_length + seq_len, x.device)
-            elif attention_bias.dtype in (torch.int8, torch.bool):
-                attention_bias = attention_bias.to(dtype=torch.float)
-                attention_bias.masked_fill_(attention_bias == 0.0, torch.finfo(attention_bias.dtype).min)
-
-            # Transform to the right shape and data type.
-            mask_len = seq_len
-            if attention_mask is not None:
-                mask_len = attention_mask.shape[-1]
-            elif past_key_values is not None:
-                mask_len = past_key_values[0][0].shape[-2] + seq_len
-            attention_bias = attention_bias[:, :, :mask_len, :mask_len].to(dtype=torch.float)
-
-            # Add in the masking bias.
-            if attention_mask is not None:
-                attention_bias = attention_bias + attention_mask
-                # Might get -infs after adding attention mask, since dtype.min + dtype.min = -inf.
-                # `F.scaled_dot_product_attention()` doesn't handle -inf like you'd expect, instead
-                # it can produce NaNs.
-                ensure_finite_(attention_bias, check_neg_inf=True, check_pos_inf=False)
-
+        if attention_mask is not None:
+            attention_bias = attention_mask.to(dtype=torch.float)
+        else:
+            attention_bias = None
+            
         attn_key_values: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = [] if use_cache else None
 
         # decoder layers

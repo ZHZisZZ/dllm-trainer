@@ -399,12 +399,16 @@ class LLaDAMoEAttention(nn.Module):
         attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
 
         # **For diffusion language model, attention_mask is set to None(full attention) by default.**
-        attention_mask = None
+        # attention_mask = None
 
         if attention_mask is not None:  # no matter the length, we just slice it
-            causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
-            attn_weights = attn_weights + causal_mask
-
+            converter = AttentionMaskConverter(is_causal=False)
+            extended_mask = converter.to_4d(
+                attention_mask_2d=attention_mask,
+                query_length=q_len,
+                dtype=attn_weights.dtype
+            )
+            attn_weights = attn_weights + extended_mask
         # upcast attention to fp32
         attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
         attn_weights = nn.functional.dropout(attn_weights, p=self.attention_dropout, training=self.training)
@@ -522,7 +526,7 @@ class LLaDAMoEFlashAttention2(LLaDAMoEAttention):
             value_states = value_states.to(target_dtype)
 
         # **For diffusion language model, attention_mask is set to None(full attention) by default.**
-        attention_mask = None
+        # attention_mask = None
         self.is_causal = False
 
         attn_output = _flash_attention_forward(
@@ -608,25 +612,24 @@ class LLaDAMoESdpaAttention(LLaDAMoEAttention):
         key_states = repeat_kv(key_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
 
-        causal_mask = attention_mask
-        # if attention_mask is not None and cache_position is not None:
+         # **For diffusion language model, attention_mask is set to None(full attention) by default.**
+        is_causal = False
+        causal_mask = None
         if attention_mask is not None:
-            causal_mask = causal_mask[:, :, :, : key_states.shape[-2]]
+            converter = AttentionMaskConverter(is_causal=False)
+            causal_mask = converter.to_4d(
+                attention_mask_2d=attention_mask,
+                query_length=q_len,
+                dtype=query_states.dtype,
+            )
 
         # SDPA with memory-efficient backend is currently (torch==2.1.2) bugged with non-contiguous inputs with custom attn_mask,
         # Reference: https://github.com/pytorch/pytorch/issues/112577.
         if query_states.device.type == "cuda" and causal_mask is not None:
             query_states = query_states.contiguous()
             key_states = key_states.contiguous()
-            value_states = value_states.contiguous()
-
-        # We dispatch to SDPA's Flash Attention or Efficient kernels via this `is_causal` if statement instead of an inline conditional assignment
-        # in SDPA to support both torch.compile's dynamic shapes and full graph options. An inline conditional prevents dynamic shapes from compiling.
-        is_causal = True if causal_mask is None and q_len > 1 else False
-
-        # **For diffusion language model, attention_mask is set to None(full attention) by default.**
-        is_causal = False
-        causal_mask = None
+            value_states = value_states.contiguous()      
+            
 
         attn_output = torch.nn.functional.scaled_dot_product_attention(
             query_states,
@@ -767,7 +770,7 @@ class LLaDAMoEDecoderLayer(nn.Module):
 
         # **For diffusion language model, attention_mask is set to None(full attention) by default.**
         use_cache = False
-        attention_mask = None
+        # attention_mask = None
 
         # Self Attention
         hidden_states, self_attn_weights, present_key_value = self.self_attn(
@@ -965,14 +968,7 @@ class LLaDAMoEModel(LLaDAMoEPreTrainedModel):
         if position_ids is None:
             position_ids = cache_position.unsqueeze(0)
 
-        causal_mask = None
-        logger.warning_once(
-            f"Please note that, unlike autoregressive models, LLaDA MoE employs a bidirectional attention mechanism. "
-            f"In the forward code in modeling_lladamoe.py, we set both attention_mask and causal_mask to None, "
-            f"which affects the default causal attention and causes the input attention_mask parameter to become ineffective. "
-            f"If you pass an attention mask and expect the model to use it for computing other attention mechanisms, "
-            f"it may lead to logits and aux_loss returned by the model being inconsistent with your expectations. "
-        )
+        causal_mask = attention_mask
 
         # embed positions
         hidden_states = inputs_embeds
