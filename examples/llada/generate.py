@@ -14,8 +14,6 @@ import tyro
 import transformers
 
 import dllm
-from dllm.pipelines import llada
-from dllm.utils.utils import resolve_with_base_env
 
 
 @dataclass
@@ -27,7 +25,7 @@ class ScriptArguments:
     temperature: float = 0.0
     remasking: str = "random"
     seed: int = 42
-    def __post_init__(self): self.model_name_or_path = resolve_with_base_env(self.model_name_or_path, "BASE_MODELS_DIR")
+    def __post_init__(self): self.model_name_or_path = dllm.utils.resolve_with_base_env(self.model_name_or_path, "BASE_MODELS_DIR")
 
 script_args = tyro.cli(ScriptArguments)
 transformers.set_seed(script_args.seed)
@@ -56,7 +54,7 @@ input_ids_list = [
     for m in messages
 ]
 
-out = llada.generate(
+out = dllm.pipelines.llada.generate(
     model,
     tokenizer,
     input_ids_list,
@@ -102,7 +100,7 @@ fib_input_ids_list = [
     for m in masked_inputs
 ]
 
-out = llada.fill_in_blanks(
+out = dllm.pipelines.llada.fill_in_blanks(
     model,
     tokenizer,
     fib_input_ids_list,

@@ -14,8 +14,6 @@ import tyro
 import transformers
 
 import dllm
-from dllm.pipelines import dream
-from dllm.utils.utils import resolve_with_base_env
 
 
 @dataclass
@@ -29,7 +27,7 @@ class ScriptArguments:
     alg: str = "entropy"
     alg_temp: float = 0.0
     seed: int = 42
-    def __post_init__(self): self.model_name_or_path = resolve_with_base_env(self.model_name_or_path, "BASE_MODELS_DIR")
+    def __post_init__(self): self.model_name_or_path = dllm.utils.resolve_with_base_env(self.model_name_or_path, "BASE_MODELS_DIR")
 
 
 script_args = tyro.cli(ScriptArguments)
@@ -60,7 +58,7 @@ input_ids_list = [
     for m in messages
 ]
 
-out = dream.generate(
+out = dllm.pipelines.dream.generate(
     model=model,
     tokenizer=tokenizer,
     prompts=input_ids_list,
@@ -112,7 +110,7 @@ fib_input_ids_list = [
     for m in masked_inputs
 ]
 
-out = dream.fill_in_blanks(
+out = dllm.pipelines.dream.fill_in_blanks(
     model=model,
     tokenizer=tokenizer,
     inputs_with_blanks=fib_input_ids_list,
