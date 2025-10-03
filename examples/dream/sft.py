@@ -91,9 +91,6 @@ def train():
             row["messages"][:-1], tokenize=True, add_generation_prompt=True)
         prompt_response_tokens = tokenizer.apply_chat_template(
             row["messages"], tokenize=True, add_generation_prompt=False)
-        # overwrite "<|im_end|>\n" to "<|im_end|><|endoftext|>"
-        # TODO: delete this after overwriting chat template
-        prompt_response_tokens[-1] = tokenizer.eos_token_id
         labels = prompt_response_tokens.copy()
         if mask_prompt_loss: labels[:len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
         attention_mask = [1.0] * len(prompt_response_tokens)

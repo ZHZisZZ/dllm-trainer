@@ -1,10 +1,13 @@
 import math
 import random
 from dataclasses import dataclass
+from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple, Callable, Text
 
 import torch
 import transformers
+
+import dllm
 
 # ------------------------------- Collator (x0 source) --------------------------------
 # ---------------- Utilities ---------------- #
@@ -228,6 +231,67 @@ def pad_1d(batch_lists: List[List[int]], pad_val: int) -> Tuple[torch.Tensor, to
 
     return out, mask
 
+
+def init_editflow_from_src(ef_model, src_model, lm_head_key="lm_head", verbose=True):
+    """
+    Initialize an EditFlowDreamModel (ef_model) from a pretrained source model.
+
+    - Copies all matching backbone parameters.
+    - Duplicates source lm_head -> ef_model.sub_logits and ef_model.ins_logits.
+    - Leaves new rate heads (sub_rate/ins_rate/del_rate) randomly initialized.
+    - Returns (missing_keys, unexpected_keys) from load_state_dict(strict=False).
+
+    Args:
+        ef_model:    EditFlowDreamModel instance (target).
+        src_model:   Source model instance (the pretrained backbone).
+        lm_head_key: Base key name for the source model's LM head (default: "lm_head").
+        verbose:     If True, prints a short load report.
+
+    Example:
+        src = SomeBackboneModel.from_pretrained(path)
+        ef  = EditFlowDreamModel.from_config(cfg)
+        init_editflow_from_src(ef, src)
+    """
+    src_sd = src_model.state_dict()
+    tgt_sd = ef_model.state_dict()
+    new_sd = OrderedDict()
+
+    # 1) copy matching tensors (same key & shape)
+    for k, v in src_sd.items():
+        if k in tgt_sd and tgt_sd[k].shape == v.shape:
+            new_sd[k] = v
+
+    # 2) duplicate lm_head -> sub_logits & ins_logits (weight + optional bias)
+    lm_w = f"{lm_head_key}.weight"
+    lm_b = f"{lm_head_key}.bias"
+
+    if lm_w in src_sd:
+        if "sub_logits.weight" in tgt_sd:
+            new_sd["sub_logits.weight"] = src_sd[lm_w]
+        if "ins_logits.weight" in tgt_sd:
+            new_sd["ins_logits.weight"] = src_sd[lm_w]
+
+    if lm_b in src_sd:
+        if "sub_logits.bias" in tgt_sd:
+            new_sd["sub_logits.bias"] = src_sd[lm_b]
+        if "ins_logits.bias" in tgt_sd:
+            new_sd["ins_logits.bias"] = src_sd[lm_b]
+
+    # 3) load non-strictly so new heads can stay randomly initialized
+    missing, unexpected = ef_model.load_state_dict(new_sd, strict=False)
+
+    if verbose:
+        dllm.utils.print_main(f"[EditFlow init] Copied {len(new_sd)} tensors from DreamModel.")
+        if missing:
+            dllm.utils.print_main("  Missing (expected for new rate heads, etc.):")
+            for k in missing:
+                dllm.utils.print_main("   -", k)
+        if unexpected:
+            dllm.utils.print_main("  Unexpected (check key names):")
+            for k in unexpected:
+                dllm.utils.print_main("   -", k)
+
+    return missing, unexpected
 
 
 if __name__ == "__main__":
