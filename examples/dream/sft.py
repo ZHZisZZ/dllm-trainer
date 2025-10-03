@@ -58,11 +58,6 @@ class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = "Dream-org/Dream-v0-Base-7B"
 
 @dataclass
-class DataArguments(dllm.utils.DataArguments):
-    perbatch_cutoff: bool = True
-    resp_cutoff_ratio: float = 0.0
-
-@dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = "models/Dream-7B-SFT"
     # others (llada specific training params)
@@ -77,8 +72,6 @@ def train():
         TrainingArguments
     ))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    training_args.remove_unused_columns = False
-    transformers.set_seed(training_args.seed)
     dllm.utils.print_args_main(model_args, data_args, training_args)
 
     # ----- Model ------------------------------------------------------------------
@@ -141,9 +134,7 @@ def train():
             pad_to_multiple_of=8,
             return_tensors="pt",
             padding=True,
-            label_pad_token_id=-100,
-            perbatch_cutoff=data_args.perbatch_cutoff,
-            resp_cutoff_ratio=data_args.resp_cutoff_ratio,
+            label_pad_token_id=-100 # within dream training, the padding tokens are not visible and counted
         )
     )
     trainer.train()
