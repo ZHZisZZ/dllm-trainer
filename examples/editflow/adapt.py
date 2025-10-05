@@ -15,6 +15,7 @@ from dllm.pipelines import editflow
 class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = None # TODO: overwrite this
     lm_head_key: str = None # TODO: overwrite this
+    init_editflow_from_src: bool = True
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
@@ -25,7 +26,7 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     scheduler_cls: str = "LinearKappaScheduler"
     normalize_per_position: bool = True
     max_w: float = 20
-    x0_sampler: str = "sample_x0_mixture" # sample_x0_masks, sample_x0_empty, sample_x0_noisy, sample_x0_mixture
+    x0_sampler: str = "sample_x0_masks" # sample_x0_masks, sample_x0_empty, sample_x0_noisy, sample_x0_mixture
     mask_prompt_loss: bool = True
 
 
@@ -43,28 +44,26 @@ def train(
     dllm.utils.initial_training_setup()
 
     # ----- Load base Model and initialize EditFlow Model ---------------------------
-    model_name_or_path = dllm.utils.resolve_with_base_env(
-        model_args.model_name_or_path, "BASE_MODELS_DIR")
-
     # Load src model config & weights (bf16 on CUDA) for intializing EditFlow model
-    src_model = dllm.utils.get_model(model_args, training_args)
-
-    # Create EditFlow model (bf16 init on CUDA)
-    with dllm.utils.init_on("cuda", torch.bfloat16):
-        ef_cfg = ef_config_cls.from_pretrained(model_name_or_path)
-        model = ef_model_cls(ef_cfg)
-
-    # Initialize EditFlow model from the src model: copies backbone & clones lm_head
-    editflow.utils.init_editflow_from_src(model, src_model, lm_head_key=model_args.lm_head_key)
-    del src_model
+    if model_args.init_editflow_from_src:
+        src_model = dllm.utils.get_model(model_args)
+        # Create EditFlow model (bf16 init on CUDA)
+        with dllm.utils.init_on("cuda", torch.bfloat16):
+            ef_cfg = ef_config_cls.from_pretrained(model_args.model_name_or_path)
+            model = ef_model_cls(ef_cfg)
+        # Initialize EditFlow model from the src model: copies backbone & clones lm_head
+        editflow.utils.init_editflow_from_src(model, src_model, lm_head_key=model_args.lm_head_key)
+        del src_model
+    else:
+        model = dllm.utils.get_model(model_args)
 
     def _no_flops(*args, **kwargs): return 0.0
     model.floating_point_ops = _no_flops
 
     # ----- Tokenizer --------------------------------------------------------------
-    tokenizer = dllm.utils.get_tokenizer(model_args, model)
+    tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
     # ----- Optional PEFT: LoRA ----------------------------------------------------
-    model = dllm.utils.load_peft(model, model_args)
+    model = dllm.utils.load_peft(model=model, training_args=training_args)
 
     # ----- Dataset ----------------------------------------------------------------
     # Build emulated pretraining samples from SFT chats:

@@ -77,11 +77,11 @@ def train():
     dllm.utils.initial_training_setup()
 
     # ----- Model ------------------------------------------------------------------
-    model = dllm.utils.get_model(model_args, training_args)
+    model = dllm.utils.get_model(model_args)
     # ----- Tokenizer --------------------------------------------------------------
-    tokenizer = dllm.utils.get_tokenizer(model_args, model)
+    tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
     # ----- Optional PEFT: LoRA ----------------------------------------------------
-    model = dllm.utils.load_peft(model, model_args)
+    model = dllm.utils.load_peft(model=model, training_args=training_args)
 
     # ----- Dataset ----------------------------------------------------------------
     def train_map_fn(

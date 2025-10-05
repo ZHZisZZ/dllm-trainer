@@ -76,18 +76,19 @@ def pprint_main(*args, **kwargs):
         pprint.pprint(*args, **kwargs)
 
 
-def load_peft(model: transformers.PreTrainedModel, peft_args: "ModelArguments") -> transformers.PreTrainedModel:
-    if not peft_args.lora: return model
+def load_peft(model: transformers.PreTrainedModel, training_args: "TrainingArguments") -> transformers.PreTrainedModel:
+    if not training_args.lora: return model
     peft_config = peft.LoraConfig(
-        r=peft_args.r,
-        target_modules=peft_args.target_modules,
-        lora_alpha=peft_args.lora_alpha,
-        lora_dropout=peft_args.lora_dropout,
-        bias=peft_args.bias,
+        r=training_args.r,
+        target_modules=training_args.target_modules,
+        lora_alpha=training_args.lora_alpha,
+        lora_dropout=training_args.lora_dropout,
+        bias=training_args.bias,
         modules_to_save=getattr(model, "modules_to_save", None),
     )
     model = peft.get_peft_model(model, peft_config)
     if accelerate.PartialState().is_main_process:
+        print(model)
         model.print_trainable_parameters()
     return model
 

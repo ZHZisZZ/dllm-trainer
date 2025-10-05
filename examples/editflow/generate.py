@@ -189,7 +189,7 @@ def tau_leap_step_minimal(
                 _ops_strs.append(f"INS@{i}->{i+1}:{_tok_str(ins_samples[i])}")
         print("[time]", f"{t:.4f}")
         print("[events]", "; ".join(_ops_strs))
-        print("[decode]\n", tokenizer.decode(new_ids, skip_special_tokens=True))
+        print("[decode]\n", tokenizer.decode(new_ids, skip_special_tokens=False))
         print()
 
     # --- (vis) step trace payload (returned; used only for visualization downstream) ---
@@ -243,13 +243,13 @@ def generate_editflow_minimal(
     if prompt is None:
         ids = [bos]  # BOS alone
     else:
-        prompt = tokenizer.apply_chat_template(
+        ids = tokenizer.apply_chat_template(
             [{"role": "user", "content": prompt}],
-            tokenize=False,
+            tokenize=True,
             add_generation_prompt=True,
         )
-        enc = tokenizer(prompt, add_special_tokens=False)
-        ids = [bos] + enc["input_ids"]  # ALWAYS prefix BOS
+        # ids = tokenizer.encode(prompt, add_special_tokens=False)
+        # ids = [bos] + enc["input_ids"]  # ALWAYS prefix BOS
 
     prompt_len = len(ids)
 
@@ -303,7 +303,7 @@ def generate_editflow_minimal(
 
     _trace["end_t"] = float(t)
 
-    final_text = tokenizer.decode(x.tolist(), skip_special_tokens=True)
+    final_text = tokenizer.decode(x.tolist(), skip_special_tokens=False)
     print("[final]")
     return final_text, _trace
 
