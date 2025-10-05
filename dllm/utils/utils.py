@@ -114,3 +114,17 @@ def disable_caching_allocator_warmup():
         _mu.caching_allocator_warmup = _noop
     except Exception:
         pass
+
+
+def disable_dataset_progress_bar_except_main():
+    # state = accelerate.PartialState()  # figures out your rank/world automatically
+    from datasets.utils.logging import disable_progress_bar, enable_progress_bar
+    if accelerate.PartialState().is_main_process:
+        enable_progress_bar()
+    else:
+        disable_progress_bar()
+
+
+def initial_training_setup():
+    disable_caching_allocator_warmup()
+    disable_dataset_progress_bar_except_main()

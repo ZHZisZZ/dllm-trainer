@@ -40,6 +40,7 @@ def train(
     training_args.remove_unused_columns = False
     transformers.set_seed(training_args.seed)
     dllm.utils.print_args_main(model_args, data_args, training_args)
+    dllm.utils.initial_training_setup()
 
     # ----- Load base Model and initialize EditFlow Model ---------------------------
     model_name_or_path = dllm.utils.resolve_with_base_env(

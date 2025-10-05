@@ -74,6 +74,7 @@ def train():
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     transformers.set_seed(training_args.seed)
     dllm.utils.print_args_main(model_args, data_args, training_args)
+    dllm.utils.initial_training_setup()
 
     # ----- Model ------------------------------------------------------------------
     model = dllm.utils.get_model(model_args, training_args)
