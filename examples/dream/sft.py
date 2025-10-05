@@ -59,6 +59,7 @@ class ModelArguments(dllm.utils.ModelArguments):
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
+    dataset_args: str = "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
     perbatch_cutoff: bool = True
     resp_cutoff_ratio: float = 0.0
 
@@ -78,9 +79,8 @@ def train():
     ))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     training_args.remove_unused_columns = False
-    transformers.set_seed(training_args.seed)
     dllm.utils.print_args_main(model_args, data_args, training_args)
-    dllm.utils.initial_training_setup()
+    dllm.utils.initial_training_setup(training_args)
 
     # ----- Model ------------------------------------------------------------------
     model = dllm.utils.get_model(model_args)
@@ -90,7 +90,7 @@ def train():
     model = dllm.utils.load_peft(model=model, training_args=training_args)
 
     # ----- Dataset ----------------------------------------------------------------
-    def train_map_fn(
+    def sft_map_fn(
         row, 
         tokenizer: transformers.PreTrainedTokenizer, 
         mask_prompt_loss: bool = True, 
@@ -119,16 +119,13 @@ def train():
         dataset = dllm.data.load_sft_dataset(data_args.dataset_args)
         dataset = dataset.map(
             functools.partial(
-                train_map_fn, 
+                sft_map_fn, 
                 tokenizer=tokenizer,
                 mask_prompt_loss=training_args.mask_prompt_loss,
             ), 
             num_proc=data_args.num_proc,
         )
-        dataset = dataset.filter(
-            lambda row: len(row["input_ids"]) <= data_args.max_length,
-            num_proc=data_args.num_proc,
-        )
+        dataset = dllm.utils.post_process_dataset(dataset, data_args) # truncate / filter long sequences if needed
 
     # ----- Training --------------------------------------------------------------
     trainer = dream.DreamTrainer(

@@ -9,6 +9,7 @@ import torch
 import peft
 import accelerate
 import transformers
+import datasets
 
 
 def looks_like_url_or_scheme(path: str) -> bool:
@@ -127,6 +128,53 @@ def disable_dataset_progress_bar_except_main():
         disable_progress_bar()
 
 
-def initial_training_setup():
+def initial_training_setup(training_args: "TrainingArguments"):
+    transformers.set_seed(training_args.seed)
     disable_caching_allocator_warmup()
     disable_dataset_progress_bar_except_main()
+
+
+def clip_to_max_length(row: dict, max_length: int, truncation: str = "right") -> dict:
+    for key in ("input_ids", "labels", "attention_mask"):
+        if key in row:
+            if truncation == "right":
+                row[key] = row[key][:max_length]
+            elif truncation == "left":
+                row[key] = row[key][-max_length:]
+            else:
+                raise NotImplementedError
+    return row
+
+
+def post_process_dataset(
+    dataset: datasets.DatasetDict, 
+    data_args: "DataArguments"
+) -> datasets.DatasetDict:
+    if data_args.truncation == "filter":
+        return dataset.filter(
+            lambda row: len(row["input_ids"]) <= data_args.max_length,
+            num_proc=data_args.num_proc,
+        )
+    elif data_args.truncation == "right":
+        # do this only if dataset has "prompt_len"
+        if "prompt_len" in dataset.column_names["train"]:
+            dataset = dataset.filter(
+                lambda row: row["prompt_len"] <= data_args.max_length,
+                num_proc=data_args.num_proc,
+            )
+        return dataset.map(
+            lambda row: clip_to_max_length(row, data_args.max_length, truncation="right"),
+            num_proc=data_args.num_proc,
+        )
+    else:
+        # do this only if dataset has "prompt_len"
+        # if "prompt_len" in dataset.column_names["train"]:
+        #     dataset = dataset.filter(
+        #         lambda row: row["prompt_len"] <= data_args.max_length,
+        #         num_proc=data_args.num_proc,
+        #     )
+        # return dataset.map(
+        #     lambda row: clip_to_max_length(row, data_args.max_length, truncation="left"),
+        #     num_proc=data_args.num_proc,
+        # )
+        raise NotImplementedError

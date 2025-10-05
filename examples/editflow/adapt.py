@@ -17,6 +17,7 @@ class ModelArguments(dllm.utils.ModelArguments):
     lm_head_key: str = None # TODO: overwrite this
     init_editflow_from_src: bool = True
 
+
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = None # TODO: overwrite this
@@ -39,9 +40,8 @@ def train(
 ):
     training_args.label_names = []
     training_args.remove_unused_columns = False
-    transformers.set_seed(training_args.seed)
     dllm.utils.print_args_main(model_args, data_args, training_args)
-    dllm.utils.initial_training_setup()
+    dllm.utils.initial_training_setup(training_args)
 
     # ----- Load base Model and initialize EditFlow Model ---------------------------
     # Load src model config & weights (bf16 on CUDA) for intializing EditFlow model
@@ -70,7 +70,7 @@ def train(
     # - `input_ids`` = prompt + response
     # - `prompt_len` marks the prompt span to EXCLUDE from loss.
     #   (Remove prompt_len to train on all tokens—if so, ensure a BOS is prepended.)
-    def train_map_fn(
+    def sft_map_fn(
         row, 
         tokenizer: transformers.PreTrainedTokenizer, 
         mask_prompt_loss: bool = True, 
@@ -101,15 +101,12 @@ def train(
         dataset = dllm.data.load_sft_dataset(data_args.dataset_args)
         dataset = dataset.map(
             functools.partial(
-                train_map_fn, 
+                sft_map_fn, 
                 tokenizer=tokenizer,
             ), 
             num_proc=data_args.num_proc,
         )
-        dataset = dataset.filter(
-            lambda row: len(row["input_ids"]) <= data_args.max_length,
-            num_proc=data_args.num_proc,
-        )
+        dataset = dllm.utils.post_process_dataset(dataset, data_args) # truncate / filter long sequences if needed
 
     # ----- Training --------------------------------------------------------------
     trainer = editflow.EditFlowTrainer(

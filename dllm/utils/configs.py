@@ -14,9 +14,10 @@ class ModelArguments:
 
 @dataclass
 class DataArguments:
-    dataset_args: str = "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    dataset_args: str = None # TODO: overwrite this
     num_proc: int = 8
     max_length: int = 1024
+    truncation: str = "filter" # "filter", "right"
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):

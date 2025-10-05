@@ -44,6 +44,10 @@ class ModelArguments(editflow_adapt.ModelArguments):
     lm_head_key: str = "model.transformer.ff_out"
 
 @dataclass
+class DataArguments(dllm.utils.DataArguments):
+    dataset_args: str = "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+
+@dataclass
 class TrainingArguments(editflow_adapt.TrainingArguments):
     output_dir: str = "models/EditFlow-LLaDA-8B-Instruct/tulu-3-sft-mixture[train:10000,test:1000]"
 
@@ -52,7 +56,7 @@ if __name__ == "__main__":
     # ----- Argument parsing -------------------------------------------------------
     parser = transformers.HfArgumentParser((
         ModelArguments, 
-        dllm.utils.DataArguments, 
+        DataArguments, 
         TrainingArguments
     ))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
