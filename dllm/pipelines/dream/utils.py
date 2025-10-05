@@ -103,7 +103,7 @@ class DreamSFTCollator(transformers.DataCollatorForSeq2Seq):
     # -------------------------------------------------------------------------
     # 3) Main call: pick truncation mode
     # -------------------------------------------------------------------------
-    def __call__(self, features):
+    def __call__(self, features, return_tensors=None):
         # optional pre-collation truncation
         if self.perbatch_cutoff:
             features = self.apply_perbatch_cutoff(features)
@@ -113,7 +113,7 @@ class DreamSFTCollator(transformers.DataCollatorForSeq2Seq):
             {k: f[k] for k in ("input_ids", "labels", "attention_mask")}
             for f in features
         ]
-        batch = super().__call__(base)
+        batch = super().__call__(base, return_tensors=return_tensors)
 
         # optional post-collation truncation
         if (not self.perbatch_cutoff

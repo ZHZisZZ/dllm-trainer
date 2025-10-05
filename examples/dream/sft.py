@@ -12,12 +12,6 @@ Local users
         --config_file scripts/accelerate_configs/single_gpu.yaml \
         examples/dream/sft.py \
         --load_in_4bit True --lora True
-
-    # merge lora weights
-    python dllm_trainer/tools/merge_peft_adapter.py \
-        --adapter_model_name_or_path models/Dream-7B-SFT/checkpoint-final \
-        --output_model_name_or_path models/Dream-7B-SFT/checkpoint-final-merged \
-        --dtype bf16
     
 - 8 GPUs (DeepSpeed ZeRO-2):
     accelerate launch \
@@ -29,17 +23,17 @@ Slurm users
 #       `partition` and `quotatype` in `scripts/train.slurm.sh` for your cluster.
 ------------
 - 1 GPU:
-    sbatch scripts/train.slurm.sh \
+    sbatch --gres=gpu:1 scripts/train.slurm.sh \
         --accelerate_config "single_gpu" \
         --script_path "examples/dream/sft.py"
 
 - 8 GPUs (DeepSpeed ZeRO-2):
-    sbatch scripts/train.slurm.sh \
+    sbatch --gres=gpu:8 scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
         --script_path "examples/dream/sft.py"
 
 - 2 Nodes, 16 GPUs (DeepSpeed ZeRO-2):
-    sbatch --nodes=2 scripts/train.slurm.sh \
+    sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
         --script_path "examples/dream/sft.py"
 """

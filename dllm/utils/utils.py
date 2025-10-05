@@ -134,7 +134,7 @@ def initial_training_setup(training_args: "TrainingArguments"):
     disable_dataset_progress_bar_except_main()
 
 
-def clip_to_max_length(row: dict, max_length: int, truncation: str = "right") -> dict:
+def clip_row(row: dict, max_length: int, truncation: str = "right") -> dict:
     for key in ("input_ids", "labels", "attention_mask"):
         if key in row:
             if truncation == "right":
@@ -163,18 +163,88 @@ def post_process_dataset(
                 num_proc=data_args.num_proc,
             )
         return dataset.map(
-            lambda row: clip_to_max_length(row, data_args.max_length, truncation="right"),
+            lambda row: clip_row(row, data_args.max_length, truncation="right"),
             num_proc=data_args.num_proc,
         )
     else:
-        # do this only if dataset has "prompt_len"
-        # if "prompt_len" in dataset.column_names["train"]:
-        #     dataset = dataset.filter(
-        #         lambda row: row["prompt_len"] <= data_args.max_length,
-        #         num_proc=data_args.num_proc,
-        #     )
-        # return dataset.map(
-        #     lambda row: clip_to_max_length(row, data_args.max_length, truncation="left"),
-        #     num_proc=data_args.num_proc,
-        # )
+        raise NotImplementedError
+
+
+def clip_row_streaming(row: dict, max_length: int, truncation: str = "right") -> dict:
+    """Clip whole sequence OR (if prompt_len present) preserve prompt and clip only the response."""
+    if truncation not in {"right", "left"}:
+        raise NotImplementedError(f"Unknown truncation: {truncation}")
+
+    def clip(seq):
+        return seq[:max_length] if truncation == "right" else seq[-max_length:]
+
+    def clip_preserve_prompt(seq, prompt_len: int):
+        prompt = seq[:prompt_len]
+        resp   = seq[prompt_len:]
+        budget = max(0, max_length - len(prompt))
+        resp   = resp[:budget] if truncation == "right" else resp[-budget:]
+        return prompt + resp
+
+    prompt_len = row.get("prompt_len", None)
+    for k in ("input_ids", "labels", "attention_mask"):
+        if k in row and isinstance(row[k], list):
+            row[k] = (
+                clip_preserve_prompt(row[k], prompt_len)
+                if isinstance(prompt_len, int) and prompt_len >= 0
+                else clip(row[k])
+            )
+    return row
+
+
+
+def post_process_dataset_streaming(
+    dataset: datasets.IterableDatasetDict,
+    data_args: "DataArguments",
+) -> datasets.IterableDatasetDict:
+
+    def _train_has_prompt_len_streaming(dataset: datasets.IterableDatasetDict) -> bool:
+        """Replicates: 'if \"prompt_len\" in dataset.column_names[\"train\"]' for streaming."""
+        it = dataset["train"].take(1)
+        try:
+            ex = next(iter(it))
+        except StopIteration:
+            return False
+        return "prompt_len" in ex
+
+    mode = data_args.truncation
+    max_len = data_args.max_length
+
+    if mode == "filter":
+        # Keep rows with len(input_ids) <= max_len (emulate .filter with generator map)
+        def keep_if_short(row):
+            if "input_ids" in row and isinstance(row["input_ids"], list) and len(row["input_ids"]) <= max_len:
+                yield row  # keep
+            # else: drop (yield nothing)
+
+        return datasets.IterableDatasetDict({name: ds.map(keep_if_short) for name, ds in dataset.items()})
+
+    elif mode == "right":
+        ds_out = dataset
+
+        # Do this only if TRAIN split has "prompt_len" (same condition as your non-streaming code)
+        if _train_has_prompt_len_streaming(ds_out):
+            def keep_if_prompt_fits(row):
+                pl = row.get("prompt_len", None)
+                if isinstance(pl, int) and pl <= max_len:
+                    yield row  # keep
+                elif pl is None:
+                    # If a row lacks prompt_len but train had it, the non-streaming code would try to access it and fail.
+                    # Here we conservatively drop such rows to mirror "requires prompt_len <= max_len".
+                    return
+                # else: drop
+
+            ds_out = datasets.IterableDatasetDict({name: ds.map(keep_if_prompt_fits) for name, ds in ds_out.items()})
+
+        # Then clip right (same clipping as clip_row)
+        def clip_right(row):
+            return clip_row(row, max_len, truncation="right")
+
+        return datasets.IterableDatasetDict({name: ds.map(clip_right) for name, ds in ds_out.items()})
+
+    else:
         raise NotImplementedError

@@ -12,34 +12,28 @@ Local users
         --config_file scripts/accelerate_configs/single_gpu.yaml \
         examples/llada/sft.py \
         --load_in_4bit True --lora True
-
-    # merge lora weights
-    python dllm_trainer/tools/merge_peft_adapter.py \
-        --adapter_model_name_or_path models/LLaDA-8B-SFT/checkpoint-final \
-        --output_model_name_or_path models/LLaDA-8B-SFT/checkpoint-final-merged \
-        --dtype bf16
     
 - 8 GPUs (DeepSpeed ZeRO-2):
     accelerate launch \
         --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
-        examples/llada/sft.py  --output_dir "models-tmp"
+        examples/llada/sft.py
 
 Slurm users
 # Note: run `mkdir logs` before running sbatch; and adjust 
 #       `partition` and `quotatype` in `scripts/train.slurm.sh` for your cluster.
 ------------
 - 1 GPU:
-    sbatch scripts/train.slurm.sh \
+    sbatch --gres=gpu:1 scripts/train.slurm.sh \
         --accelerate_config "single_gpu" \
         --script_path "examples/llada/sft.py"
 
 - 8 GPUs (DeepSpeed ZeRO-2):
-    sbatch scripts/train.slurm.sh \
+    sbatch --gres=gpu:8 scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
         --script_path "examples/llada/sft.py"
 
 - 2 Nodes, 16 GPUs (DeepSpeed ZeRO-2):
-    sbatch --nodes=2 scripts/train.slurm.sh \
+    sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
         --script_path "examples/llada/sft.py"
 """
@@ -106,7 +100,11 @@ def train():
                 add_generation_prompt=True
             )
             labels[:len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
-            return {"input_ids": prompt_response_tokens, "labels": labels, "prompt_len": len(prompt_tokens)}
+            return {
+                "input_ids": prompt_response_tokens, 
+                "labels": labels,                     # use -100 in labels to represent positions where tokens should not be masked and loss is ignored
+                "prompt_len": len(prompt_tokens),     # `prompt_len` to help `post_process_dataset` truncate long sequences properly
+            }
         return {"input_ids": prompt_response_tokens, "labels": labels}
 
     with accelerate.PartialState().local_main_process_first():
