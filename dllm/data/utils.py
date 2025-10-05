@@ -195,7 +195,10 @@ def load_pt_dataset(dataset_args: str):
     # only support streaming
     raw = dataset_args
     kvs, limits = _parse_one_spec(raw)
+    # dataset_name_or_path = kvs.pop("dataset_name_or_path")
+    assert "dataset_name_or_path" in kvs, f"'dataset_name_or_path' missing in spec: {raw}"
     dataset_name_or_path = kvs.pop("dataset_name_or_path")
+    dataset_name_or_path = resolve_with_base_env(dataset_name_or_path, "BASE_DATASETS_DIR")
 
     def _match(name, needle):
         return name.endswith(needle) or needle in name
@@ -204,7 +207,7 @@ def load_pt_dataset(dataset_args: str):
         n_total = limits["train"] + limits["test"]
         n_train = limits["train"]
         ds = load_dataset(
-            "mlfoundations/dclm-baseline-1.0",
+            dataset_name_or_path,
             split="train",
             streaming=True
         ).take(n_total)

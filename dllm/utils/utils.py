@@ -12,27 +12,27 @@ import transformers
 import datasets
 
 
-def looks_like_url_or_scheme(path: str) -> bool:
-    # leave URLs, special schemes or cloud URIs untouched
-    return any(path.startswith(pfx) for pfx in (
-        "http://", "https://", "hf://", "s3://", "gs://", "azure://"
-    )) or ("://" in path)
-
-
 def resolve_with_base_env(path: str, env_name: str) -> str:
     """
     If `env_name` is set and `path` is NOT absolute, NOT a URL/scheme,
     and does not already exist locally, prepend the `env_name` directory.
+
+    If the resulting path does not exist, return the base environment directory instead.
     Otherwise return `path` unchanged.
     """
     base = os.getenv(env_name, "").strip()
     if not base:
         return path
-    if os.path.isabs(path) or looks_like_url_or_scheme(path):
+    if os.path.isabs(path):
         return path
     if os.path.exists(path):
         return path
-    return os.path.join(base.rstrip("/"), path.lstrip("/"))
+
+    candidate = os.path.join(base.rstrip("/"), path.lstrip("/"))
+    if os.path.exists(candidate):
+        return candidate
+    else:
+        return base
 
 
 @contextmanager

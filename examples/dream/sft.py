@@ -54,13 +54,13 @@ class ModelArguments(dllm.utils.ModelArguments):
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
     dataset_args: str = "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
-    perbatch_cutoff: bool = True
-    resp_cutoff_ratio: float = 0.0
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = "models/Dream-7B-SFT"
-    # others (llada specific training params)
+    # others (dream specific training params)
+    perbatch_cutoff: bool = True
+    resp_cutoff_ratio: float = 0.0
     mask_prompt_loss: bool = True
 
 
@@ -72,7 +72,7 @@ def train():
         TrainingArguments
     ))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    training_args.remove_unused_columns = False
+    training_args.remove_unused_columns = False # necessary when batch contains customized fields
     dllm.utils.print_args_main(model_args, data_args, training_args)
     dllm.utils.initial_training_setup(training_args)
 
@@ -134,8 +134,8 @@ def train():
             return_tensors="pt",
             padding=True,
             label_pad_token_id=-100,
-            perbatch_cutoff=data_args.perbatch_cutoff,
-            resp_cutoff_ratio=data_args.resp_cutoff_ratio,
+            perbatch_cutoff=training_args.perbatch_cutoff,
+            resp_cutoff_ratio=training_args.resp_cutoff_ratio,
         )
     )
     trainer.train()

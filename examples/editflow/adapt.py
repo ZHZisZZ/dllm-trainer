@@ -38,8 +38,8 @@ def train(
     ef_config_cls: Type[transformers.PretrainedConfig], 
     ef_model_cls: Type[transformers.PreTrainedModel], 
 ):
-    training_args.label_names = []
-    training_args.remove_unused_columns = False
+    training_args.label_names = [] # necessary when batch does not contain "labels" field
+    training_args.remove_unused_columns = False # necessary when batch contains customized fields
     dllm.utils.print_args_main(model_args, data_args, training_args)
     dllm.utils.initial_training_setup(training_args)
 
