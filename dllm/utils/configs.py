@@ -13,7 +13,7 @@ class ModelArguments:
     # --- fold PEFT args here ---
     lora:           bool  = False
     target_modules: str   = "all-linear"
-    r:              int   = 64
+    r:              int   = 32
     lora_alpha:     int   = 64
     lora_dropout:   float = 0.05
     bias:           str   = "none"

@@ -84,6 +84,7 @@ def load_peft(model: transformers.PreTrainedModel, peft_args: "ModelArguments") 
         lora_alpha=peft_args.lora_alpha,
         lora_dropout=peft_args.lora_dropout,
         bias=peft_args.bias,
+        modules_to_save=getattr(model, "modules_to_save", None),
     )
     model = peft.get_peft_model(model, peft_config)
     if accelerate.PartialState().is_main_process:
