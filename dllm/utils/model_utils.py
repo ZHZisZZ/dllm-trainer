@@ -2,6 +2,7 @@ import torch
 import accelerate
 import transformers
 
+from dllm.utils.utils import disable_caching_allocator_warmup
 from dllm.utils.configs import ModelArguments, TrainingArguments
 
 
@@ -23,6 +24,8 @@ def get_model(
 
     torch_dtype = getattr(model_args, "torch_dtype", "bfloat16")
     torch_dtype = dtype_map.get(str(torch_dtype).lower())
+
+    disable_caching_allocator_warmup() # AutoModel.from_pretrained may fail for LLaDA without this
 
     if not training_args:
         return transformers.AutoModel.from_pretrained(

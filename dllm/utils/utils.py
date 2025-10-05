@@ -104,3 +104,13 @@ def print_args_main(model_args: "ModelArguments", data_args: "DataArguments", tr
         print_main(f"{name}:")
         pprint_main(short, width=100, compact=True)
     print_main("============================\n")
+
+
+def disable_caching_allocator_warmup():
+    try:
+        from transformers import modeling_utils as _mu
+        def _noop(*args, **kwargs): 
+            return
+        _mu.caching_allocator_warmup = _noop
+    except Exception:
+        pass

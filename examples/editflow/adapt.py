@@ -46,8 +46,7 @@ def train(
         model_args.model_name_or_path, "BASE_MODELS_DIR")
 
     # Load src model config & weights (bf16 on CUDA) for intializing EditFlow model
-    src_model = transformers.AutoModel.from_pretrained(
-        model_name_or_path, torch_dtype=torch.bfloat16, device_map="cuda")
+    src_model = dllm.utils.get_model(model_args, training_args)
 
     # Create EditFlow model (bf16 init on CUDA)
     with dllm.utils.init_on("cuda", torch.bfloat16):
