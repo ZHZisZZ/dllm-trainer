@@ -45,7 +45,7 @@ from dllm.pipelines import llada
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
-    # only configs from `model_name_or_path` are used to initialize the model from scratch
+    # Uses only the configuration from model_name_or_path to initialize the model from scratch
     model_name_or_path: str = (
         "GSAI-ML/LLaDA-8B-Base"  # "inclusionAI/LLaDA-MoE-7B-A1B-Base"
     )
@@ -119,7 +119,7 @@ def train():
     @dataclass
     class LLaDAPTCollator(transformers.DataCollatorForSeq2Seq):
         # Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md
-        random_length_ratio: float = 0.1
+        random_length_ratio: float = 0.01
 
         def __call__(self, features, return_tensors=None):
             outputs = super().__call__(features, return_tensors)

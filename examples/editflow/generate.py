@@ -726,9 +726,6 @@ def main():
             str | None, "Output GIF path (default: decode_trace.gif)"
         ] = None
         frame_ms: Annotated[int, "Per-frame duration in ms"] = 120
-        # show_token_pieces: Annotated[bool,
-        #     "True = color token pieces (blue=INS, orange=SUB, black=KEEP). "
-        #     "False = show human-readable decoded text (no per-token colors)."] = True
 
     args = tyro.cli(ScriptArgs)
 
@@ -739,9 +736,6 @@ def main():
         temperature=args.temperature,
         verbose=args.verbose,
         time_independent=args.time_independent,
-        # make_gif=args.make_gif,
-        # gif_path=args.gif_path,
-        # frame_ms=args.frame_ms,
     )
 
     model = AutoModel.from_pretrained(

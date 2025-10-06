@@ -1,7 +1,6 @@
 import os
 import functools
 from dataclasses import dataclass
-from typing import Type
 
 import torch
 import transformers
