@@ -34,11 +34,20 @@ def load_dataset_alpaca(dataset_name_or_path: str) -> DatasetDict:
     dataset = load_dataset(dataset_name_or_path)
 
     def map_fn(example):
-        prompt = _build_alpaca_prompt(example.get("instruction", ""), example.get("input", ""))
+        prompt = _build_alpaca_prompt(
+            example.get("instruction", ""), example.get("input", "")
+        )
         response = (example.get("output", "") or "").strip()
-        return {"messages": [{"role": "user", "content": prompt}, {"role": "assistant", "content": response}]}
+        return {
+            "messages": [
+                {"role": "user", "content": prompt},
+                {"role": "assistant", "content": response},
+            ]
+        }
 
-    dataset = dataset.map(map_fn, remove_columns=dataset["train"].column_names, num_proc=4)
+    dataset = dataset.map(
+        map_fn, remove_columns=dataset["train"].column_names, num_proc=4
+    )
     # make train test split
     dataset = dataset["train"].train_test_split(test_size=0.1, seed=42)
     return dataset
@@ -46,6 +55,9 @@ def load_dataset_alpaca(dataset_name_or_path: str) -> DatasetDict:
 
 if __name__ == "__main__":
     from dllm.utils import resolve_with_base_env
-    dataset_name_or_path = resolve_with_base_env("tatsu-lab/alpaca", "BASE_DATASETS_DIR")
+
+    dataset_name_or_path = resolve_with_base_env(
+        "tatsu-lab/alpaca", "BASE_DATASETS_DIR"
+    )
     dataset = load_dataset_alpaca(dataset_name_or_path)
     breakpoint()

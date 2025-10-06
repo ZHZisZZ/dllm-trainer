@@ -30,6 +30,7 @@ Slurm users
         --accelerate_config "deepspeed_zero3" \
         --script_path "examples/editflow/pt_llada.py"
 """
+
 from dataclasses import dataclass
 
 import transformers
@@ -43,26 +44,30 @@ class ModelArguments(editflow_pt.ModelArguments):
     model_name_or_path: str = "GSAI-ML/LLaDA-8B-Base"
     lm_head_key: str = "model.transformer.ff_out"
 
+
 @dataclass
 class DataArguments(editflow_pt.DataArguments):
-    dataset_args: str = "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:10_000_000,test:10_000]"
+    dataset_args: str = (
+        "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:10_000_000,test:10_000]"
+    )
+
 
 @dataclass
 class TrainingArguments(editflow_pt.TrainingArguments):
-    output_dir: str = "models/EditFlow-LLaDA-8B-Base/dclm-baseline-1.0[train:10_000_000,test:10_000]"
+    output_dir: str = (
+        "models/EditFlow-LLaDA-8B-Base/dclm-baseline-1.0[train:10_000_000,test:10_000]"
+    )
 
 
 if __name__ == "__main__":
     # ----- Argument parsing -------------------------------------------------------
-    parser = transformers.HfArgumentParser((
-        ModelArguments, 
-        DataArguments, 
-        TrainingArguments
-    ))
+    parser = transformers.HfArgumentParser(
+        (ModelArguments, DataArguments, TrainingArguments)
+    )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     editflow_pt.train(
-        model_args=model_args, 
-        data_args=data_args, 
+        model_args=model_args,
+        data_args=data_args,
         training_args=training_args,
         ef_config_cls=dllm.pipelines.editflow.EditFlowLLaDAConfig,
     )

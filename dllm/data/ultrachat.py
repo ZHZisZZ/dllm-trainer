@@ -19,7 +19,11 @@ def _extract_first_turn(messages: List[Dict[str, str]]) -> Optional[Dict[str, st
     # (Most entries start as [user, assistant, ...], but we guard anyway.)
     user_idx = None
     for i, m in enumerate(messages):
-        if isinstance(m, dict) and m.get("role") == "user" and isinstance(m.get("content"), str):
+        if (
+            isinstance(m, dict)
+            and m.get("role") == "user"
+            and isinstance(m.get("content"), str)
+        ):
             user_idx = i
             break
     if user_idx is None:
@@ -28,7 +32,11 @@ def _extract_first_turn(messages: List[Dict[str, str]]) -> Optional[Dict[str, st
     # Find first assistant after that user
     for j in range(user_idx + 1, len(messages)):
         m = messages[j]
-        if isinstance(m, dict) and m.get("role") == "assistant" and isinstance(m.get("content"), str):
+        if (
+            isinstance(m, dict)
+            and m.get("role") == "assistant"
+            and isinstance(m.get("content"), str)
+        ):
             user_text = messages[user_idx]["content"].strip()
             assistant_text = m["content"].strip()
             if user_text and assistant_text:
@@ -76,20 +84,25 @@ def load_dataset_ultrachat(dataset_name_or_path: str) -> DatasetDict:
         break
 
     dataset = dataset.map(map_fn, remove_columns=cols_to_remove, num_proc=4)
-    dataset = DatasetDict({
-        new: dataset[old]
-        for old, new in {
-            "train_sft": "train",
-            "test_sft": "test",
-        }.items()
-        if old in dataset
-    })
+    dataset = DatasetDict(
+        {
+            new: dataset[old]
+            for old, new in {
+                "train_sft": "train",
+                "test_sft": "test",
+            }.items()
+            if old in dataset
+        }
+    )
     return dataset
 
 
 if __name__ == "__main__":
     # Mirrors the style from your previous loaders: resolve path via env helper if available.
     from dllm.utils import resolve_with_base_env
-    dataset_name_or_path = resolve_with_base_env("HuggingFaceH4/ultrachat_200k", "BASE_DATASETS_DIR")
+
+    dataset_name_or_path = resolve_with_base_env(
+        "HuggingFaceH4/ultrachat_200k", "BASE_DATASETS_DIR"
+    )
     dataset = load_dataset_ultrachat(dataset_name_or_path)
     breakpoint()

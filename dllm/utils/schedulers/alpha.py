@@ -25,8 +25,9 @@ class BaseAlphaScheduler:
     # ---- common API ----
     def alpha(self, i: Number) -> Number:
         i_t = torch.as_tensor(
-            i, dtype=torch.float32,
-            device=i.device if isinstance(i, torch.Tensor) else None
+            i,
+            dtype=torch.float32,
+            device=i.device if isinstance(i, torch.Tensor) else None,
         )
         if not torch.all((0.0 <= i_t) & (i_t <= 1.0)):
             raise ValueError(f"i={i} not in [0,1]")
@@ -35,8 +36,9 @@ class BaseAlphaScheduler:
 
     def alpha_derivative(self, i: Number) -> Number:
         i_t = torch.as_tensor(
-            i, dtype=torch.float32,
-            device=i.device if isinstance(i, torch.Tensor) else None
+            i,
+            dtype=torch.float32,
+            device=i.device if isinstance(i, torch.Tensor) else None,
         )
         if not torch.all((0.0 <= i_t) & (i_t <= 1.0)):
             raise ValueError(f"i={i} not in [0,1]")
@@ -45,12 +47,14 @@ class BaseAlphaScheduler:
 
     def reverse_mask_prob(self, s: Number, t: Number) -> Number:
         t_t = torch.as_tensor(
-            t, dtype=torch.float32,
-            device=t.device if isinstance(t, torch.Tensor) else None
+            t,
+            dtype=torch.float32,
+            device=t.device if isinstance(t, torch.Tensor) else None,
         )
         s_t = torch.as_tensor(
-            s, dtype=torch.float32,
-            device=s.device if isinstance(s, torch.Tensor) else None
+            s,
+            dtype=torch.float32,
+            device=s.device if isinstance(s, torch.Tensor) else None,
         )
         if not torch.all((0.0 <= s_t) & (s_t < 1.0) & (0.0 < t_t) & (t_t <= 1.0)):
             raise ValueError(f"(t={t}, s={s}) out of range")
@@ -58,7 +62,7 @@ class BaseAlphaScheduler:
             raise ValueError(f"Require s < t elementwise, but got (t={t}, s={s})")
         out = (1 - self(s_t)) / (1 - self(t_t))
         return out.item() if isinstance(t, float) and isinstance(s, float) else out
-    
+
     def weight(self, i: Number) -> Number:
         # w(t) = α'(t) / (1 - α(t))
         return self.alpha_derivative(i) / (1 - self.alpha(i) + 1e-6)
@@ -72,6 +76,7 @@ class BaseAlphaScheduler:
 
 
 # ---------------- Implementations ---------------- #
+
 
 @dataclasses.dataclass
 class LinearAlphaScheduler(BaseAlphaScheduler):
@@ -93,13 +98,17 @@ class CosineAlphaScheduler(BaseAlphaScheduler):
 
 # ---------------- Factory helpers ---------------- #
 
+
 def get_alpha_scheduler_class(name: str) -> Type[BaseAlphaScheduler]:
     """Return the scheduler class by name (case-insensitive)."""
-    cls = BaseAlphaScheduler.__registry__.get(name) or BaseAlphaScheduler.__registry__.get(name.lower())
+    cls = BaseAlphaScheduler.__registry__.get(
+        name
+    ) or BaseAlphaScheduler.__registry__.get(name.lower())
     if cls is None:
         available = sorted(k for k in BaseAlphaScheduler.__registry__ if k[0].isupper())
         raise ValueError(f"Unknown scheduler '{name}'. Available: {available}")
     return cls
+
 
 def make_alpha_scheduler(name: str, **kwargs: Any) -> BaseAlphaScheduler:
     """Instantiate a scheduler by name with optional kwargs."""

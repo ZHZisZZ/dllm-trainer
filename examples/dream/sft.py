@@ -37,6 +37,7 @@ Slurm users
         --accelerate_config "deepspeed_zero2" \
         --script_path "examples/dream/sft.py"
 """
+
 import os
 import functools
 from dataclasses import dataclass
@@ -47,13 +48,18 @@ import accelerate
 import dllm
 from dllm.pipelines import dream
 
+
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = "Dream-org/Dream-v0-Base-7B"
 
+
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
-    dataset_args: str = "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    dataset_args: str = (
+        "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    )
+
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
@@ -66,13 +72,13 @@ class TrainingArguments(dllm.utils.TrainingArguments):
 
 def train():
     # ----- Argument parsing -------------------------------------------------------
-    parser = transformers.HfArgumentParser((
-        ModelArguments, 
-        DataArguments, 
-        TrainingArguments
-    ))
+    parser = transformers.HfArgumentParser(
+        (ModelArguments, DataArguments, TrainingArguments)
+    )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    training_args.remove_unused_columns = False # necessary when batch contains customized fields
+    training_args.remove_unused_columns = (
+        False  # necessary when batch contains customized fields
+    )
     dllm.utils.print_args_main(model_args, data_args, training_args)
     dllm.utils.initial_training_setup(training_args)
 
@@ -85,41 +91,40 @@ def train():
 
     # ----- Dataset ----------------------------------------------------------------
     def sft_map_fn(
-        row, 
-        tokenizer: transformers.PreTrainedTokenizer, 
-        mask_prompt_loss: bool = True, 
-        label_pad_token_id: int = -100
+        row,
+        tokenizer: transformers.PreTrainedTokenizer,
+        mask_prompt_loss: bool = True,
+        label_pad_token_id: int = -100,
     ) -> dict:
         prompt_tokens = tokenizer.apply_chat_template(
-            row["messages"][:-1], 
-            tokenize=True, 
-            add_generation_prompt=True
+            row["messages"][:-1], tokenize=True, add_generation_prompt=True
         )
         prompt_response_tokens = tokenizer.apply_chat_template(
-            row["messages"], 
-            tokenize=True, 
-            add_generation_prompt=False
+            row["messages"], tokenize=True, add_generation_prompt=False
         )
         labels = prompt_response_tokens.copy()
-        if mask_prompt_loss: labels[:len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
+        if mask_prompt_loss:
+            labels[: len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
         return {
             "input_ids": prompt_response_tokens,
             "labels": labels,
             "attention_mask": [1.0] * len(prompt_response_tokens),
-            "prompt_len": len(prompt_tokens)
+            "prompt_len": len(prompt_tokens),
         }
 
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_sft_dataset(data_args.dataset_args)
         dataset = dataset.map(
             functools.partial(
-                sft_map_fn, 
+                sft_map_fn,
                 tokenizer=tokenizer,
                 mask_prompt_loss=training_args.mask_prompt_loss,
-            ), 
+            ),
             num_proc=data_args.num_proc,
         )
-        dataset = dllm.utils.post_process_dataset(dataset, data_args) # truncate / filter long sequences if needed
+        dataset = dllm.utils.post_process_dataset(
+            dataset, data_args
+        )  # truncate / filter long sequences if needed
 
     # ----- Training --------------------------------------------------------------
     trainer = dream.DreamTrainer(
@@ -136,13 +141,13 @@ def train():
             label_pad_token_id=-100,
             perbatch_cutoff=training_args.perbatch_cutoff,
             resp_cutoff_ratio=training_args.resp_cutoff_ratio,
-        )
+        ),
     )
     trainer.train()
-    trainer.save_model(os.path.join(
-        training_args.output_dir, "checkpoint-final"))
-    trainer.processing_class.save_pretrained(os.path.join(
-        training_args.output_dir, "checkpoint-final"))
+    trainer.save_model(os.path.join(training_args.output_dir, "checkpoint-final"))
+    trainer.processing_class.save_pretrained(
+        os.path.join(training_args.output_dir, "checkpoint-final")
+    )
 
 
 if __name__ == "__main__":

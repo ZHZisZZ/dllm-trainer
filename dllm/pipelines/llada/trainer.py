@@ -28,7 +28,7 @@ class LLaDATrainer(transformers.Trainer):
         self,
         model: Union[transformers.PreTrainedModel, nn.Module],
         inputs: Dict[str, Union[torch.Tensor, Any]],
-        return_outputs = False,
+        return_outputs=False,
         **kwargs,
     ):
         # Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md
@@ -36,24 +36,35 @@ class LLaDATrainer(transformers.Trainer):
 
         b, l = input_ids.shape
         # affine transform: t ∈ [eps, 1)
-        t = self.time_epsilon + (1 - self.time_epsilon) * torch.rand(b, device=input_ids.device)
+        t = self.time_epsilon + (1 - self.time_epsilon) * torch.rand(
+            b, device=input_ids.device
+        )
         p_mask = 1 - self.scheduler(t).unsqueeze(1).repeat(1, l)  # b, 1
-        loss_weight = - self.scheduler.weight(t).unsqueeze(1).repeat(1, l)  # b, 1
+        loss_weight = -self.scheduler.weight(t).unsqueeze(1).repeat(1, l)  # b, 1
         masked_indices = torch.rand((b, l), device=input_ids.device) < p_mask
         masked_indices = masked_indices & (labels != -100)
-        effective_lengths = torch.sum(labels != -100, dim=1, keepdim=True).repeat(1, l)  # b, l
+        effective_lengths = torch.sum(labels != -100, dim=1, keepdim=True).repeat(
+            1, l
+        )  # b, l
 
-        noised_input_ids = torch.where(masked_indices, self.processing_class.mask_token_id, input_ids)
-        outputs = model(input_ids=noised_input_ids) 
+        noised_input_ids = torch.where(
+            masked_indices, self.processing_class.mask_token_id, input_ids
+        )
+        outputs = model(input_ids=noised_input_ids)
         logits = outputs.logits
 
         if not masked_indices.any():
             # return a zero loss that retains graph/device/dtype
             return logits.sum() * 0.0
 
-        token_loss = F.cross_entropy(logits[masked_indices], input_ids[masked_indices], reduction='none')
+        token_loss = F.cross_entropy(
+            logits[masked_indices], input_ids[masked_indices], reduction="none"
+        )
         token_loss *= loss_weight[masked_indices]
-        loss = torch.sum(token_loss / effective_lengths[masked_indices]) / input_ids.shape[0]
+        loss = (
+            torch.sum(token_loss / effective_lengths[masked_indices])
+            / input_ids.shape[0]
+        )
 
         return (loss, outputs) if return_outputs else loss
 

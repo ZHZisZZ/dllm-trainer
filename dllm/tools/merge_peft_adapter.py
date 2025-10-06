@@ -26,17 +26,17 @@ class ScriptArguments:
         default=None, metadata={"help": "Adapter repo or local path"}
     )
     output_model_name_or_path: Optional[str] = field(
-        default=None, metadata={"help": "Where to save the merged model (folder or repo id)"}
+        default=None,
+        metadata={"help": "Where to save the merged model (folder or repo id)"},
     )
-    dtype: Optional[str] = field(
-        default="fp16", metadata={"help": "fp16|bf16|fp32"}
-    )
+    dtype: Optional[str] = field(default="fp16", metadata={"help": "fp16|bf16|fp32"})
     push_to_hub: Optional[bool] = field(
         default=False, metadata={"help": "Push merged weights to the Hub"}
     )
     # Optional override if adapter config lacks base info:
     base_model_name_or_path: Optional[str] = field(
-        default=None, metadata={"help": "Override base model if adapter config lacks it"}
+        default=None,
+        metadata={"help": "Override base model if adapter config lacks it"},
     )
 
 
@@ -50,7 +50,9 @@ def main():
 
     # Read base path from adapter_config.json
     peft_cfg = PeftConfig.from_pretrained(args.adapter_model_name_or_path)
-    base_id = args.base_model_name_or_path or getattr(peft_cfg, "base_model_name_or_path", None)
+    base_id = args.base_model_name_or_path or getattr(
+        peft_cfg, "base_model_name_or_path", None
+    )
     assert base_id, (
         "adapter_config.json does not include base_model_name_or_path; "
         "pass --base_model_name_or_path to override."

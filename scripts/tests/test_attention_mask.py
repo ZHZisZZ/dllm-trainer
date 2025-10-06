@@ -1,6 +1,7 @@
 """
 LLaDA attention mask test
 """
+
 import torch
 import transformers
 import dllm
@@ -34,16 +35,24 @@ def test_llada_attention_mask():
         out_C = model(input_ids=input_ids_C, attention_mask=attn_C).logits
 
     # Compare the logits for the “real” positions [1,2,3,4]
-    assert torch.allclose(out_A, out_B[:, 1:], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD)
-    assert torch.allclose(out_A, out_C[:, :-1], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD)
-    expected_slice = torch.tensor(
-        [[11.0661,  9.1255, 11.7845],
-        [7.3237,  4.7777, 14.1884],
-        [9.7602,  6.6605,  7.9520],
-        [9.1387,  5.9180,  8.3237]],
-        device=out_A.device
+    assert torch.allclose(
+        out_A, out_B[:, 1:], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
     )
-    assert torch.allclose(out_A[:, :, :3], expected_slice, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD)
+    assert torch.allclose(
+        out_A, out_C[:, :-1], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    )
+    expected_slice = torch.tensor(
+        [
+            [11.0661, 9.1255, 11.7845],
+            [7.3237, 4.7777, 14.1884],
+            [9.7602, 6.6605, 7.9520],
+            [9.1387, 5.9180, 8.3237],
+        ],
+        device=out_A.device,
+    )
+    assert torch.allclose(
+        out_A[:, :, :3], expected_slice, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    )
 
 
 def test_llada_moe_attention_mask():
@@ -72,13 +81,21 @@ def test_llada_moe_attention_mask():
         out_C = model(input_ids=input_ids_C, attention_mask=attn_C).logits
 
     # Compare the logits for the “real” positions [1,2,3,4]
-    assert torch.allclose(out_A, out_B[:, 1:], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD)
-    assert torch.allclose(out_A, out_C[:, :-1], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD)
-    expected_slice = torch.tensor(
-        [[3.3327, 12.4816, 12.4992],
-         [1.5626, 8.7846, 13.9236],
-         [2.5232, 9.0491, 13.1045],
-         [3.4953, 9.1782, 13.7100]],
-        device=out_A.device
+    assert torch.allclose(
+        out_A, out_B[:, 1:], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
     )
-    assert torch.allclose(out_A[:, :, :3], expected_slice, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD)
+    assert torch.allclose(
+        out_A, out_C[:, :-1], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    )
+    expected_slice = torch.tensor(
+        [
+            [3.3327, 12.4816, 12.4992],
+            [1.5626, 8.7846, 13.9236],
+            [2.5232, 9.0491, 13.1045],
+            [3.4953, 9.1782, 13.7100],
+        ],
+        device=out_A.device,
+    )
+    assert torch.allclose(
+        out_A[:, :, :3], expected_slice, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    )

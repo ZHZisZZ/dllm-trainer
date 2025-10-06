@@ -30,6 +30,7 @@ Slurm users
         --accelerate_config "deepspeed_zero3" \
         --script_path "examples/llada/pt.py"
 """
+
 import os
 import functools
 from dataclasses import dataclass
@@ -41,16 +42,23 @@ import accelerate
 import dllm
 from dllm.pipelines import llada
 
+
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
     # only configs from `model_name_or_path` are used to initialize the model from scratch
-    model_name_or_path: str = "GSAI-ML/LLaDA-8B-Base" # "inclusionAI/LLaDA-MoE-7B-A1B-Base"
+    model_name_or_path: str = (
+        "GSAI-ML/LLaDA-8B-Base"  # "inclusionAI/LLaDA-MoE-7B-A1B-Base"
+    )
+
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
-    dataset_args: str = "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:10_000_000,test:10_000]"
+    dataset_args: str = (
+        "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:10_000_000,test:10_000]"
+    )
     truncation: str = "right"
     max_length: int = 2048
+
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
@@ -62,18 +70,20 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     eval_steps: float = 0.1
     save_steps: float = 0.1
     # llada specific
-    random_length_ratio: float = 0.01  # https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md
+    random_length_ratio: float = (
+        0.01  # https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md
+    )
 
 
 def train():
     # ----- Argument parsing -------------------------------------------------------
-    parser = transformers.HfArgumentParser((
-        ModelArguments, 
-        DataArguments, 
-        TrainingArguments
-    ))
+    parser = transformers.HfArgumentParser(
+        (ModelArguments, DataArguments, TrainingArguments)
+    )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    training_args.accelerator_config.dispatch_batches = False # necessary for streaming dataset
+    training_args.accelerator_config.dispatch_batches = (
+        False  # necessary for streaming dataset
+    )
     dllm.utils.print_args_main(model_args, data_args, training_args)
     dllm.utils.initial_training_setup(training_args)
 
@@ -81,15 +91,17 @@ def train():
     # initialize model weights from scratch
     config = transformers.AutoConfig.from_pretrained(model_args.model_name_or_path)
     with dllm.utils.init_device_context_manager():
-        model = transformers.AutoModel.from_config(config, torch_dtype=torch.bfloat16, init_params=True)
+        model = transformers.AutoModel.from_config(
+            config, torch_dtype=torch.bfloat16, init_params=True
+        )
 
     # ----- Tokenizer --------------------------------------------------------------
     tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
 
     # ----- Dataset ----------------------------------------------------------------
     def pt_map_fn(
-        row, 
-        tokenizer: transformers.PreTrainedTokenizer, 
+        row,
+        tokenizer: transformers.PreTrainedTokenizer,
     ) -> dict:
         input_ids = tokenizer.encode(row["text"])
         if input_ids[0] != tokenizer.bos_token_id:
@@ -99,7 +111,9 @@ def train():
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_pt_dataset(data_args.dataset_args)
         dataset = dataset.map(functools.partial(pt_map_fn, tokenizer=tokenizer))
-        dataset = dllm.utils.post_process_dataset_streaming(dataset, data_args) # truncate / filter long sequences if needed
+        dataset = dllm.utils.post_process_dataset_streaming(
+            dataset, data_args
+        )  # truncate / filter long sequences if needed
 
     # ----- Training --------------------------------------------------------------
     @dataclass
@@ -110,11 +124,12 @@ def train():
         def __call__(self, features, return_tensors=None):
             outputs = super().__call__(features, return_tensors)
             if torch.rand(1) < self.random_length_ratio:
-                random_length = torch.randint(1, outputs["input_ids"].shape[1] + 1, (1,))
+                random_length = torch.randint(
+                    1, outputs["input_ids"].shape[1] + 1, (1,)
+                )
                 outputs["input_ids"] = outputs["input_ids"][:, :random_length]
                 outputs["labels"] = outputs["labels"][:, :random_length]
             return outputs
-
 
     trainer = llada.LLaDATrainer(
         model=model,
@@ -123,19 +138,19 @@ def train():
         eval_dataset=dataset["test"],
         args=training_args,
         data_collator=LLaDAPTCollator(
-            tokenizer, 
-            pad_to_multiple_of=8, 
-            return_tensors="pt", 
+            tokenizer,
+            pad_to_multiple_of=8,
+            return_tensors="pt",
             padding=True,
-            label_pad_token_id=tokenizer.pad_token_id, # LLaDA is trained on padding <eos_token>
+            label_pad_token_id=tokenizer.pad_token_id,  # LLaDA is trained on padding <eos_token>
             random_length_ratio=training_args.random_length_ratio,
-        )
+        ),
     )
     trainer.train()
-    trainer.save_model(os.path.join(
-        training_args.output_dir, "checkpoint-final"))
-    trainer.processing_class.save_pretrained(os.path.join(
-        training_args.output_dir, "checkpoint-final"))
+    trainer.save_model(os.path.join(training_args.output_dir, "checkpoint-final"))
+    trainer.processing_class.save_pretrained(
+        os.path.join(training_args.output_dir, "checkpoint-final")
+    )
 
 
 if __name__ == "__main__":

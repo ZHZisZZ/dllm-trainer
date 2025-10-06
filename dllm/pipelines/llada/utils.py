@@ -2,6 +2,7 @@ from transformers import PreTrainedTokenizer, PreTrainedModel
 from dllm.pipelines.llada.models.modeling_llada import LLaDAModelLM
 from dllm.pipelines.llada.models.modeling_lladamoe import LLaDAMoEModelLM
 
+
 def postprocess_llada_tokenizer(tokenizer: PreTrainedTokenizer, model: PreTrainedModel):
     if isinstance(model, LLaDAModelLM):
         tokenizer.mask_token = "<|mdm_mask|>"

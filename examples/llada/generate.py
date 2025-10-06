@@ -8,6 +8,7 @@ Slurm users
 srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --time=03:00:000 \
     python examples/llada/generate.py --model_name_or_path "YOUR_MODEL_PATH"
 """
+
 from dataclasses import dataclass
 
 import tyro
@@ -16,16 +17,24 @@ import transformers
 import dllm
 from dllm.pipelines import llada
 
+
 @dataclass
 class ScriptArguments:
-    model_name_or_path: str = "GSAI-ML/LLaDA-8B-Instruct" # "inclusionAI/LLaDA-MoE-7B-A1B-Instruct"
+    model_name_or_path: str = (
+        "GSAI-ML/LLaDA-8B-Instruct"  # "inclusionAI/LLaDA-MoE-7B-A1B-Instruct"
+    )
     steps: int = 128
     max_new_tokens: int = 128
     block_length: int = 32
     temperature: float = 0.0
     remasking: str = "random"
     seed: int = 42
-    def __post_init__(self): self.model_name_or_path = dllm.utils.resolve_with_base_env(self.model_name_or_path, "BASE_MODELS_DIR")
+
+    def __post_init__(self):
+        self.model_name_or_path = dllm.utils.resolve_with_base_env(
+            self.model_name_or_path, "BASE_MODELS_DIR"
+        )
+
 
 script_args = tyro.cli(ScriptArguments)
 transformers.set_seed(script_args.seed)
@@ -41,7 +50,7 @@ print("=" * 80)
 
 messages = [
     [{"role": "user", "content": "Lily runs 12 km/h for 4 hours. How far in 8 hours?"}],
-    [{"role": "user", "content": "Please write an educational python function."}]
+    [{"role": "user", "content": "Please write an educational python function."}],
 ]
 
 input_ids_list = [
@@ -61,7 +70,7 @@ out = llada.generate(
     steps=script_args.steps,
     max_new_tokens=script_args.max_new_tokens,
     block_length=script_args.block_length,
-    temperature=script_args.temperature,  
+    temperature=script_args.temperature,
     remasking=script_args.remasking,
 )
 
@@ -81,12 +90,18 @@ print("=" * 80)
 
 masked_inputs = [
     [
-        {"role": "user", "content": tokenizer.mask_token*20},
-        {"role": "assistant", "content": "Sorry, I do not have answer to this question."}
+        {"role": "user", "content": tokenizer.mask_token * 20},
+        {
+            "role": "assistant",
+            "content": "Sorry, I do not have answer to this question.",
+        },
     ],
     [
         {"role": "user", "content": "Please write an educational python function."},
-        {"role": "assistant", "content": "def hello_" + tokenizer.mask_token*20 + " return"}
+        {
+            "role": "assistant",
+            "content": "def hello_" + tokenizer.mask_token * 20 + " return",
+        },
     ],
 ]
 

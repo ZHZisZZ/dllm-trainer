@@ -1,7 +1,7 @@
 import copy
 from typing import Optional
 
-import torch 
+import torch
 from torch import nn
 
 from dllm.pipelines import llada
@@ -13,7 +13,9 @@ class EditFlowLLaDAConfig(llada.LLaDAConfig):
 
 class EditFlowLLaDAModel(llada.LLaDAModelLM):
     config_class = EditFlowLLaDAConfig
-    modules_to_save = set(["rate_heads", "sub_logits", "ins_logits"]) # fully fintuned even using lora
+    modules_to_save = set(
+        ["rate_heads", "sub_logits", "ins_logits"]
+    )  # fully fintuned even using lora
 
     def __init__(self, config):
         # TODO: time embedding
@@ -28,36 +30,39 @@ class EditFlowLLaDAModel(llada.LLaDAModelLM):
         self.post_init()
 
     def forward(
-        self, 
+        self,
         input_ids: torch.LongTensor = None,
-        attention_mask: Optional[torch.Tensor] = None, 
+        attention_mask: Optional[torch.Tensor] = None,
         t: torch.Tensor = None,
         **kwargs
     ):
         # TODO: time embedding
         output = super().forward(
-            input_ids=input_ids, 
-            attention_mask=attention_mask, 
-            output_hidden_states=True, 
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            output_hidden_states=True,
             **kwargs
         )
-        h = output["hidden_states"][-1] # final hidden states
+        h = output["hidden_states"][-1]  # final hidden states
         # Position heads
-        sub_log = self.sub_logits(h)      # [B, L, V]
-        ins_log = self.ins_logits(h)      # [B, L, V]
+        sub_log = self.sub_logits(h)  # [B, L, V]
+        ins_log = self.ins_logits(h)  # [B, L, V]
 
         rates = self.rate_heads(h)
-        sub_rate_hat, del_rate_hat, ins_rate_hat = rates.unbind(-1)    # [B, L], [B, L], [B, L]
+        sub_rate_hat, del_rate_hat, ins_rate_hat = rates.unbind(
+            -1
+        )  # [B, L], [B, L], [B, L]
         return dict(
-            sub_rate_hat=sub_rate_hat,    # [B,L]
-            del_rate_hat=del_rate_hat,    # [B,L]
-            ins_rate_hat=ins_rate_hat,    # [B,L]
-            ins_logits=ins_log,           # [B,L,V]
-            sub_logits=sub_log,           # [B,L,V]
+            sub_rate_hat=sub_rate_hat,  # [B,L]
+            del_rate_hat=del_rate_hat,  # [B,L]
+            ins_rate_hat=ins_rate_hat,  # [B,L]
+            ins_logits=ins_log,  # [B,L,V]
+            sub_logits=sub_log,  # [B,L,V]
         )
 
 
 from transformers.models.auto import AutoModel, AutoConfig
+
 # Register the model so that it is available for transformer pipelines, auto-loading, etc.
 AutoConfig.register("editflow-llada", EditFlowLLaDAConfig)
 AutoModel.register(EditFlowLLaDAConfig, EditFlowLLaDAModel)
@@ -70,7 +75,8 @@ if __name__ == "__main__":
 
     # Load a config from a local path (either a directory containing config.json, or the file itself)
     config_path = dllm.utils.resolve_with_base_env(
-        "GSAI-ML/LLaDA-8B-Base", "BASE_MODELS_DIR")
+        "GSAI-ML/LLaDA-8B-Base", "BASE_MODELS_DIR"
+    )
     config = EditFlowLLaDAConfig.from_pretrained(config_path)
     if hasattr(config, "auto_map"):
         delattr(config, "auto_map")

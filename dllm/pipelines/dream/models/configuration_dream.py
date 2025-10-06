@@ -77,13 +77,14 @@ class DreamConfig(PretrainedConfig):
         if self.rope_scaling is not None and "type" in self.rope_scaling:
             self.rope_scaling["rope_type"] = self.rope_scaling["type"]
         rope_config_validation(self)
-        
+
         super().__init__(
             tie_word_embeddings=tie_word_embeddings,
             **kwargs,
         )
         self.mask_token_id = mask_token_id
         self.pad_token_id = pad_token_id
+
 
 # Register the config class so that it is available for transformer pipelines, auto-loading etc.
 AutoConfig.register("Dream", DreamConfig)

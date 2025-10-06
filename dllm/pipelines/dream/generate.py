@@ -10,6 +10,7 @@ Slurm (1 GPU):
         --gres=gpu:1 --cpus-per-task=16 --time=3-00:00:00 \
         python dllm_trainer/pipelines/dream/generate.py
 """
+
 from dataclasses import dataclass
 
 import torch
@@ -36,7 +37,7 @@ def sample_tokens(
     top_p: float | None = None,
     top_k: int | None = None,
     margin_confidence: bool = False,
-    neg_entropy: bool = False
+    neg_entropy: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     if temperature > 0:
         logits = logits / temperature
@@ -114,8 +115,8 @@ def generate(
         total_len = prompt_lens[i] + max_new_tokens
         seq_length.append(total_len)
         start = T - total_len
-        x[i, start:start + prompt_lens[i]] = p
-        x[i, start + prompt_lens[i]:T] = mask_token_id
+        x[i, start : start + prompt_lens[i]] = p
+        x[i, start + prompt_lens[i] : T] = mask_token_id
 
     attention_mask = torch.zeros((B, T), dtype=torch.float32, device=model.device)
     for j, L in enumerate(seq_length):
@@ -130,7 +131,7 @@ def generate(
     else:
         pos_id = None
 
-    mask_index = (x == mask_token_id)
+    mask_index = x == mask_token_id
     num_transfer_tokens_list = get_num_transfer_tokens(
         mask_index=mask_index,
         steps=steps,
@@ -142,7 +143,7 @@ def generate(
     # --- Iterative refinement ---
     x = generation_tokens_hook_func(None, x, None)
     for i in range(effective_steps):
-        mask_index = (x == mask_token_id)
+        mask_index = x == mask_token_id
 
         logits = model(x, attention_mask, pos_id).logits
         logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
@@ -151,30 +152,46 @@ def generate(
         mask_logits = logits[mask_index]
 
         if alg == "maskgit_plus":
-            confidence, x0 = sample_tokens(mask_logits, temperature=temperature, top_p=top_p, top_k=top_k)
+            confidence, x0 = sample_tokens(
+                mask_logits, temperature=temperature, top_p=top_p, top_k=top_k
+            )
         elif alg == "topk_margin":
             confidence, x0 = sample_tokens(
-                mask_logits, temperature=temperature, top_p=top_p, top_k=top_k, margin_confidence=True
+                mask_logits,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+                margin_confidence=True,
             )
         elif alg == "entropy":
             confidence, x0 = sample_tokens(
-                mask_logits, temperature=temperature, top_p=top_p, top_k=top_k, neg_entropy=True
+                mask_logits,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+                neg_entropy=True,
             )
         else:
             raise RuntimeError(f"Unknown alg: {alg}")
 
-        full_confidence = torch.full_like(x, -torch.inf, device=model.device, dtype=logits.dtype)
+        full_confidence = torch.full_like(
+            x, -torch.inf, device=model.device, dtype=logits.dtype
+        )
         full_confidence[mask_index] = confidence
 
         for j in range(full_confidence.shape[0]):
             number_transfer_tokens = num_transfer_tokens_list[j, i]
             if number_transfer_tokens > 0:
                 if alg_temp is None or alg_temp == 0:
-                    _, transfer_index = torch.topk(full_confidence[j], number_transfer_tokens)
+                    _, transfer_index = torch.topk(
+                        full_confidence[j], number_transfer_tokens
+                    )
                 else:
                     fc = full_confidence[j] / alg_temp
                     fc = F.softmax(fc, dim=-1)
-                    transfer_index = torch.multinomial(fc, num_samples=number_transfer_tokens)
+                    transfer_index = torch.multinomial(
+                        fc, num_samples=number_transfer_tokens
+                    )
 
                 x_ = torch.full_like(x, mask_token_id, device=model.device)
                 x_[mask_index] = x0.clone()
@@ -293,7 +310,7 @@ def fill_in_blanks(
     histories = [] if (return_dict_in_generate and output_history) else None
 
     # Precompute per-sample transfer schedule (how many to commit per step)
-    mask_index = (x == mask_token_id)
+    mask_index = x == mask_token_id
     num_transfer_tokens_list = get_num_transfer_tokens(
         mask_index=mask_index,
         steps=steps,
@@ -306,7 +323,7 @@ def fill_in_blanks(
     x = generation_tokens_hook_func(None, x, None)
 
     for i in range(effective_steps):
-        mask_index = (x == mask_token_id)
+        mask_index = x == mask_token_id
 
         # Forward pass, then AR-shift to predict token at position i+1
         logits = model(x, attention_mask, pos_id).logits
@@ -318,20 +335,32 @@ def fill_in_blanks(
 
         # Confidence scoring for masked positions
         if alg == "maskgit_plus":
-            confidence, x0 = sample_tokens(mask_logits, temperature=temperature, top_p=top_p, top_k=top_k)
+            confidence, x0 = sample_tokens(
+                mask_logits, temperature=temperature, top_p=top_p, top_k=top_k
+            )
         elif alg == "topk_margin":
             confidence, x0 = sample_tokens(
-                mask_logits, temperature=temperature, top_p=top_p, top_k=top_k, margin_confidence=True
+                mask_logits,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+                margin_confidence=True,
             )
         elif alg == "entropy":
             confidence, x0 = sample_tokens(
-                mask_logits, temperature=temperature, top_p=top_p, top_k=top_k, neg_entropy=True
+                mask_logits,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+                neg_entropy=True,
             )
         else:
             raise RuntimeError(f"Unknown alg: {alg}")
 
         # Scatter per-position confidence back to full canvas
-        full_confidence = torch.full_like(x, -torch.inf, device=device, dtype=logits.dtype)
+        full_confidence = torch.full_like(
+            x, -torch.inf, device=device, dtype=logits.dtype
+        )
         full_confidence[mask_index] = confidence
 
         # Commit the scheduled number of tokens per sample
@@ -339,11 +368,15 @@ def fill_in_blanks(
             number_transfer_tokens = num_transfer_tokens_list[j, i]
             if number_transfer_tokens > 0:
                 if alg_temp is None or alg_temp == 0:
-                    _, transfer_index = torch.topk(full_confidence[j], number_transfer_tokens)
+                    _, transfer_index = torch.topk(
+                        full_confidence[j], number_transfer_tokens
+                    )
                 else:
                     fc = full_confidence[j] / alg_temp
                     fc = F.softmax(fc, dim=-1)
-                    transfer_index = torch.multinomial(fc, num_samples=number_transfer_tokens)
+                    transfer_index = torch.multinomial(
+                        fc, num_samples=number_transfer_tokens
+                    )
 
                 # Candidate tokens at masked positions only
                 x_ = torch.full_like(x, mask_token_id, device=device)

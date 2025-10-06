@@ -27,10 +27,12 @@ from dllm.utils.schedulers import BaseKappaScheduler, LinearKappaScheduler
 
 # ------------------------------- Small utilities --------------------------------
 
+
 def _bernoulli_from_rate(rate: torch.Tensor, tau: float) -> torch.Tensor:
     """First-order τ-leap Bernoulli with p ≈ rate * τ (clamped)."""
     p = (rate.float() * float(tau)).clamp_(0.0, 1.0 - 1e-6)
     return torch.bernoulli(p)
+
 
 def _sample_from_logits(logits_row: torch.Tensor, temperature: float) -> int:
     """Sample one token id from a 1D logits row with temperature.
@@ -38,33 +40,38 @@ def _sample_from_logits(logits_row: torch.Tensor, temperature: float) -> int:
     """
     if temperature <= 0.0:
         return int(torch.argmax(logits_row).item())
-    return int(torch.distributions.Categorical(logits=(logits_row / temperature)).sample().item())
+    return int(
+        torch.distributions.Categorical(logits=(logits_row / temperature))
+        .sample()
+        .item()
+    )
 
 
 @dataclass
 class GenCfg:
-    tau: float = 0.02                  # τ step
+    tau: float = 0.02  # τ step
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     seed: int = 1234
-    edit_prompt: bool = False          # allow editing inside prompt region?
-    temperature: float = 0.7           # token sampling temperature (sub/ins)
-    verbose: bool = True               # whether to show intermediate decoding traces
+    edit_prompt: bool = False  # allow editing inside prompt region?
+    temperature: float = 0.7  # token sampling temperature (sub/ins)
+    verbose: bool = True  # whether to show intermediate decoding traces
     time_independent: bool = True
 
 
 # -------------------------------- τ-leap one step --------------------------------
 
+
 @torch.no_grad()
 def tau_leap_step_minimal(
-    x: torch.Tensor,            # [T]
+    x: torch.Tensor,  # [T]
     model: PreTrainedModel,
     tokenizer: PreTrainedTokenizer,
-    prompt_len: int,            # number of initial prompt tokens (including BOS)
+    prompt_len: int,  # number of initial prompt tokens (including BOS)
     t: float,
     sched: BaseKappaScheduler,
     cfg: GenCfg,
-    prev_out: Optional[dict] = None,      # <-- pass prior step's model outputs
-    reuse_prev: bool = False,             # <-- if True, reuse prev_out instead of forward()
+    prev_out: Optional[dict] = None,  # <-- pass prior step's model outputs
+    reuse_prev: bool = False,  # <-- if True, reuse prev_out instead of forward()
 ) -> Tuple[torch.Tensor, bool, dict, dict]:
     """
     Single τ-leap step with deletion/substitution conflict resolution
@@ -95,11 +102,11 @@ def tau_leap_step_minimal(
         t_tensor = torch.full((1, 1), float(t), device=device)
         out = model(input_ids=x.unsqueeze(0), attention_mask=attn, t=t_tensor)
 
-    del_rate_h = out["del_rate_hat"]      # [1, T]
-    sub_rate_h = out["sub_rate_hat"]      # [1, T]
-    ins_rate_h = out["ins_rate_hat"]      # [1, T]
-    sub_logits = out["sub_logits"]        # [1, T, V]
-    ins_logits = out["ins_logits"]        # [1, T, V]
+    del_rate_h = out["del_rate_hat"]  # [1, T]
+    sub_rate_h = out["sub_rate_hat"]  # [1, T]
+    ins_rate_h = out["ins_rate_hat"]  # [1, T]
+    sub_logits = out["sub_logits"]  # [1, T, V]
+    ins_logits = out["ins_logits"]  # [1, T, V]
 
     # Scale normalized rates to true rates
     tt = torch.tensor([[t]], device=device)
@@ -117,23 +124,27 @@ def tau_leap_step_minimal(
         sub_rate[:, :prompt_len_clamped] = 0.0
         # Disallow insertions inside the prompt EXCEPT at the last prompt token
         if prompt_len_clamped >= 2:
-            ins_rate[:, :prompt_len_clamped-1] = 0.0
+            ins_rate[:, : prompt_len_clamped - 1] = 0.0
 
     # Combined "edit" (delete or substitute) event
-    comb_rate = (del_rate + sub_rate).squeeze(0)                     # [T]
-    comb_fire = _bernoulli_from_rate(comb_rate, cfg.tau).bool()      # [T]
+    comb_rate = (del_rate + sub_rate).squeeze(0)  # [T]
+    comb_fire = _bernoulli_from_rate(comb_rate, cfg.tau).bool()  # [T]
 
     # If an edit fires at i, choose deletion with prob λ_del/(λ_del+λ_sub)
-    p_del = (del_rate.squeeze(0) / (comb_rate + 1e-8)).clamp(0, 1)   # [T]
-    choose_del = (torch.rand_like(p_del) < p_del) & comb_fire        # [T]
-    choose_sub = comb_fire & (~choose_del)                           # [T]
+    p_del = (del_rate.squeeze(0) / (comb_rate + 1e-8)).clamp(0, 1)  # [T]
+    choose_del = (torch.rand_like(p_del) < p_del) & comb_fire  # [T]
+    choose_sub = comb_fire & (~choose_del)  # [T]
 
     # Insertions (right of token i)
     ins_fire = _bernoulli_from_rate(ins_rate.squeeze(0), cfg.tau).bool()  # [T]
 
     # Token draws (algorithmic, not viz-only)
     sub_samples: List[Optional[int]] = [
-        _sample_from_logits(sub_logits[0, i], cfg.temperature) if choose_sub[i] else None
+        (
+            _sample_from_logits(sub_logits[0, i], cfg.temperature)
+            if choose_sub[i]
+            else None
+        )
         for i in range(T)
     ]
     ins_samples: List[Optional[int]] = [
@@ -145,8 +156,12 @@ def tau_leap_step_minimal(
     new_ids: List[int] = []
 
     # --- viz-only per-position labels (for trace/GIF) ---
-    _before_ops: Annotated[List[str], "viz-only"] = []  # per 'before' position: DEL/SUB/KEEP
-    _after_ops:  Annotated[List[str], "viz-only"] = []  # per 'after' token aligned to new_ids: INS/SUB/KEEP
+    _before_ops: Annotated[List[str], "viz-only"] = (
+        []
+    )  # per 'before' position: DEL/SUB/KEEP
+    _after_ops: Annotated[List[str], "viz-only"] = (
+        []
+    )  # per 'after' token aligned to new_ids: INS/SUB/KEEP
 
     for i in range(T):
         if choose_del[i]:
@@ -173,18 +188,22 @@ def tau_leap_step_minimal(
 
     # --- (vis) used only for verbose console trace ---
     if cfg.verbose and (comb_fire.any() or ins_fire.any()):
+
         def _tok_str(tok_id: int) -> str:  # viz-only helper
             try:
                 s = tokenizer.decode([int(tok_id)])
                 return s if s.strip() else f"<{int(tok_id)}>"
             except Exception:
                 return f"<{int(tok_id)}>"
+
         _ops_strs: Annotated[List[str], "viz-only"] = []
         for i in range(T):
             if choose_del[i]:
                 _ops_strs.append(f"DEL@{i}:{_tok_str(int(x[i]))}")
             elif choose_sub[i]:
-                _ops_strs.append(f"SUB@{i}:{_tok_str(int(x[i]))}->{_tok_str(sub_samples[i])}")
+                _ops_strs.append(
+                    f"SUB@{i}:{_tok_str(int(x[i]))}->{_tok_str(sub_samples[i])}"
+                )
             if ins_samples[i] is not None:
                 _ops_strs.append(f"INS@{i}->{i+1}:{_tok_str(ins_samples[i])}")
         print("[time]", f"{t:.4f}")
@@ -197,12 +216,12 @@ def tau_leap_step_minimal(
         "t": float(t),
         "x_before_ids": [int(i) for i in x.tolist()],
         "x_after_ids": [int(i) for i in new_ids],
-        "before_ops": _before_ops,   # viz-only labels
-        "after_ops": _after_ops,     # viz-only labels
+        "before_ops": _before_ops,  # viz-only labels
+        "after_ops": _after_ops,  # viz-only labels
         # below are algorithmic signals copied for visualization/analysis
         "choose_del": [bool(v) for v in choose_del.tolist()],
         "choose_sub": [bool(v) for v in choose_sub.tolist()],
-        "ins_fire":   [bool(v) for v in ins_fire.tolist()],
+        "ins_fire": [bool(v) for v in ins_fire.tolist()],
         "sub_samples": [int(s) if s is not None else None for s in sub_samples],
         "ins_samples": [int(s) if s is not None else None for s in ins_samples],
         "prompt_len": prompt_len_clamped,
@@ -255,7 +274,9 @@ def generate_editflow_minimal(
 
     if args.mask_length:
         if getattr(tokenizer, "mask_token_id", None) is None:
-            raise ValueError("Tokenizer must define mask_token_id when --mask_length > 0.")
+            raise ValueError(
+                "Tokenizer must define mask_token_id when --mask_length > 0."
+            )
         ids = ids + [tokenizer.mask_token_id] * args.mask_length
 
     x = torch.tensor(ids, dtype=torch.long, device=model.device)
@@ -266,7 +287,11 @@ def generate_editflow_minimal(
 
     _trace: Annotated[dict, "viz-only: full decode trace for GIF/inspection"] = {
         "steps": [],
-        "init": {"t": 0.0, "x_ids": [int(i) for i in x.tolist()], "prompt_len": int(prompt_len)},
+        "init": {
+            "t": 0.0,
+            "x_ids": [int(i) for i in x.tolist()],
+            "prompt_len": int(prompt_len),
+        },
         "end_t": 0.0,
     }
 
@@ -278,7 +303,9 @@ def generate_editflow_minimal(
     for _ in range(steps):
         # We can reuse prev_out only if the model is declared time-independent
         # and the previous step had NO edits (sequence unchanged).
-        reuse_prev = (cfg.time_independent and not prev_had_edits and (prev_out is not None))
+        reuse_prev = (
+            cfg.time_independent and not prev_had_edits and (prev_out is not None)
+        )
 
         x, edited, _step_trace, prev_out = tau_leap_step_minimal(
             x=x,
@@ -316,13 +343,14 @@ from typing import List, Optional
 import re
 import unicodedata
 
+
 def render_consecutive_trace_gif(
     trace: dict,
     tokenizer: PreTrainedTokenizer,
     out_path: str = "decode_trace.gif",
     font_size: int = 30,
     line_spacing: int = 12,
-    frame_ms: int = 120,          # per-frame duration for all but last
+    frame_ms: int = 120,  # per-frame duration for all but last
     final_hold_ms: int = 10_000,  # hold the final frame for 10s
     max_width: int = 1600,
     margin: int = 32,
@@ -356,15 +384,27 @@ def render_consecutive_trace_gif(
         if v is not None:
             s.add(int(v))
         return s
+
     MASK_IDS = _mask_ids(tokenizer)
 
-    mask_literals = {"<mask>", "[MASK]", "[mask]", "<MASK>", "<|mask|>", "|mask|", "MASK", "mask"}
+    mask_literals = {
+        "<mask>",
+        "[MASK]",
+        "[mask]",
+        "<MASK>",
+        "<|mask|>",
+        "|mask|",
+        "MASK",
+        "mask",
+    }
     mt = getattr(tokenizer, "mask_token", None)
     if mt:
         mask_literals.add(str(mt))
     MASK_RE = re.compile(
-        r"(?:▁|Ġ)?(?:" + "|".join(re.escape(m) for m in sorted(mask_literals, key=len, reverse=True)) + r")",
-        flags=re.IGNORECASE
+        r"(?:▁|Ġ)?(?:"
+        + "|".join(re.escape(m) for m in sorted(mask_literals, key=len, reverse=True))
+        + r")",
+        flags=re.IGNORECASE,
     )
 
     def _remove_only_masks(ids: List[int]) -> List[int]:
@@ -385,21 +425,24 @@ def render_consecutive_trace_gif(
         s = MASK_RE.sub("", s)
 
         # Replace BPE/SPM markers -> real whitespace/newline
-        s = s.replace("Ċ", "\n")   # newline
-        s = s.replace("▁", " ")    # spm space marker
-        s = s.replace("Ġ", " ")    # gpt2 bpe space marker
+        s = s.replace("Ċ", "\n")  # newline
+        s = s.replace("▁", " ")  # spm space marker
+        s = s.replace("Ġ", " ")  # gpt2 bpe space marker
 
         # Map byte-fallback tokens (keep LF and space; drop others)
         def _byte_sub(m):
             b = int(m.group(1), 16)
-            if b == 0x0A: return "\n"
-            if b == 0x20: return " "
+            if b == 0x0A:
+                return "\n"
+            if b == 0x20:
+                return " "
             return ""
+
         s = BYTE_FALLBACK_RE.sub(_byte_sub, s)
 
         # Normalize whitespace *types* but NOT counts
         s = s.replace("\t", "    ")
-        s = s.replace("\u00A0", " ").replace("\u2007", " ").replace("\u202F", " ")
+        s = s.replace("\u00a0", " ").replace("\u2007", " ").replace("\u202f", " ")
 
         # Do not collapse spaces; trim trailing spaces only
         s = "\n".join(line.rstrip() for line in s.splitlines())
@@ -407,6 +450,7 @@ def render_consecutive_trace_gif(
 
     # Indentation-safe wrappers (preserve multiple spaces)
     TOKEN_RE = re.compile(r"\s+|\S+")
+
     def _wrap_text(draw: ImageDraw.ImageDraw, text: str, width_px: int) -> List[str]:
         if text == "":
             return [""]
@@ -422,7 +466,9 @@ def render_consecutive_trace_gif(
                     if cur:
                         lines.append(cur)
                         cur = tok
-                        while draw.textlength(cur, font=font) > width_px and len(cur) > 0:
+                        while (
+                            draw.textlength(cur, font=font) > width_px and len(cur) > 0
+                        ):
                             lo, hi, fit = 1, len(cur), 1
                             while lo <= hi:
                                 mid = (lo + hi) // 2
@@ -473,7 +519,9 @@ def render_consecutive_trace_gif(
             if choose_del[i]:
                 lines.append(f"DEL@{i}:{_tok_str(int(x_before[i]))}")
             elif choose_sub[i]:
-                lines.append(f"SUB@{i}:{_tok_str(int(x_before[i]))}->{_tok_str(int(sub_samples[i]))}")
+                lines.append(
+                    f"SUB@{i}:{_tok_str(int(x_before[i]))}->{_tok_str(int(sub_samples[i]))}"
+                )
             if ins_samples[i] is not None:
                 lines.append(f"INS@{i}->{i+1}:{_tok_str(int(ins_samples[i]))}")
         if not lines:
@@ -481,7 +529,15 @@ def render_consecutive_trace_gif(
         return lines
 
     # Dashed rectangle helper
-    def _draw_dashed_rectangle(draw: ImageDraw.ImageDraw, xy, dash=6, gap=6, width=2, fill=None, outline=(120,120,120)):
+    def _draw_dashed_rectangle(
+        draw: ImageDraw.ImageDraw,
+        xy,
+        dash=6,
+        gap=6,
+        width=2,
+        fill=None,
+        outline=(120, 120, 120),
+    ):
         x0, y0, x1, y1 = xy
         # top
         x = x0
@@ -519,41 +575,53 @@ def render_consecutive_trace_gif(
     # Initial frame from init (full sequence)
     init_ids_full = _remove_only_masks(trace["init"]["x_ids"])
     init_body = _sanitize(_decode_keep_specials(init_ids_full))
-    frames_payload.append({
-        "t": None,
-        "del_count": 0,
-        "body_lines": _wrap_text(tmp_draw, init_body, text_width_budget),
-        "ops_lines": _ops_lines_for_step(None),
-    })
+    frames_payload.append(
+        {
+            "t": None,
+            "del_count": 0,
+            "body_lines": _wrap_text(tmp_draw, init_body, text_width_budget),
+            "ops_lines": _ops_lines_for_step(None),
+        }
+    )
 
     # Steps
     for st in trace["steps"]:
         after_ids_full = _remove_only_masks(st["x_after_ids"])
         body = _sanitize(_decode_keep_specials(after_ids_full))
-        frames_payload.append({
-            "t": float(st["t"]),
-            "del_count": sum(1 for op in st["before_ops"] if op == "DEL"),
-            "body_lines": _wrap_text(tmp_draw, body, text_width_budget),
-            "ops_lines": _wrap_text(tmp_draw, "  • " + "  • ".join(_ops_lines_for_step(st)), text_width_budget),
-            # Using bullets and wrap to avoid over-wide op rows
-        })
+        frames_payload.append(
+            {
+                "t": float(st["t"]),
+                "del_count": sum(1 for op in st["before_ops"] if op == "DEL"),
+                "body_lines": _wrap_text(tmp_draw, body, text_width_budget),
+                "ops_lines": _wrap_text(
+                    tmp_draw,
+                    "  • " + "  • ".join(_ops_lines_for_step(st)),
+                    text_width_budget,
+                ),
+                # Using bullets and wrap to avoid over-wide op rows
+            }
+        )
 
     # --- compute uniform canvas height (max body + max ops) ---
     max_body_lines = max(len(f["body_lines"]) for f in frames_payload)
+
     # For the ops box: header + lines + padding
     # Re-wrap ops without the bullet-join to also support many short lines:
     def _measure_ops_lines(f):
         return len(f["ops_lines"])
+
     max_ops_lines = max(_measure_ops_lines(f) for f in frames_payload)
 
     title_block = font_size + line_spacing
-    body_block  = max_body_lines * (font_size + line_spacing)
+    body_block = max_body_lines * (font_size + line_spacing)
 
     # Ops box metrics
     ops_header = font_size  # "events" label
     ops_pad = 10
     ops_lines_block = max_ops_lines * (font_size + line_spacing)
-    ops_box_height = ops_pad + ops_header + line_spacing//2 + ops_lines_block + ops_pad
+    ops_box_height = (
+        ops_pad + ops_header + line_spacing // 2 + ops_lines_block + ops_pad
+    )
 
     H = margin + title_block + body_block + line_spacing + ops_box_height + margin
     W = max_width
@@ -565,7 +633,9 @@ def render_consecutive_trace_gif(
         draw = ImageDraw.Draw(img)
 
         # Title
-        title = ("initial state" if f["t"] is None else f"t = {f['t']:.3f}") + (f"   \u232b{f['del_count']}" if f["del_count"] > 0 else "")
+        title = ("initial state" if f["t"] is None else f"t = {f['t']:.3f}") + (
+            f"   \u232b{f['del_count']}" if f["del_count"] > 0 else ""
+        )
         draw.text((margin, margin), title, fill=title_color, font=font)
 
         # Body text
@@ -578,7 +648,9 @@ def render_consecutive_trace_gif(
         y += line_spacing
         x0, y0 = margin, y
         x1, y1 = W - margin, y + ops_box_height
-        _draw_dashed_rectangle(draw, (x0, y0, x1, y1), dash=8, gap=6, width=2, outline=box_color)
+        _draw_dashed_rectangle(
+            draw, (x0, y0, x1, y1), dash=8, gap=6, width=2, outline=box_color
+        )
 
         # "events" label inside the box
         label_x = x0 + ops_pad
@@ -586,7 +658,7 @@ def render_consecutive_trace_gif(
         draw.text((label_x, label_y), "events", fill=events_color, font=font)
 
         # Ops lines
-        yy = label_y + ops_header + line_spacing//2
+        yy = label_y + ops_header + line_spacing // 2
         for line in f["ops_lines"]:
             draw.text((label_x, yy), line, fill=events_color, font=font)
             yy += font_size + line_spacing
@@ -610,39 +682,49 @@ def render_consecutive_trace_gif(
     return out_path
 
 
-
 # ---------------------------------------- CLI -------------------------------------
+
 
 def main():
     @dataclass
     class ScriptArgs:
         # Required (no default)
         model_name_or_path: Annotated[str, "Path or hub id for the model"]
-        time_independent: Annotated[bool, "Whether model is conditioned on time step"] = True
+        time_independent: Annotated[
+            bool, "Whether model is conditioned on time step"
+        ] = True
 
-        prompt: Annotated[Optional[str], "Text prompt. If None, start from BOS alone."] = None
+        prompt: Annotated[
+            Optional[str], "Text prompt. If None, start from BOS alone."
+        ] = None
         # Boolean flag: tyro exposes --edit-prompt / --no-edit-prompt automatically for bools
-        edit_prompt: Annotated[bool,
-            "Allow delete/substitute and insertions in the prompt region (BOS+prompt)."] = False
+        edit_prompt: Annotated[
+            bool,
+            "Allow delete/substitute and insertions in the prompt region (BOS+prompt).",
+        ] = False
 
         # Generation-related args
         tau: Annotated[float, "τ-leap size"] = 0.01
-        time_epsilon: Annotated[float,
-            "Match this with the `time_epsilon` arg used in your EditFlowTrainer"] = 1e-3
+        time_epsilon: Annotated[
+            float, "Match this with the `time_epsilon` arg used in your EditFlowTrainer"
+        ] = 1e-3
         mask_length: Annotated[
             int,
             "Number of <mask> tokens appended after the prompt.\n"
-            "EditFlow will iteratively substitute, insert, or delete masks to form the output."
+            "EditFlow will iteratively substitute, insert, or delete masks to form the output.",
         ] = 128
         temperature: Annotated[float, "Token sampling temperature; 0 for greedy."] = 0.7
 
         seed: Annotated[int, "Random seed"] = 1234
-        verbose: Annotated[bool,
-            "Whether to show intermediate decoding traces"] = True
+        verbose: Annotated[bool, "Whether to show intermediate decoding traces"] = True
 
         # Visualization
-        make_gif: Annotated[bool, "Render a decoding trace GIF after generation."] = False
-        gif_path: Annotated[Optional[str], "Output GIF path (default: decode_trace.gif)"] = None
+        make_gif: Annotated[bool, "Render a decoding trace GIF after generation."] = (
+            False
+        )
+        gif_path: Annotated[
+            Optional[str], "Output GIF path (default: decode_trace.gif)"
+        ] = None
         frame_ms: Annotated[int, "Per-frame duration in ms"] = 120
         # show_token_pieces: Annotated[bool,
         #     "True = color token pieces (blue=INS, orange=SUB, black=KEEP). "
