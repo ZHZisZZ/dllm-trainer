@@ -7,16 +7,14 @@ import torch
 
 Number = Union[float, torch.Tensor]
 
-# ---------------- Registry-enabled Base ---------------- #
 
+# ---------------- Registry-enabled Base ---------------- #
 @dataclasses.dataclass
 class BaseAlphaScheduler:
-    # Class-level registry (not a dataclass field)
     __registry__: ClassVar[Dict[str, Type["BaseAlphaScheduler"]]] = {}
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        # Register under canonical and lowercase names
         BaseAlphaScheduler.__registry__[cls.__name__] = cls
         BaseAlphaScheduler.__registry__[cls.__name__.lower()] = cls
 
@@ -26,22 +24,34 @@ class BaseAlphaScheduler:
 
     # ---- common API ----
     def alpha(self, i: Number) -> Number:
-        i_t = torch.as_tensor(i, dtype=torch.float32)
+        i_t = torch.as_tensor(
+            i, dtype=torch.float32,
+            device=i.device if isinstance(i, torch.Tensor) else None
+        )
         if not torch.all((0.0 <= i_t) & (i_t <= 1.0)):
             raise ValueError(f"i={i} not in [0,1]")
         out = self._alpha(i_t)
         return out.item() if isinstance(i, float) else out
 
     def alpha_derivative(self, i: Number) -> Number:
-        i_t = torch.as_tensor(i, dtype=torch.float32)
+        i_t = torch.as_tensor(
+            i, dtype=torch.float32,
+            device=i.device if isinstance(i, torch.Tensor) else None
+        )
         if not torch.all((0.0 <= i_t) & (i_t <= 1.0)):
             raise ValueError(f"i={i} not in [0,1]")
-        out = self._alpha_derivative(i_t)  # fixed recursion
+        out = self._alpha_derivative(i_t)
         return out.item() if isinstance(i, float) else out
 
     def reverse_mask_prob(self, s: Number, t: Number) -> Number:
-        t_t = torch.as_tensor(t, dtype=torch.float32)
-        s_t = torch.as_tensor(s, dtype=torch.float32)
+        t_t = torch.as_tensor(
+            t, dtype=torch.float32,
+            device=t.device if isinstance(t, torch.Tensor) else None
+        )
+        s_t = torch.as_tensor(
+            s, dtype=torch.float32,
+            device=s.device if isinstance(s, torch.Tensor) else None
+        )
         if not torch.all((0.0 <= s_t) & (s_t < 1.0) & (0.0 < t_t) & (t_t <= 1.0)):
             raise ValueError(f"(t={t}, s={s}) out of range")
         if not torch.all(s_t < t_t):

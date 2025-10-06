@@ -2,12 +2,12 @@ import torch
 import accelerate
 import transformers
 
+from dllm.utils.utils import disable_caching_allocator_warmup
 from dllm.utils.configs import ModelArguments, TrainingArguments
 
 
 def get_model(
     model_args: ModelArguments, 
-    training_args: TrainingArguments | None = None
 ) -> transformers.PreTrainedModel:
     # Map string dtype to torch dtype
     dtype_map = {
@@ -24,11 +24,6 @@ def get_model(
     torch_dtype = getattr(model_args, "torch_dtype", "bfloat16")
     torch_dtype = dtype_map.get(str(torch_dtype).lower())
 
-    if not training_args:
-        return transformers.AutoModel.from_pretrained(
-            model_args.model_name_or_path, torch_dtype=torch_dtype, device_map="auto", 
-        )
-
     model = transformers.AutoModel.from_pretrained(
         model_args.model_name_or_path,
         torch_dtype=torch_dtype,
@@ -39,7 +34,7 @@ def get_model(
         ),
         quantization_config=(
             transformers.BitsAndBytesConfig(load_in_4bit=True) 
-            if model_args.load_in_4bit and transformers.utils.is_bitsandbytes_available() 
+            if getattr(model_args, "load_in_4bit", None) and transformers.utils.is_bitsandbytes_available() 
             else None
         ),
     )

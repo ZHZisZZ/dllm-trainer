@@ -12,12 +12,6 @@ Local users
         --config_file scripts/accelerate_configs/single_gpu.yaml \
         examples/dream/sft.py \
         --load_in_4bit True --lora True
-
-    # merge lora weights
-    python dllm_trainer/tools/merge_peft_adapter.py \
-        --adapter_model_name_or_path models/Dream-7B-SFT/checkpoint-final \
-        --output_model_name_or_path models/Dream-7B-SFT/checkpoint-final-merged \
-        --dtype bf16
     
 - 8 GPUs (DeepSpeed ZeRO-2):
     accelerate launch \
@@ -29,17 +23,17 @@ Slurm users
 #       `partition` and `quotatype` in `scripts/train.slurm.sh` for your cluster.
 ------------
 - 1 GPU:
-    sbatch scripts/train.slurm.sh \
+    sbatch --gres=gpu:1 scripts/train.slurm.sh \
         --accelerate_config "single_gpu" \
         --script_path "examples/dream/sft.py"
 
 - 8 GPUs (DeepSpeed ZeRO-2):
-    sbatch scripts/train.slurm.sh \
+    sbatch --gres=gpu:8 scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
         --script_path "examples/dream/sft.py"
 
 - 2 Nodes, 16 GPUs (DeepSpeed ZeRO-2):
-    sbatch --nodes=2 scripts/train.slurm.sh \
+    sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
         --script_path "examples/dream/sft.py"
 """
@@ -59,13 +53,14 @@ class ModelArguments(dllm.utils.ModelArguments):
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
-    resp_cutoff_ratio: float = 0.0
-    random_response_truncation: bool = True
+    dataset_args: str = "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = "models/Dream-7B-SFT"
-    # others (llada specific training params)
+    # others (dream specific training params)
+    perbatch_cutoff: bool = True
+    resp_cutoff_ratio: float = 0.0
     mask_prompt_loss: bool = True
 
 
@@ -77,17 +72,19 @@ def train():
         TrainingArguments
     ))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    training_args.remove_unused_columns = False # necessary when batch contains customized fields
     dllm.utils.print_args_main(model_args, data_args, training_args)
+    dllm.utils.initial_training_setup(training_args)
 
     # ----- Model ------------------------------------------------------------------
-    model = dllm.utils.get_model(model_args, training_args)
+    model = dllm.utils.get_model(model_args)
     # ----- Tokenizer --------------------------------------------------------------
-    tokenizer = dllm.utils.get_tokenizer(model_args, model)
+    tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
     # ----- Optional PEFT: LoRA ----------------------------------------------------
-    model = dllm.utils.load_peft(model, model_args)
+    model = dllm.utils.load_peft(model=model, training_args=training_args)
 
     # ----- Dataset ----------------------------------------------------------------
-    def train_map_fn(
+    def sft_map_fn(
         row, 
         tokenizer: transformers.PreTrainedTokenizer, 
         mask_prompt_loss: bool = True, 
@@ -116,16 +113,13 @@ def train():
         dataset = dllm.data.load_sft_dataset(data_args.dataset_args)
         dataset = dataset.map(
             functools.partial(
-                train_map_fn, 
+                sft_map_fn, 
                 tokenizer=tokenizer,
                 mask_prompt_loss=training_args.mask_prompt_loss,
             ), 
             num_proc=data_args.num_proc,
         )
-        dataset = dataset.filter(
-            lambda row: len(row["input_ids"]) <= data_args.max_length,
-            num_proc=data_args.num_proc,
-        )
+        dataset = dllm.utils.post_process_dataset(dataset, data_args) # truncate / filter long sequences if needed
 
     # ----- Training --------------------------------------------------------------
     trainer = dream.DreamTrainer(
@@ -140,8 +134,8 @@ def train():
             return_tensors="pt",
             padding=True,
             label_pad_token_id=-100,
-            random_response_truncation=data_args.random_response_truncation,
-            resp_cutoff_ratio=data_args.resp_cutoff_ratio,
+            perbatch_cutoff=training_args.perbatch_cutoff,
+            resp_cutoff_ratio=training_args.resp_cutoff_ratio,
         )
     )
     trainer.train()

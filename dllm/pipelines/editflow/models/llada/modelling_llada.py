@@ -13,6 +13,7 @@ class EditFlowLLaDAConfig(llada.LLaDAConfig):
 
 class EditFlowLLaDAModel(llada.LLaDAModelLM):
     config_class = EditFlowLLaDAConfig
+    modules_to_save = set(["rate_heads", "sub_logits", "ins_logits"]) # fully fintuned even using lora
 
     def __init__(self, config):
         # TODO: time embedding

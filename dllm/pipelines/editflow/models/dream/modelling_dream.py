@@ -13,6 +13,7 @@ class EditFlowDreamConfig(dream.DreamConfig):
 
 class EditFlowDreamModel(dream.DreamModel):
     config_class = EditFlowDreamConfig
+    modules_to_save = set(["rate_heads", "sub_logits", "ins_logits"]) # fully fintuned even using lora
 
     def __init__(self, config):
         # TODO: time embedding

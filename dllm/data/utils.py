@@ -1,5 +1,5 @@
 import re
-from datasets import Dataset, DatasetDict, load_dataset  # NEW
+from datasets import Dataset, DatasetDict, IterableDatasetDict, load_dataset  # NEW
 
 from dllm.data.alpaca import load_dataset_alpaca
 from dllm.data.opc import load_dataset_opc
@@ -191,21 +191,59 @@ def load_sft_dataset(dataset_args: str):
     return _ensure_datasetdict(merged)
 
 
-if __name__ == "__main__":
-    tulu_dataset = load_sft_dataset(
-        "dataset_name_or_path=allenai/tulu-3-sft-mixture")
-    tulu_datatset_subset = load_sft_dataset(
-        "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
-    )
-    opc_dataset = load_sft_dataset(
-        "dataset_name_or_path=OpenCoder-LLM/opc-sft-stage2,name=educational_instruct")
-    ultrachat_dataset = load_sft_dataset(
-        "dataset_name_or_path=HuggingFaceH4/ultrachat_200k")
-    saferlhf_dataset = load_sft_dataset(
-        "dataset_name_or_path=PKU-Alignment/PKU-SafeRLHF,name=safe")
+def load_pt_dataset(dataset_args: str):
+    # only support streaming
+    raw = dataset_args
+    kvs, limits = _parse_one_spec(raw)
+    # dataset_name_or_path = kvs.pop("dataset_name_or_path")
+    assert "dataset_name_or_path" in kvs, f"'dataset_name_or_path' missing in spec: {raw}"
+    dataset_name_or_path = kvs.pop("dataset_name_or_path")
+    dataset_name_or_path = resolve_with_base_env(dataset_name_or_path, "BASE_DATASETS_DIR")
 
-    merged_dataset = load_sft_dataset(
-        "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]|"
-        "dataset_name_or_path=OpenCoder-LLM/opc-sft-stage2,name=educational_instruct[train:20000,test:2000]"
+    def _match(name, needle):
+        return name.endswith(needle) or needle in name
+
+    if _match(dataset_name_or_path, "mlfoundations/dclm-baseline-1.0"):
+        n_total = limits["train"] + limits["test"]
+        n_train = limits["train"]
+        ds = load_dataset(
+            dataset_name_or_path,
+            split="train",
+            streaming=True
+        ).take(n_total)
+
+        # Shuffle with a buffer (larger buffer ⇒ better mixing, more RAM/IO)
+        shuffled = ds.shuffle(seed=42, buffer_size=10_000)
+
+        train = shuffled.take(n_train)
+        test  = shuffled.skip(n_train)
+        dataset = IterableDatasetDict({"train": train, "test": test})
+    
+    else:
+        raise NotImplementedError
+
+    return dataset
+
+
+if __name__ == "__main__":
+    # tulu_dataset = load_sft_dataset(
+    #     "dataset_name_or_path=allenai/tulu-3-sft-mixture")
+    # tulu_datatset_subset = load_sft_dataset(
+    #     "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    # )
+    # opc_dataset = load_sft_dataset(
+    #     "dataset_name_or_path=OpenCoder-LLM/opc-sft-stage2,name=educational_instruct")
+    # ultrachat_dataset = load_sft_dataset(
+    #     "dataset_name_or_path=HuggingFaceH4/ultrachat_200k")
+    # saferlhf_dataset = load_sft_dataset(
+    #     "dataset_name_or_path=PKU-Alignment/PKU-SafeRLHF,name=safe")
+
+    # merged_dataset = load_sft_dataset(
+    #     "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]|"
+    #     "dataset_name_or_path=OpenCoder-LLM/opc-sft-stage2,name=educational_instruct[train:20000,test:2000]"
+    # )
+
+    dclm_dataset = load_pt_dataset(
+        "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:4500,test:500]"
     )
     breakpoint()

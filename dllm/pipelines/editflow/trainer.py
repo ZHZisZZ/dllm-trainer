@@ -253,8 +253,7 @@ class EditFlowTrainer(transformers.Trainer):
         edits_list: List[List[Edit]] = [build_remaining_edits(zt, z1) for zt, z1 in zip(zt_list, z1_list)]
 
         # -------- 4) Collate x_t for the model --------
-        pad_id = getattr(self.processing_class, "pad_token_id", getattr(self.processing_class, "pad_token_id", 0))
-        x_tok, x_mask = pad_1d(xt_list, pad_val=pad_id)     # [B,Lmax], [B,Lmax]
+        x_tok, x_mask = pad_1d(xt_list, pad_val=self.processing_class.pad_token_id)     # [B,Lmax], [B,Lmax]
         x_tok = x_tok.to(device)
         x_mask = x_mask.to(device)
 

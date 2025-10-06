@@ -7,8 +7,8 @@ import torch
 
 Number = Union[float, torch.Tensor]
 
-# ---------------- Registry-enabled Base ---------------- #
 
+# ---------------- Registry-enabled Base ---------------- #
 @dataclasses.dataclass
 class BaseKappaScheduler:
     __registry__: ClassVar[Dict[str, Type["BaseKappaScheduler"]]] = {}
@@ -24,22 +24,28 @@ class BaseKappaScheduler:
 
     # ---- common API ----
     def kappa(self, t: Number) -> Number:
-        t_tensor = torch.as_tensor(t, dtype=torch.float32)
+        t_tensor = torch.as_tensor(
+            t, dtype=torch.float32,
+            device=t.device if isinstance(t, torch.Tensor) else None
+        )
         if not torch.all((0.0 <= t_tensor) & (t_tensor <= 1.0)):
             raise ValueError(f"t={t} not in [0,1]")
         out = self._kappa(t_tensor)
         return out.item() if isinstance(t, float) else out
 
     def kappa_derivative(self, t: Number) -> Number:
-        t_tensor = torch.as_tensor(t, dtype=torch.float32)
+        t_tensor = torch.as_tensor(
+            t, dtype=torch.float32,
+            device=t.device if isinstance(t, torch.Tensor) else None
+        )
         if not torch.all((0.0 <= t_tensor) & (t_tensor <= 1.0)):
             raise ValueError(f"t={t} not in [0,1]")
-        out = self._kappa_derivative(t_tensor)  # fixed recursion
+        out = self._kappa_derivative(t_tensor)
         return out.item() if isinstance(t, float) else out
 
     def weight(self, t: Number) -> Number:
         # w(t) = κ'(t) / (1 - κ(t))
-        return self.kappa_derivative(t) / (1 - self.kappa(t) + 1e-6)
+        return self.kappa_derivative(t) / (1 - self.kappa(t) + 1e-6)    
 
     # ---- hooks implemented by subclasses ----
     def _kappa(self, t: torch.Tensor) -> torch.Tensor:
