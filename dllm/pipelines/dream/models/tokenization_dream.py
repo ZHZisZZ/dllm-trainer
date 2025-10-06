@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2024 The Dream team, HKUNLP Group and The HuggingFace Inc. team. All rights reserved.
 #
 # This code is based on Qwen's implementations in this library.
@@ -40,7 +39,7 @@ MAX_MODEL_INPUT_SIZES = {"dream/dream-tokenizer": 32768}
 PRETOKENIZE_REGEX = r"""(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"""
 
 
-@lru_cache()
+@lru_cache
 # Copied from transformers.models.gpt2.tokenization_gpt2.bytes_to_unicode
 def bytes_to_unicode():
     """
@@ -303,7 +302,7 @@ class DreamTokenizer(PreTrainedTokenizer):
         self,
         token_ids,
         skip_special_tokens: bool = False,
-        clean_up_tokenization_spaces: Optional[bool] = False,
+        clean_up_tokenization_spaces: bool | None = False,
         spaces_between_special_tokens: bool = False,
         **kwargs,
     ) -> str:
@@ -319,8 +318,8 @@ class DreamTokenizer(PreTrainedTokenizer):
 
     # Copied from transformers.models.gpt2.tokenization_gpt2.GPT2Tokenizer.save_vocabulary
     def save_vocabulary(
-        self, save_directory: str, filename_prefix: Optional[str] = None
-    ) -> Tuple[str]:
+        self, save_directory: str, filename_prefix: str | None = None
+    ) -> tuple[str]:
         if not os.path.isdir(save_directory):
             logger.error(f"Vocabulary path ({save_directory}) should be a directory")
             return

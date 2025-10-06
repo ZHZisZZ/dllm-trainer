@@ -2,7 +2,8 @@ import math
 import random
 from dataclasses import dataclass
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Tuple, Callable, Text
+from typing import Any, Dict, List, Optional, Tuple, Text
+from collections.abc import Callable
 
 import torch
 import transformers
@@ -50,12 +51,12 @@ def _rand_vocab_token(tokenizer: Any, *, exclude: set) -> int:
 # ---------------- Implementations ---------------- #
 
 
-def sample_x0_empty(*args, **kwargs) -> List[int]:
+def sample_x0_empty(*args, **kwargs) -> list[int]:
     """Return BOS-only (i.e. no tokens after BOS)."""
     return []
 
 
-def sample_x0_masks(tokenizer: Any, *args, target_len=128, **kwargs) -> List[int]:
+def sample_x0_masks(tokenizer: Any, *args, target_len=128, **kwargs) -> list[int]:
     """
     Return a run of mask tokens of length `target_len`.
     """
@@ -66,7 +67,7 @@ def sample_x0_masks(tokenizer: Any, *args, target_len=128, **kwargs) -> List[int
 
 
 def sample_x0_noisy(
-    x1_ids: List[int],
+    x1_ids: list[int],
     tokenizer: Any,
     # Per-token action probs (renormalized; p_mask ignored if tokenizer has no mask id)
     p_del: float = 0.20,  # delete (teaches later INSERT)
@@ -77,7 +78,7 @@ def sample_x0_noisy(
     p_ins_after: float = 0.05,
     # ensure_min_len: bool = True,
     target_len: int = 128,
-) -> List[int]:
+) -> list[int]:
     """
     Build x0 by applying Delete/Substitute/Mask/Keep to the provided sequence, then
     right-truncate or pad to exactly `target_len`. BOS is *not* expected here.
@@ -110,7 +111,7 @@ def sample_x0_noisy(
         p_keep / s,
     )
 
-    out: List[int] = []
+    out: list[int] = []
     for tok in x1_ids:
         r = random.random()
         if r < p_del:
@@ -150,7 +151,7 @@ def sample_x0_noisy(
 
 
 def sample_x0_mixture(
-    x1_ids: List[int],
+    x1_ids: list[int],
     tokenizer: Any,
     *args,
     w_empty: float = 0.20,  # teaches INSERT beyond prompt
@@ -158,7 +159,7 @@ def sample_x0_mixture(
     w_masks: float = 0.60,  # optional mask-run variety
     **kwargs,
     # You can pass through knobs for noisy/mask variants by editing defaults here
-) -> List[int]:
+) -> list[int]:
     """
     Sample x0 from a mixture:
       - prompt-only (empty tail): insert-heavy supervision
@@ -181,7 +182,7 @@ def sample_x0_mixture(
 
 # ---------------- Factory ---------------- #
 
-_X0_SAMPLERS: Dict[str, Callable[[List[int], Any], List[int]]] = {
+_X0_SAMPLERS: dict[str, Callable[[list[int], Any], list[int]]] = {
     "sample_x0_empty": sample_x0_empty,
     "sample_x0_masks": sample_x0_masks,
     "sample_x0_noisy": sample_x0_noisy,
@@ -189,7 +190,7 @@ _X0_SAMPLERS: Dict[str, Callable[[List[int], Any], List[int]]] = {
 }
 
 
-def make_x0_sampler(name: str) -> Callable[[List[int], Any], List[int]]:
+def make_x0_sampler(name: str) -> Callable[[list[int], Any], list[int]]:
     try:
         return _X0_SAMPLERS[name.lower()]
     except KeyError:
@@ -201,9 +202,9 @@ def make_x0_sampler(name: str) -> Callable[[List[int], Any], List[int]]:
 @dataclass
 class EditFlowCollator:
     tokenizer: transformers.PreTrainedTokenizer = None
-    x0_sampler: Callable | Text | None = sample_x0_masks  # can be func OR name
+    x0_sampler: Callable | str | None = sample_x0_masks  # can be func OR name
 
-    def _get_sampler(self) -> Callable[[List[int], Any], List[int]]:
+    def _get_sampler(self) -> Callable[[list[int], Any], list[int]]:
         if callable(self.x0_sampler):
             return self.x0_sampler
         if isinstance(self.x0_sampler, str):
@@ -211,7 +212,7 @@ class EditFlowCollator:
         # default fallback
         return sample_x0_masks
 
-    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, List[Any]]:
+    def __call__(self, features: list[dict[str, Any]]) -> dict[str, list[Any]]:
         if not features:
             return {}
 
@@ -244,8 +245,8 @@ class EditFlowCollator:
 
 
 def pad_1d(
-    batch_lists: List[List[int]], pad_val: int
-) -> Tuple[torch.Tensor, torch.Tensor]:
+    batch_lists: list[list[int]], pad_val: int
+) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Pads a list of variable-length integer lists into:
       - out: tensor of shape [B, Lmax] with padding value `pad_val`

@@ -70,9 +70,9 @@ def tau_leap_step_minimal(
     t: float,
     sched: BaseKappaScheduler,
     cfg: GenCfg,
-    prev_out: Optional[dict] = None,  # <-- pass prior step's model outputs
+    prev_out: dict | None = None,  # <-- pass prior step's model outputs
     reuse_prev: bool = False,  # <-- if True, reuse prev_out instead of forward()
-) -> Tuple[torch.Tensor, bool, dict, dict]:
+) -> tuple[torch.Tensor, bool, dict, dict]:
     """
     Single τ-leap step with deletion/substitution conflict resolution
     and right-insert policy.
@@ -139,7 +139,7 @@ def tau_leap_step_minimal(
     ins_fire = _bernoulli_from_rate(ins_rate.squeeze(0), cfg.tau).bool()  # [T]
 
     # Token draws (algorithmic, not viz-only)
-    sub_samples: List[Optional[int]] = [
+    sub_samples: list[int | None] = [
         (
             _sample_from_logits(sub_logits[0, i], cfg.temperature)
             if choose_sub[i]
@@ -147,19 +147,19 @@ def tau_leap_step_minimal(
         )
         for i in range(T)
     ]
-    ins_samples: List[Optional[int]] = [
+    ins_samples: list[int | None] = [
         _sample_from_logits(ins_logits[0, i], cfg.temperature) if ins_fire[i] else None
         for i in range(T)
     ]
 
     # Build new sequence left→right (apply insertions to the RIGHT)
-    new_ids: List[int] = []
+    new_ids: list[int] = []
 
     # --- viz-only per-position labels (for trace/GIF) ---
-    _before_ops: Annotated[List[str], "viz-only"] = (
+    _before_ops: Annotated[list[str], "viz-only"] = (
         []
     )  # per 'before' position: DEL/SUB/KEEP
-    _after_ops: Annotated[List[str], "viz-only"] = (
+    _after_ops: Annotated[list[str], "viz-only"] = (
         []
     )  # per 'after' token aligned to new_ids: INS/SUB/KEEP
 
@@ -196,7 +196,7 @@ def tau_leap_step_minimal(
             except Exception:
                 return f"<{int(tok_id)}>"
 
-        _ops_strs: Annotated[List[str], "viz-only"] = []
+        _ops_strs: Annotated[list[str], "viz-only"] = []
         for i in range(T):
             if choose_del[i]:
                 _ops_strs.append(f"DEL@{i}:{_tok_str(int(x[i]))}")
@@ -240,7 +240,7 @@ def generate_editflow_minimal(
     tokenizer: PreTrainedTokenizer,
     args,
     cfg: GenCfg,
-) -> Tuple[str, dict]:
+) -> tuple[str, dict]:
     """
     Returns:
         final_text, trace
@@ -296,7 +296,7 @@ def generate_editflow_minimal(
     }
 
     # Local-only reuse: if previous iteration had no edits, reuse its forward.
-    prev_out: Optional[dict] = None
+    prev_out: dict | None = None
     prev_had_edits = True  # first iteration must run a forward
 
     t = 0.0
@@ -407,10 +407,10 @@ def render_consecutive_trace_gif(
         flags=re.IGNORECASE,
     )
 
-    def _remove_only_masks(ids: List[int]) -> List[int]:
+    def _remove_only_masks(ids: list[int]) -> list[int]:
         return [int(i) for i in ids if int(i) not in MASK_IDS]
 
-    def _decode_keep_specials(ids: List[int]) -> str:
+    def _decode_keep_specials(ids: list[int]) -> str:
         return tokenizer.decode(ids, skip_special_tokens=False)
 
     BYTE_FALLBACK_RE = re.compile(r"<0x([0-9A-Fa-f]{2})>")
@@ -451,10 +451,10 @@ def render_consecutive_trace_gif(
     # Indentation-safe wrappers (preserve multiple spaces)
     TOKEN_RE = re.compile(r"\s+|\S+")
 
-    def _wrap_text(draw: ImageDraw.ImageDraw, text: str, width_px: int) -> List[str]:
+    def _wrap_text(draw: ImageDraw.ImageDraw, text: str, width_px: int) -> list[str]:
         if text == "":
             return [""]
-        lines: List[str] = []
+        lines: list[str] = []
         for para in text.split("\n"):
             tokens = TOKEN_RE.findall(para)
             cur = ""
@@ -505,10 +505,10 @@ def render_consecutive_trace_gif(
         s = s.replace("\n", "\\n")
         return s
 
-    def _ops_lines_for_step(st: Optional[dict]) -> List[str]:
+    def _ops_lines_for_step(st: dict | None) -> list[str]:
         if st is None:
             return ["(no events)"]
-        lines: List[str] = []
+        lines: list[str] = []
         x_before = st["x_before_ids"]
         choose_del = st["choose_del"]
         choose_sub = st["choose_sub"]
@@ -570,7 +570,7 @@ def render_consecutive_trace_gif(
     text_width_budget = max_width - 2 * margin
 
     # --- collect all frames' body + ops first (PROMPT+RESPONSE) ---
-    frames_payload: List[dict] = []
+    frames_payload: list[dict] = []
 
     # Initial frame from init (full sequence)
     init_ids_full = _remove_only_masks(trace["init"]["x_ids"])
@@ -627,7 +627,7 @@ def render_consecutive_trace_gif(
     W = max_width
 
     # --- render frames ---
-    frames: List[Image.Image] = []
+    frames: list[Image.Image] = []
     for f in frames_payload:
         img = Image.new("RGB", (W, H), bg_color)
         draw = ImageDraw.Draw(img)
@@ -694,9 +694,9 @@ def main():
             bool, "Whether model is conditioned on time step"
         ] = True
 
-        prompt: Annotated[
-            Optional[str], "Text prompt. If None, start from BOS alone."
-        ] = None
+        prompt: Annotated[str | None, "Text prompt. If None, start from BOS alone."] = (
+            None
+        )
         # Boolean flag: tyro exposes --edit-prompt / --no-edit-prompt automatically for bools
         edit_prompt: Annotated[
             bool,
@@ -723,7 +723,7 @@ def main():
             False
         )
         gif_path: Annotated[
-            Optional[str], "Output GIF path (default: decode_trace.gif)"
+            str | None, "Output GIF path (default: decode_trace.gif)"
         ] = None
         frame_ms: Annotated[int, "Per-frame duration in ms"] = 120
         # show_token_pieces: Annotated[bool,

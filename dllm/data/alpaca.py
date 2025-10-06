@@ -2,7 +2,7 @@ from typing import Optional
 from datasets import load_dataset, DatasetDict
 
 
-def _build_alpaca_prompt(instruction: str, input_text: Optional[str]) -> str:
+def _build_alpaca_prompt(instruction: str, input_text: str | None) -> str:
     """Construct a clean text prompt from Alpaca fields.
 
     We intentionally *do not* include Anthropic-style role tags (e.g., "Human:", "Assistant:")

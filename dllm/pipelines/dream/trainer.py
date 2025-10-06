@@ -43,7 +43,7 @@ class DreamTrainer(transformers.Trainer):
     def __init__(
         self,
         *args,
-        scheduler: Optional[BaseAlphaScheduler] = None,  # CART isn't function of time
+        scheduler: BaseAlphaScheduler | None = None,  # CART isn't function of time
         geo_p: float = 0.3,
         **kwargs,
     ):
@@ -53,8 +53,8 @@ class DreamTrainer(transformers.Trainer):
 
     def compute_loss(
         self,
-        model: Union[transformers.PreTrainedModel, nn.Module],
-        inputs: Dict[str, Union[torch.Tensor, Any]],
+        model: transformers.PreTrainedModel | nn.Module,
+        inputs: dict[str, torch.Tensor | Any],
         return_outputs: bool = False,
         **kwargs,
     ):

@@ -11,7 +11,7 @@ Number = Union[float, torch.Tensor]
 # ---------------- Registry-enabled Base ---------------- #
 @dataclasses.dataclass
 class BaseAlphaScheduler:
-    __registry__: ClassVar[Dict[str, Type["BaseAlphaScheduler"]]] = {}
+    __registry__: ClassVar[dict[str, type[BaseAlphaScheduler]]] = {}
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -99,7 +99,7 @@ class CosineAlphaScheduler(BaseAlphaScheduler):
 # ---------------- Factory helpers ---------------- #
 
 
-def get_alpha_scheduler_class(name: str) -> Type[BaseAlphaScheduler]:
+def get_alpha_scheduler_class(name: str) -> type[BaseAlphaScheduler]:
     """Return the scheduler class by name (case-insensitive)."""
     cls = BaseAlphaScheduler.__registry__.get(
         name

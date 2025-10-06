@@ -14,7 +14,7 @@ class LLaDATrainer(transformers.Trainer):
     def __init__(
         self,
         *args,
-        scheduler: Optional[BaseAlphaScheduler] = None,
+        scheduler: BaseAlphaScheduler | None = None,
         time_epsilon: float = 1e-3,
         **kawrgs,
     ):
@@ -26,8 +26,8 @@ class LLaDATrainer(transformers.Trainer):
 
     def compute_loss(
         self,
-        model: Union[transformers.PreTrainedModel, nn.Module],
-        inputs: Dict[str, Union[torch.Tensor, Any]],
+        model: transformers.PreTrainedModel | nn.Module,
+        inputs: dict[str, torch.Tensor | Any],
         return_outputs=False,
         **kwargs,
     ):

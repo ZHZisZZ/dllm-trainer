@@ -69,8 +69,8 @@ BLANK = -1
 
 
 def align_with_blanks(
-    x0: List[int], x1: List[int], sub_cost: int = 1, gap_cost: int = 1
-) -> Dict:
+    x0: list[int], x1: list[int], sub_cost: int = 1, gap_cost: int = 1
+) -> dict:
     """
     Needleman–Wunsch with a secondary objective that defers gaps to the end:
       - 'up' (gap in z1) is penalized if j < m
@@ -149,7 +149,7 @@ def align_with_blanks(
     return dict(z0=z0, z1=z1)
 
 
-def strip_blanks(z: List[int]) -> List[int]:
+def strip_blanks(z: list[int]) -> list[int]:
     # IMPORTANT: do NOT strip BOS; we only remove BLANKs
     return [t for t in z if t != BLANK]
 
@@ -158,13 +158,13 @@ def strip_blanks(z: List[int]) -> List[int]:
 class Edit:
     kind: str  # "SUB" | "DEL" | "INS"
     pos: int  # position (for SUB/DEL) or token-row idx for INS (incl. BOS row 0)
-    token: Optional[int]  # token for SUB/INS, else None
+    token: int | None  # token for SUB/INS, else None
 
 
-def build_remaining_edits(zt: List[int], z1: List[int]) -> List[Edit]:
-    edits: List[Edit] = []
+def build_remaining_edits(zt: list[int], z1: list[int]) -> list[Edit]:
+    edits: list[Edit] = []
 
-    def count_nonblank_prefix(z: List[int], j: int) -> int:
+    def count_nonblank_prefix(z: list[int], j: int) -> int:
         c = 0
         for k in range(j):
             if z[k] != BLANK:
@@ -211,10 +211,10 @@ class EditFlowTrainer(transformers.Trainer):
     def __init__(
         self,
         *args,
-        scheduler: Optional[BaseKappaScheduler] = None,
+        scheduler: BaseKappaScheduler | None = None,
         normalize_per_position: bool = True,
         time_epsilon: float = 1e-3,
-        max_w: Optional[float] = None,
+        max_w: float | None = None,
         **kwargs,
     ):
         self.scheduler = scheduler or CubicKappaScheduler()
@@ -225,8 +225,8 @@ class EditFlowTrainer(transformers.Trainer):
 
     def compute_loss(
         self,
-        model: Union[transformers.PreTrainedModel, nn.Module],
-        inputs: Dict[str, Union[torch.Tensor, Any]],
+        model: transformers.PreTrainedModel | nn.Module,
+        inputs: dict[str, torch.Tensor | Any],
         return_outputs: bool = False,
         **kwargs,
     ):
@@ -251,7 +251,7 @@ class EditFlowTrainer(transformers.Trainer):
 
         # -------- 2) Sample z_t by κ-mixing (vectorized per example) --------
         # Keep python lists -> tensors per-example to reuse build_remaining_edits
-        zt_list: List[List[int]] = []
+        zt_list: list[list[int]] = []
         for z0, z1, kb in zip(z0_list, z1_list, k.squeeze(1).tolist()):
             # per-column Bernoulli(κ) mix; BOS is equal in z0/z1 so it stays BOS
             choose_target = torch.rand(len(z0)) < kb
@@ -260,7 +260,7 @@ class EditFlowTrainer(transformers.Trainer):
 
         # -------- 3) Strip blanks to x_t and compute remaining edits --------
         xt_list = [strip_blanks(zt) for zt in zt_list]
-        edits_list: List[List[Edit]] = [
+        edits_list: list[list[Edit]] = [
             build_remaining_edits(zt, z1) for zt, z1 in zip(zt_list, z1_list)
         ]
 

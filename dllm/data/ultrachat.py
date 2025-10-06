@@ -2,7 +2,7 @@ from typing import Optional, List, Dict
 from datasets import load_dataset, DatasetDict
 
 
-def _extract_first_turn(messages: List[Dict[str, str]]) -> Optional[Dict[str, str]]:
+def _extract_first_turn(messages: list[dict[str, str]]) -> dict[str, str] | None:
     """
     Given a list of chat messages like:
       [{"role": "user", "content": "..."},

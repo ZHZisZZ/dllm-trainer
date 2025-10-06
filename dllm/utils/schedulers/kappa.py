@@ -11,7 +11,7 @@ Number = Union[float, torch.Tensor]
 # ---------------- Registry-enabled Base ---------------- #
 @dataclasses.dataclass
 class BaseKappaScheduler:
-    __registry__: ClassVar[Dict[str, Type["BaseKappaScheduler"]]] = {}
+    __registry__: ClassVar[dict[str, type[BaseKappaScheduler]]] = {}
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -95,7 +95,7 @@ class CosineKappaScheduler(BaseKappaScheduler):
 # ---------------- Factory helpers ---------------- #
 
 
-def get_kappa_scheduler_class(name: str) -> Type[BaseKappaScheduler]:
+def get_kappa_scheduler_class(name: str) -> type[BaseKappaScheduler]:
     """Return the scheduler class by name (case-insensitive)."""
     cls = BaseKappaScheduler.__registry__.get(
         name

@@ -13,9 +13,11 @@ class EditFlowLLaDAConfig(llada.LLaDAConfig):
 
 class EditFlowLLaDAModel(llada.LLaDAModelLM):
     config_class = EditFlowLLaDAConfig
-    modules_to_save = set(
-        ["rate_heads", "sub_logits", "ins_logits"]
-    )  # fully fintuned even using lora
+    modules_to_save = {
+        "rate_heads",
+        "sub_logits",
+        "ins_logits",
+    }  # fully fintuned even using lora
 
     def __init__(self, config):
         # TODO: time embedding
@@ -31,9 +33,9 @@ class EditFlowLLaDAModel(llada.LLaDAModelLM):
 
     def forward(
         self,
-        input_ids: torch.LongTensor = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        t: torch.Tensor = None,
+        input_ids: torch.LongTensor,
+        attention_mask: torch.Tensor | None = None,
+        t: torch.Tensor | None = None,
         **kwargs
     ):
         # TODO: time embedding

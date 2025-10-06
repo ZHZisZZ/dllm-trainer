@@ -49,7 +49,7 @@ def train(
     model_args: ModelArguments,
     data_args: dllm.utils.DataArguments,
     training_args: TrainingArguments,
-    ef_config_cls: Type[transformers.PretrainedConfig],
+    ef_config_cls: type[transformers.PretrainedConfig],
 ):
     training_args.label_names = (
         []

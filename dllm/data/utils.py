@@ -229,7 +229,7 @@ def load_sft_dataset(dataset_args: str):
     return _ensure_datasetdict(merged)
 
 
-def _concat_iterable_datasets(parts: List[IterableDataset]) -> IterableDataset:
+def _concat_iterable_datasets(parts: list[IterableDataset]) -> IterableDataset:
     """
     Concatenate IterableDatasets sequentially without materialization.
     Preserves streaming nature; supports downstream .take()/.skip()/.shuffle().
@@ -241,8 +241,7 @@ def _concat_iterable_datasets(parts: List[IterableDataset]) -> IterableDataset:
 
     def _gen():
         for ds in parts:
-            for row in ds:
-                yield row
+            yield from ds
 
     return IterableDataset.from_generator(_gen, features=features)
 
@@ -278,7 +277,7 @@ def _merge_iterabledatasetdicts(
     return IterableDatasetDict(out)
 
 
-def _truncate_stream(ds: IterableDataset, n: Optional[int]) -> IterableDataset:
+def _truncate_stream(ds: IterableDataset, n: int | None) -> IterableDataset:
     if n is None:
         return ds
     return ds.take(n)
@@ -365,7 +364,7 @@ def load_pt_dataset(dataset_args: str):
 
     # Load each spec to an IterableDatasetDict and apply *post* truncation per split if extra limits exist.
     # (For sources that already split internally, we respect what _load_one_streaming_spec produced.)
-    parts: List[IterableDatasetDict] = []
+    parts: list[IterableDatasetDict] = []
     for raw in specs:
         ds_part = _load_one_streaming_spec(raw)
         # Apply *additional* per-split truncations if provided in spec (safe no-ops when already exact-sized)
