@@ -18,8 +18,12 @@ class EditFlowLLaDAModel(llada.LLaDAModelLM):
     def __init__(self, config):
         # TODO: time embedding
         super().__init__(config)
-        self.sub_logits = copy.deepcopy(self.model.transformer.ff_out)
-        self.ins_logits = copy.deepcopy(self.model.transformer.ff_out)
+        ff = self.model.transformer.ff_out
+        in_f, out_f = ff.in_features, ff.out_features
+        use_bias = ff.bias is not None
+        # Create new, independent heads (no deepcopy)
+        self.sub_logits = nn.Linear(in_f, out_f, bias=use_bias)
+        self.ins_logits = nn.Linear(in_f, out_f, bias=use_bias)
         self.rate_heads = nn.Sequential(nn.Linear(config.hidden_size, 3), nn.Softplus())
         self.post_init()
 

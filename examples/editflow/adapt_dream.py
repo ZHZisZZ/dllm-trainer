@@ -44,7 +44,7 @@ class ModelArguments(editflow_adapt.ModelArguments):
     lm_head_key: str = "lm_head"
 
 @dataclass
-class DataArguments(dllm.utils.DataArguments):
+class DataArguments(editflow_adapt.DataArguments):
     dataset_args: str = "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
 
 @dataclass
@@ -65,5 +65,4 @@ if __name__ == "__main__":
         data_args=data_args, 
         training_args=training_args,
         ef_config_cls=dllm.pipelines.editflow.EditFlowDreamConfig,
-        ef_model_cls=dllm.pipelines.editflow.EditFlowDreamModel,
     )

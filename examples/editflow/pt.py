@@ -43,8 +43,7 @@ def train(
     model_args: ModelArguments, 
     data_args: dllm.utils.DataArguments, 
     training_args: TrainingArguments, 
-    ef_config_cls: Type[transformers.PretrainedConfig], 
-    ef_model_cls: Type[transformers.PreTrainedModel], 
+    ef_config_cls: Type[transformers.PretrainedConfig],
 ):
     training_args.label_names = [] # necessary when batch does not contain "labels" field
     training_args.remove_unused_columns = False # necessary when batch contains customized fields
@@ -54,9 +53,9 @@ def train(
 
     # ----- Load base Model and initialize EditFlow Model ---------------------------
     # Create EditFlow model (bf16 init on CUDA)
-    with dllm.utils.init_on("cuda", torch.bfloat16):
-        ef_cfg = ef_config_cls.from_pretrained(model_args.model_name_or_path)
-        model = ef_model_cls(ef_cfg)
+    ef_cfg = ef_config_cls.from_pretrained(model_args.model_name_or_path)
+    with dllm.utils.init_device_context_manager():
+        model = transformers.AutoModel.from_config(ef_cfg, torch_dtype=torch.bfloat16)
     if model_args.init_editflow_from_src:
         # Load src model config & weights (bf16 on CUDA) for intializing EditFlow model
         src_model = dllm.utils.get_model(model_args)

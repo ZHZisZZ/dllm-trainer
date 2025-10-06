@@ -65,5 +65,4 @@ if __name__ == "__main__":
         data_args=data_args, 
         training_args=training_args,
         ef_config_cls=dllm.pipelines.editflow.EditFlowLLaDAConfig,
-        ef_model_cls=dllm.pipelines.editflow.EditFlowLLaDAModel,
     )

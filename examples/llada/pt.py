@@ -80,8 +80,9 @@ def train():
     # ----- Model ------------------------------------------------------------------
     # initialize model weights from scratch
     config = transformers.AutoConfig.from_pretrained(model_args.model_name_or_path)
-    with dllm.utils.init_on("cuda", torch.bfloat16):
-        model = transformers.AutoModel.from_config(config)
+    with dllm.utils.init_device_context_manager():
+        model = transformers.AutoModel.from_config(config, torch_dtype=torch.bfloat16, init_params=True)
+
     # ----- Tokenizer --------------------------------------------------------------
     tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
 

@@ -17,6 +17,9 @@ class ModelArguments(dllm.utils.ModelArguments):
     lm_head_key: str = None # TODO: overwrite this
     init_editflow_from_src: bool = True
 
+@dataclass
+class DataArguments(dllm.utils.DataArguments):
+    dataset_args: str = "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
@@ -33,10 +36,9 @@ class TrainingArguments(dllm.utils.TrainingArguments):
 
 def train(
     model_args: ModelArguments, 
-    data_args: dllm.utils.DataArguments, 
+    data_args: DataArguments, 
     training_args: TrainingArguments, 
     ef_config_cls: Type[transformers.PretrainedConfig], 
-    ef_model_cls: Type[transformers.PreTrainedModel], 
 ):
     training_args.label_names = [] # necessary when batch does not contain "labels" field
     training_args.remove_unused_columns = False # necessary when batch contains customized fields
@@ -46,12 +48,12 @@ def train(
     # ----- Load base Model and initialize EditFlow Model ---------------------------
     # Load src model config & weights (bf16 on CUDA) for intializing EditFlow model
     if model_args.init_editflow_from_src:
-        src_model = dllm.utils.get_model(model_args)
         # Create EditFlow model (bf16 init on CUDA)
-        with dllm.utils.init_on("cuda", torch.bfloat16):
-            ef_cfg = ef_config_cls.from_pretrained(model_args.model_name_or_path)
-            model = ef_model_cls(ef_cfg)
+        ef_cfg = ef_config_cls.from_pretrained(model_args.model_name_or_path)
+        with dllm.utils.init_device_context_manager():
+            model = transformers.AutoModel.from_config(ef_cfg, torch_dtype=torch.bfloat16)
         # Initialize EditFlow model from the src model: copies backbone & clones lm_head
+        src_model = dllm.utils.get_model(model_args)
         editflow.utils.init_editflow_from_src(model, src_model, lm_head_key=model_args.lm_head_key)
         del src_model
     else:

@@ -18,8 +18,12 @@ class EditFlowDreamModel(dream.DreamModel):
     def __init__(self, config):
         # TODO: time embedding
         super().__init__(config)
-        self.sub_logits = copy.deepcopy(self.lm_head)
-        self.ins_logits = copy.deepcopy(self.lm_head)
+        # lm_head = self.lm_head
+        in_lm, out_lm = self.lm_head.in_features, self.lm_head.out_features
+        use_bias = self.lm_head.bias is not None
+        # Create new, independent heads (no deepcopy)
+        self.sub_logits = nn.Linear(in_lm, out_lm, bias=use_bias)
+        self.ins_logits = nn.Linear(in_lm, out_lm, bias=use_bias)
         self.rate_heads = nn.Sequential(nn.Linear(config.hidden_size, 3), nn.Softplus())
         self.post_init()
 

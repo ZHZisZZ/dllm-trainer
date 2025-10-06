@@ -36,27 +36,32 @@ def resolve_with_base_env(path: str, env_name: str) -> str:
 
 
 @contextmanager
-def init_on(device: str | torch.device, dtype: torch.dtype):
+def init_device_context_manager(device: str | torch.device | None = None):
     """
     Temporarily set torch default dtype and default device so that tensors
     created inside the context are allocated on `device` with dtype `dtype`.
     Restores previous settings on exit.
     """
-    # Save previous defaults
-    prev_dtype = torch.get_default_dtype()
-    prev_device = None
+    if transformers.integrations.is_deepspeed_zero3_enabled():
+        yield
+        return
+
+    # Resolve device
+    if device is None:
+        try:
+            from accelerate import PartialState
+            idx = PartialState().local_process_index
+        except Exception:
+            idx = 0
+        device = f"cuda:{idx}" if torch.cuda.is_available() else "cpu"
+    elif isinstance(device, int):
+        device = f"cuda:{device}"
+
     try:
-        torch.set_default_dtype(dtype)
-        # set_default_device exists in PyTorch >= 2.0
-        if hasattr(torch, "set_default_device"):
-            # Query current default device if available (optional)
-            prev_device = "cpu"
-            torch.set_default_device(device)
+        torch.set_default_device(device)
         yield
     finally:
-        torch.set_default_dtype(prev_dtype)
-        if hasattr(torch, "set_default_device"):
-            torch.set_default_device("cpu")  # revert so DataLoader RNGs stay on CPU
+        torch.set_default_device("cpu")
 
 
 def print_main(*args, **kwargs):
