@@ -74,7 +74,6 @@ def train():
     ))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     training_args.accelerator_config.dispatch_batches = False # necessary for streaming dataset
-    # training_args.accelerator_config.split_batches = True # necessary for streaming dataset (?)
     dllm.utils.print_args_main(model_args, data_args, training_args)
     dllm.utils.initial_training_setup(training_args)
 
@@ -95,6 +94,7 @@ def train():
         if input_ids[0] != tokenizer.bos_token_id:
             input_ids = [tokenizer.bos_token_id] + input_ids
         return {"input_ids": input_ids, "labels": input_ids}
+
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_pt_dataset(data_args.dataset_args)
         dataset = dataset.map(functools.partial(pt_map_fn, tokenizer=tokenizer))
