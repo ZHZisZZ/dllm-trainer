@@ -65,7 +65,7 @@ class DataArguments(dllm.utils.DataArguments):
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = "models/LLaDA-8B-SFT"
+    output_dir: str = "models/LLaDA-8B-SFT/[train:10000,test:1000]"
     # others (llada specific training params)
     mask_prompt_loss: bool = True
 

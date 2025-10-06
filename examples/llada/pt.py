@@ -57,7 +57,6 @@ class DataArguments(dllm.utils.DataArguments):
         "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:10_000_000,test:10_000]"
     )
     truncation: str = "right"
-    max_length: int = 2048
 
 
 @dataclass
