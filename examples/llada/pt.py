@@ -48,7 +48,7 @@ class ModelArguments(dllm.utils.ModelArguments):
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
-    dataset_args: str = "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:5000000,test:100000]"
+    dataset_args: str = "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:10_000_000,test:10_000]"
     truncation: str = "right"
     max_length: int = 2048
 
@@ -56,7 +56,7 @@ class DataArguments(dllm.utils.DataArguments):
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = "models/LLaDA-8B-Base"
     learning_rate: float = 3e-4
-    max_steps: int = 5000
+    max_steps: int = 10_000
     per_device_train_batch_size: int = 2
     gradient_accumulation_steps: int = 2
     eval_steps: float = 0.1

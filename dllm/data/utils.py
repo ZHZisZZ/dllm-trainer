@@ -27,10 +27,15 @@ def _parse_one_spec(spec: str):
                 split, count = part.split(":", 1)
                 split = split.strip()
                 count = count.strip()
-                if not count.isdigit():
-                    raise ValueError(f"Count must be an integer for '{part}' in '{spec}'.")
-                limits[split] = int(count)
+
+                # Accept integers with optional underscores, e.g. 5_000_000
+                if not re.fullmatch(r"\d(?:_?\d)*", count):
+                    raise ValueError(f"Count must be an integer for '{part}' in '{spec}'. "
+                                     "Use digits and optional underscores only.")
+                limits[split] = int(count.replace("_", ""))
+
         spec = spec[:m.start()]
+
     kvs = _parse_kv_string(spec)
     return kvs, limits
 
@@ -244,6 +249,6 @@ if __name__ == "__main__":
     # )
 
     dclm_dataset = load_pt_dataset(
-        "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:4500,test:500]"
+        "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
     )
     breakpoint()

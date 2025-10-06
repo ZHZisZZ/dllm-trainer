@@ -45,11 +45,11 @@ class ModelArguments(editflow_pt.ModelArguments):
 
 @dataclass
 class DataArguments(editflow_pt.DataArguments):
-    dataset_args: str = "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:5000000,test:100000]"
+    dataset_args: str = "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:10_000_000,test:10_000]"
 
 @dataclass
 class TrainingArguments(editflow_pt.TrainingArguments):
-    output_dir: str = "models/EditFlow-LLaDA-8B-Base/dclm-baseline-1.0[train:5000000,test:100000]"
+    output_dir: str = "models/EditFlow-LLaDA-8B-Base/dclm-baseline-1.0[train:10_000_000,test:10_000]"
 
 
 if __name__ == "__main__":
