@@ -14,7 +14,7 @@ from dllm.pipelines import editflow
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = None # TODO: overwrite this
-    lm_head_key: str = None # TODO: overwrite this
+    lm_head_key: str = None # TODO: overwrite this if `init_editflow_from_src` = True
     init_editflow_from_src: bool = True
 
 @dataclass

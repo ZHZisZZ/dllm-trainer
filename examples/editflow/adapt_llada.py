@@ -32,24 +32,26 @@ Slurm users
 """
 from dataclasses import dataclass
 
+import torch
 import transformers
 
 import dllm
-import adapt as editflow_adapt
+import sft as editflow_sft
 
 
 @dataclass
-class ModelArguments(editflow_adapt.ModelArguments):
+class ModelArguments(editflow_sft.ModelArguments):
     model_name_or_path: str = "GSAI-ML/LLaDA-8B-Instruct"
     lm_head_key: str = "model.transformer.ff_out"
+    init_editflow_from_src: bool = True
 
 @dataclass
-class DataArguments(editflow_adapt.DataArguments):
+class DataArguments(editflow_sft.DataArguments):
     dataset_args: str = "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
 
 @dataclass
-class TrainingArguments(editflow_adapt.TrainingArguments):
-    output_dir: str = "models/EditFlow-LLaDA-8B-Instruct/tulu-3-sft-mixture[train:10000,test:1000]"
+class TrainingArguments(editflow_sft.TrainingArguments):
+    output_dir: str = "models/EditFlow-LLaDA-8B-Instruct-Adapt/tulu-3-sft-mixture[train:10000,test:1000]"
 
 
 if __name__ == "__main__":
@@ -60,9 +62,21 @@ if __name__ == "__main__":
         TrainingArguments
     ))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    editflow_adapt.train(
+
+    dllm.utils.initial_training_setup(training_args)
+    # Create EditFlow model (bf16 init on CUDA)
+    ef_cfg = dllm.pipelines.editflow.EditFlowLLaDAConfig.from_pretrained(model_args.model_name_or_path)
+    with dllm.utils.init_device_context_manager():
+        model = transformers.AutoModel.from_config(ef_cfg, torch_dtype=torch.bfloat16)
+    # Initialize EditFlow model from the src model: copies backbone & clones lm_head
+    if model_args.init_editflow_from_src:
+        src_model = dllm.utils.get_model(model_args)
+        dllm.pipelines.editflow.utils.init_editflow_from_src(model, src_model, lm_head_key=model_args.lm_head_key)
+        del src_model
+
+    editflow_sft.train(
         model_args=model_args, 
         data_args=data_args, 
         training_args=training_args,
-        ef_config_cls=dllm.pipelines.editflow.EditFlowLLaDAConfig,
+        model=model,
     )

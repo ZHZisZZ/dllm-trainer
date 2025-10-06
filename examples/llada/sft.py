@@ -88,17 +88,11 @@ def train():
         label_pad_token_id: int = -100
     ) -> dict:
         prompt_response_tokens = tokenizer.apply_chat_template(
-            row["messages"], 
-            tokenize=True, 
-            add_generation_prompt=False
-        )
+            row["messages"], tokenize=True, add_generation_prompt=False)
         labels = prompt_response_tokens.copy()
         if mask_prompt_loss:
             prompt_tokens = tokenizer.apply_chat_template(
-                row["messages"][:-1], 
-                tokenize=True, 
-                add_generation_prompt=True
-            )
+                row["messages"][:-1], tokenize=True, add_generation_prompt=True)
             labels[:len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
             return {
                 "input_ids": prompt_response_tokens, 
