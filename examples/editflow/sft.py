@@ -44,12 +44,10 @@ def train(
     training_args: TrainingArguments,
     model: transformers.PreTrainedModel | None = None,
 ):
-    training_args.label_names = (
-        []
-    )  # necessary when batch does not contain "labels" field
-    training_args.remove_unused_columns = (
-        False  # necessary when batch contains customized fields
-    )
+    # necessary when batch does not contain "labels" field
+    training_args.label_names = []
+    # necessary when batch contains customized fields
+    training_args.remove_unused_columns = False
     dllm.utils.print_args_main(model_args, data_args, training_args)
     dllm.utils.initial_training_setup(training_args)
 

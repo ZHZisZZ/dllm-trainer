@@ -62,7 +62,9 @@ class DataArguments(dllm.utils.DataArguments):
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = "models/LLaDA-8B-Base"
+    output_dir: str = (
+        "models/LLaDA-8B-Base/dclm-baseline-1.0[train:10_000_000,test:10_000]"
+    )
     learning_rate: float = 3e-4
     max_steps: int = 10_000
     per_device_train_batch_size: int = 2

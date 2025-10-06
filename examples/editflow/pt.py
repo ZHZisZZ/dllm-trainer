@@ -46,19 +46,16 @@ class TrainingArguments(dllm.utils.TrainingArguments):
 
 def train(
     model_args: ModelArguments,
-    data_args: dllm.utils.DataArguments,
+    data_args: DataArguments,
     training_args: TrainingArguments,
     ef_config_cls: type[transformers.PretrainedConfig],
 ):
-    training_args.label_names = (
-        []
-    )  # necessary when batch does not contain "labels" field
-    training_args.remove_unused_columns = (
-        False  # necessary when batch contains customized fields
-    )
-    training_args.accelerator_config.dispatch_batches = (
-        False  # necessary for streaming dataset
-    )
+    # necessary when batch does not contain "labels" field
+    training_args.label_names = []
+    # necessary when batch contains customized fields
+    training_args.remove_unused_columns = False
+    # necessary for streaming dataset
+    training_args.accelerator_config.dispatch_batches = False
     dllm.utils.print_args_main(model_args, data_args, training_args)
     dllm.utils.initial_training_setup(training_args)
 
