@@ -6,9 +6,9 @@ Local users
         --config_file scripts/accelerate_configs/single_gpu.yaml \
         examples/editflow/pt_dream.py
     
-- 8 GPUs (DeepSpeed ZeRO-2):
+- 8 GPUs (DeepSpeed ZeRO-3):
     accelerate launch \
-        --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
+        --config_file scripts/accelerate_configs/deepspeed_zero3.yaml \
         examples/editflow/pt_dream.py
 
 Slurm users
@@ -16,18 +16,18 @@ Slurm users
 #       `partition` and `quotatype` in `scripts/train.slurm.sh` for your cluster.
 ------------
 - 1 GPU:
-    sbatch scripts/train.slurm.sh \
+    sbatch --gres=gpu:1 scripts/train.slurm.sh \
         --accelerate_config "single_gpu" \
         --script_path "examples/editflow/pt_dream.py"
 
-- 8 GPUs (DeepSpeed ZeRO-2):
-    sbatch scripts/train.slurm.sh \
-        --accelerate_config "deepspeed_zero2" \
+- 8 GPUs (DeepSpeed ZeRO-3):
+    sbatch --gres=gpu:8 scripts/train.slurm.sh \
+        --accelerate_config "deepspeed_zero3" \
         --script_path "examples/editflow/pt_dream.py"
 
-- 2 Nodes, 16 GPUs (DeepSpeed ZeRO-2):
-    sbatch --nodes=2 scripts/train.slurm.sh \
-        --accelerate_config "deepspeed_zero2" \
+- 24 Nodes, 192 GPUs (DeepSpeed ZeRO-3):
+    sbatch --nodes=24 --gres=gpu:8 scripts/train.slurm.sh \
+        --accelerate_config "deepspeed_zero3" \
         --script_path "examples/editflow/pt_dream.py"
 """
 from dataclasses import dataclass
