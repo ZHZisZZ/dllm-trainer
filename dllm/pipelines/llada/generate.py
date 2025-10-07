@@ -1,14 +1,5 @@
 """
 reference: https://github.com/ML-GSAI/LLaDA/blob/main/generate.py
-
-Local (1 GPU):
-    python dllm_trainer/pipelines/llada/generate.py
-
-Slurm (1 GPU):
-    # Note: update PARTITION and QUOTATYPE in your ~/.*rc to fit your cluster setup
-    srun -p $PARTITION --quotatype=$QUOTATYPE \
-        --gres=gpu:1 --cpus-per-task=16 --time=3-00:00:000 \
-        python dllm_trainer/pipelines/llada/generate.py
 """
 
 import math

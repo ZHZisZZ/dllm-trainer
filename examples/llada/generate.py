@@ -27,7 +27,7 @@ class ScriptArguments:
     max_new_tokens: int = 128
     block_length: int = 32
     temperature: float = 0.0
-    remasking: str = "random"
+    remasking: str = "low_confidence"
     seed: int = 42
 
     def __post_init__(self):
