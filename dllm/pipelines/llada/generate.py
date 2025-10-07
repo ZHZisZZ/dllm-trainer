@@ -71,7 +71,7 @@ def generate(
             Must provide `eos_token_id` and `mask_token_id`
             (e.g., via `tokenizer.convert_tokens_to_ids("<|mdm_mask|>")`).
         prompts (list[torch.Tensor]):
-            List of token-id tensors, each shaped [1, L_i]. For each sample, the
+            List of token-id tensors, each shaped [L_i]. For each sample, the
             L_i prompt tokens are copied into a canvas and then `max_new_tokens`
             mask tokens are appended (these are the targets to be filled).
         steps (int, default=128):

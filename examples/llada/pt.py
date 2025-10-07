@@ -103,8 +103,8 @@ def train():
         tokenizer: transformers.PreTrainedTokenizer,
     ) -> dict:
         input_ids = tokenizer.encode(row["text"])
-        if input_ids[0] != tokenizer.bos_token_id:
-            input_ids = [tokenizer.bos_token_id] + input_ids
+        # if input_ids[0] != tokenizer.bos_token_id:
+        #     input_ids = [tokenizer.bos_token_id] + input_ids
         return {"input_ids": input_ids, "labels": input_ids}
 
     with accelerate.PartialState().local_main_process_first():
