@@ -9,9 +9,6 @@ from datasets import (
     load_dataset,
 )
 
-from dllm.data.alpaca import load_dataset_alpaca
-from dllm.data.opc import load_dataset_opc
-from dllm.data.saferlhf import load_dataset_pku_rlhf_sft
 from dllm.utils.utils import resolve_with_base_env
 
 
@@ -20,7 +17,25 @@ def _parse_kv_string(s: str) -> dict:
 
 
 def _parse_one_spec(spec: str):
-    m = re.search(r"\[(.*?)\]$", spec.strip())
+    """
+    Parse a single dataset spec.
+
+    Supports:
+      - Bare dataset path, e.g. "tatsu-lab/alpaca"
+      - Optional bracket suffix with comma-separated entries:
+          * split limits:   train:5000, test:1_000
+          * extra options:  name:educational_instruct
+      - Optional "key=value" pairs outside the bracket (existing behavior)
+
+    Returns:
+      kvs:    dict of options, guaranteed to include 'dataset_name_or_path'
+      limits: dict of split -> int row limits
+    """
+    s = spec.strip()
+
+    # Extract bracket content if present
+    m = re.search(r"\[(.*?)\]$", s)
+    bracket_kvs = {}
     limits = {}
     if m:
         bracket = m.group(1).strip()
@@ -31,23 +46,42 @@ def _parse_one_spec(spec: str):
                     continue
                 if ":" not in part:
                     raise ValueError(
-                        f"Invalid split limit entry '{part}' in '{spec}' (expected split:count)."
+                        f"Invalid entry '{part}' in '{spec}' (expected key:value)."
                     )
-                split, count = part.split(":", 1)
-                split = split.strip()
-                count = count.strip()
+                key, value = part.split(":", 1)
+                key = key.strip()
+                value = value.strip()
 
-                # Accept integers with optional underscores, e.g. 5_000_000
-                if not re.fullmatch(r"\d(?:_?\d)*", count):
-                    raise ValueError(
-                        f"Count must be an integer for '{part}' in '{spec}'. "
-                        "Use digits and optional underscores only."
-                    )
-                limits[split] = int(count.replace("_", ""))
+                # Integers (with optional underscores) -> split limits
+                if re.fullmatch(r"\d(?:_?\d)*", value):
+                    limits[key] = int(value.replace("_", ""))
+                else:
+                    # Otherwise treat as an option (e.g., name:educational_instruct)
+                    bracket_kvs[key] = value
 
-        spec = spec[: m.start()]
+        # Remove the bracket suffix from the working string
+        s = s[: m.start()].rstrip()
 
-    kvs = _parse_kv_string(spec)
+    # Anything outside the bracket:
+    # - if it contains "=", use existing "a=b,c=d" parsing
+    # - else treat as the dataset path
+    if "=" in s:
+        outer_kvs = _parse_kv_string(s)
+        kvs = dict(outer_kvs)
+    else:
+        kvs = {}
+        if s:
+            kvs["dataset_name_or_path"] = s
+
+    # Merge bracket kvs last so they can override outer values if needed
+    kvs.update(bracket_kvs)
+
+    # Ensure dataset_name_or_path is present
+    if "dataset_name_or_path" not in kvs:
+        raise ValueError(
+            f"'dataset_name_or_path' missing and could not be inferred from spec: {spec}"
+        )
+
     return kvs, limits
 
 
@@ -177,10 +211,15 @@ def load_sft_dataset(dataset_args: str):
       - Multiple datasets separated by '|', concatenated per split.
       - Unmentioned splits remain full.
     Examples of dataset_args:
-      - "dataset_name_or_path=tatsu-lab/alpaca"
-      - "dataset_name_or_path=OpenCoder-LLM/opc-sft-stage2,name=educational_instruct"
-      - "dataset_name_or_path=tatsu-lab/alpaca[train:5000] | dataset_name_or_path=HuggingFaceH4/ultrachat_200k[train:5000]"
+      - "tatsu-lab/alpaca"
+      - "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"
+      - "tatsu-lab/alpaca[train:5000]"
+      - "tatsu-lab/alpaca[train:5000] | HuggingFaceH4/ultrachat_200k[train:5000]"
     """
+    from dllm.data.alpaca import load_dataset_alpaca
+    from dllm.data.opc import load_dataset_opc
+    from dllm.data.saferlhf import load_dataset_pku_rlhf_sft
+
     specs = [p.strip() for p in dataset_args.split("|") if p.strip()]
     all_parts = []
 
@@ -287,18 +326,25 @@ def load_pt_dataset(dataset_args: str):
     """
     Streaming loader with concatenation across multiple dataset specs (separated by '|').
 
-    Each spec supports:
-      - 'dataset_name_or_path=...' (required)
-      - Optional [train:N,test:M,...] limits (underscores allowed in integers)
+    Spec syntax (new, simpler):
+      - Bare path:               "mlfoundations/dclm-baseline-1.0"
+      - With limits:             "mlfoundations/dclm-baseline-1.0[train:5000]"
+      - With multiple limits:    "mlfoundations/dclm-baseline-1.0[train:5000,test:1000]"
+      - Multiple datasets:       "d1[train:5000] | d2[test:1000]"
+      - Options in brackets (kept for future use): "OpenCoder-LLM/opc-fineweb-code-corpus[name:foo]"
 
-    Current supported datasets (streaming):
-      - 'mlfoundations/dclm-baseline-1.0'
-        * If both train and test limits are provided, we shuffle the stream with a buffer,
-          take (train+test) and split deterministically.
-        * If only train is provided, we take that many for 'train' and don't construct 'test'
-          unless specified.
-        * If only test is provided, we take that many for 'test' from the start (useful for quick eval).
-        * If no limits are provided, returns {'train': full_stream}.
+    Notes on limits:
+      - Underscores allowed in integers (e.g., train:1_000_000).
+      - If both train and test are provided:
+          * We shuffle a streaming buffer, take (train+test), then split deterministically.
+      - If only train is provided: returns {'train': ...}
+      - If only test is provided:  returns {'test': ...}
+      - If no limits:              returns {'train': full shuffled stream}
+
+    Current supported streaming datasets:
+      - "mlfoundations/dclm-baseline-1.0"
+      - "OpenCoder-LLM/opc-fineweb-code-corpus"
+      - "OpenCoder-LLM/opc-fineweb-math-corpus"
     """
     specs = [p.strip() for p in dataset_args.split("|") if p.strip()]
     if not specs:
@@ -383,28 +429,26 @@ def load_pt_dataset(dataset_args: str):
 
 
 if __name__ == "__main__":
-    # tulu_dataset = load_sft_dataset(
-    #     "dataset_name_or_path=allenai/tulu-3-sft-mixture")
-    # tulu_datatset_subset = load_sft_dataset(
-    #     "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
-    # )
-    # opc_dataset = load_sft_dataset(
-    #     "dataset_name_or_path=OpenCoder-LLM/opc-sft-stage2,name=educational_instruct")
-    # ultrachat_dataset = load_sft_dataset(
-    #     "dataset_name_or_path=HuggingFaceH4/ultrachat_200k")
-    # saferlhf_dataset = load_sft_dataset(
-    #     "dataset_name_or_path=PKU-Alignment/PKU-SafeRLHF,name=safe")
+    tulu_dataset = load_sft_dataset("allenai/tulu-3-sft-mixture")
+    tulu_datatset_subset = load_sft_dataset(
+        "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    )
+    opc_dataset = load_sft_dataset(
+        "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"
+    )
+    ultrachat_dataset = load_sft_dataset("HuggingFaceH4/ultrachat_200k")
+    saferlhf_dataset = load_sft_dataset("PKU-Alignment/PKU-SafeRLHF[name:safe]")
 
-    # merged_dataset = load_sft_dataset(
-    #     "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]|"
-    #     "dataset_name_or_path=OpenCoder-LLM/opc-sft-stage2,name=educational_instruct[train:20000,test:2000]"
-    # )
+    merged_dataset = load_sft_dataset(
+        "allenai/tulu-3-sft-mixture[train:10000,test:1000]|"
+        "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct,train:20000,test:2000]"
+    )
 
     dclm_dataset = load_pt_dataset(
-        "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
+        "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
     )
     dclm_opc_dataset = load_pt_dataset(
-        "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
-        "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
+        "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
+        "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
     )
     breakpoint()

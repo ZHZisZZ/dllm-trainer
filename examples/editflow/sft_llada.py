@@ -47,9 +47,7 @@ class ModelArguments(editflow_sft.ModelArguments):
 
 @dataclass
 class DataArguments(editflow_sft.DataArguments):
-    dataset_args: str = (
-        "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
-    )
+    dataset_args: str = "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
 
 
 @dataclass

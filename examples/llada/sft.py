@@ -58,9 +58,7 @@ class ModelArguments(dllm.utils.ModelArguments):
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
-    dataset_args: str = (
-        "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
-    )
+    dataset_args: str = "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
 
 
 @dataclass
