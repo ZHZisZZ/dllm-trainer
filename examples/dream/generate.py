@@ -95,7 +95,7 @@ print("\n" + "=" * 80 + "\n")
 
 # --- Example 2: Batch fill-in-the-blanks ---
 print("\n" + "=" * 80)
-print("TEST: dream.fill_in_blanks()".center(80))
+print("TEST: dream.infilling()".center(80))
 print("=" * 80)
 
 masked_inputs = [
@@ -125,7 +125,7 @@ fib_input_ids_list = [
     for m in masked_inputs
 ]
 
-out = dream.fill_in_blanks(
+out = dream.infilling(
     model=model,
     tokenizer=tokenizer,
     inputs_with_blanks=fib_input_ids_list,

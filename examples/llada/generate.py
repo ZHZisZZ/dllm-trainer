@@ -85,7 +85,7 @@ print("\n" + "=" * 80 + "\n")
 
 # --- Example 2: Batch fill-in-the-blanks ---
 print("\n" + "=" * 80)
-print("TEST: llada.fill_in_blanks()".center(80))
+print("TEST: llada.infilling()".center(80))
 print("=" * 80)
 
 masked_inputs = [
@@ -115,7 +115,7 @@ fib_input_ids_list = [
     for m in masked_inputs
 ]
 
-out = llada.fill_in_blanks(
+out = llada.infilling(
     model,
     tokenizer,
     fib_input_ids_list,

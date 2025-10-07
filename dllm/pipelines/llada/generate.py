@@ -244,7 +244,7 @@ def generate(
 
 
 @torch.no_grad()
-def fill_in_blanks(
+def infilling(
     model: transformers.PreTrainedModel,
     tokenizer: transformers.PreTrainedTokenizer,
     inputs_with_blanks: list[torch.Tensor],

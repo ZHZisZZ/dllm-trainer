@@ -6,7 +6,6 @@ Training Diffusion Large Language Models Made Simple
 
 
 ## Overview
-<!-- A lightweight framework for training diffusion language models, built on top of the [🤗 Transformers](https://github.com/huggingface/transformers) `Trainer`. It currently supports SFT (*deepspeed-zero{1,2,3}, multinode training, LoRA*) and batch sampling (*continuation, fill-in-blanks*) for [LLaDA / LLaDA-MoE](https://arxiv.org/abs/2502.09992) and [Dream](https://arxiv.org/abs/2508.15487).  -->
 **dLLM** is an educational library offering clear, unified reference implementations for training **diffusion language models**. It brings much-needed transparency to the entire training and deployment process, making **reproduction and finetuning** of open-weight diffusion language models easier and more accessible. Below are some of the key features that make dLLM special:
 
 - dLLM provides reproduction and finetuning recipes for a variety of open-weight models (e.g., [LLaDA / LLaDA-MoE](https://arxiv.org/abs/2502.09992) and [Dream](https://arxiv.org/abs/2508.15487)), and provides educational reference implementation of training algorithms (e.g., [Edit Flows](https://arxiv.org/abs/2506.09018)).
@@ -195,7 +194,7 @@ trainer.train()
 
 
 ### `Sampling`
-See [`examples/llada/generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/llada/generate.py) for a complete example of batch sampling (continuation and fill_in_blanks).
+See [`examples/llada/generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/llada/generate.py) for a complete example of batch sampling (continuation and infilling).
 
 </details>
 
@@ -235,7 +234,7 @@ trainer.train()
 
 
 ### `Sampling`
-See [`examples/dream/generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/dream/generate.py) for a complete example of batch sampling (continuation and fill_in_blanks).
+See [`examples/dream/generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/dream/generate.py) for a complete example of batch sampling (continuation and infilling).
 
 </details> -->
 
