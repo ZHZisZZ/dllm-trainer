@@ -31,8 +31,8 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     max_steps: int = 10_000
     per_device_train_batch_size: int = 2
     gradient_accumulation_steps: int = 2
-    eval_steps: float = 0.1
-    save_steps: float = 0.1
+    eval_steps: float = 0.05
+    save_steps: float = 0.05
     # others (editflow specific training params)
     scheduler_cls: str = "LinearKappaScheduler"
     normalize_per_position: bool = True
