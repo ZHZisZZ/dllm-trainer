@@ -53,7 +53,7 @@ from dllm.pipelines import llada
 class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = "GSAI-ML/LLaDA-8B-Base"
     # "inclusionAI/LLaDA-MoE-7B-A1B-Base",
-    # "models/LLaDA-8B-Base/dclm-baseline-1.0[train:10_000_000,test:10_000]" (after `examples/llada/pt.py`)
+    # "models/LLaDA-8B-Base/dclm-baseline-1.0[train:10_000_000,test:10_000]/checkpoint-final" (after `examples/llada/pt.py`)
 
 
 @dataclass

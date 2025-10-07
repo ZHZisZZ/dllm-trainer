@@ -41,7 +41,7 @@ import examples.editflow.sft as editflow_sft
 @dataclass
 class ModelArguments(editflow_sft.ModelArguments):
     model_name_or_path: str = (
-        "models/EditFlow-Dream-7B-Base/dclm-baseline-1.0[train:5000000,test:100000]"
+        "models/EditFlow-Dream-7B-Base/dclm-baseline-1.0[train:10_000_000,test:10_000]/checkpoint-final"
     )
 
 
