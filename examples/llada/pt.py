@@ -17,7 +17,7 @@ Slurm users
 ------------
 - 1 GPU:
     sbatch --gres=gpu:1 scripts/train.slurm.sh \
-        --accelerate_config "single_gpu" \
+        --accelerate_config single_gpu" \
         --script_path "examples/llada/pt.py"
 
 - 24 Nodes, 192 GPUs (DeepSpeed ZeRO-2):

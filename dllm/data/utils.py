@@ -331,7 +331,7 @@ def load_pt_dataset(dataset_args: str):
       - With limits:             "mlfoundations/dclm-baseline-1.0[train:5000]"
       - With multiple limits:    "mlfoundations/dclm-baseline-1.0[train:5000,test:1000]"
       - Multiple datasets:       "d1[train:5000] | d2[test:1000]"
-      - Options in brackets (kept for future use): "OpenCoder-LLM/opc-fineweb-code-corpus[name:foo]"
+      - Options in brackets (kept for future use): "OpenCoder-LLM/opc-fineweb-code-corpus"
 
     Notes on limits:
       - Underscores allowed in integers (e.g., train:1_000_000).
