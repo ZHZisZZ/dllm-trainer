@@ -58,7 +58,9 @@ class ConstantLengthDataset(datasets.IterableDataset):
         add_special_tokens=True,
     ):
         self.tokenizer = tokenizer
-        self.concat_token_id = tokenizer.eos_token_id if tokenizer.eos_token_id else eos_token_id
+        self.concat_token_id = (
+            tokenizer.eos_token_id if tokenizer.eos_token_id else eos_token_id
+        )
         self.dataset = dataset
         self.seq_length = seq_length
         self.infinite = infinite
@@ -80,18 +82,22 @@ class ConstantLengthDataset(datasets.IterableDataset):
         elif dataset_text_field is not None:
             self.formatting_func = lambda x: x[dataset_text_field]
         else:  # neither is provided
-            raise ValueError("Either `dataset_text_field` or `formatting_func` should be provided.")
+            raise ValueError(
+                "Either `dataset_text_field` or `formatting_func` should be provided."
+            )
 
         self.pretokenized = False
         column_names = (
-            dataset.column_names if isinstance(dataset, (datasets.Dataset, datasets.IterableDataset)) else None
+            dataset.column_names
+            if isinstance(dataset, (datasets.Dataset, datasets.IterableDataset))
+            else None
         )
         if column_names is not None and "input_ids" in column_names:
             self.pretokenized = True
             # since the dataset is tokenized, the unit of buffer size should be tokens
             self.max_buffer_size = seq_length * num_of_sequences
 
-        self._epoch = 0 # TODO: ?
+        self._epoch = 0  # TODO: ?
 
     def __len__(self):
         return len(self.dataset)

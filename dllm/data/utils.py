@@ -459,8 +459,8 @@ if __name__ == "__main__":
     def count_stream(stream):
         return sum(1 for _ in stream)
 
-    n_train = count_stream(dclm_dataset["train"])   # expect 4500
-    n_test  = count_stream(dclm_dataset["test"])    # expect 500
+    n_train = count_stream(dclm_dataset["train"])  # expect 4500
+    n_test = count_stream(dclm_dataset["test"])  # expect 500
     print(n_train, n_test)
 
     for i, ex in enumerate(dclm_dataset["train"].take(3)):

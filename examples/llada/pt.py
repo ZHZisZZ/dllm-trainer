@@ -102,18 +102,20 @@ def train():
     # pack sequences to fixed length (no padding at all); infinite for training
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_pt_dataset(data_args.dataset_args)
-        dataset = datasets.IterableDatasetDict({
-            split: dllm.utils.ConstantLengthDataset(
-                tokenizer=tokenizer,
-                dataset=dataset[split],
-                dataset_text_field="text",
-                seq_length=data_args.max_length,
-                num_of_sequences=4096,   
-                infinite=(split == "train"),             
-                append_concat_token=True,
-            )
-            for split in ["train", "test"]
-        })
+        dataset = datasets.IterableDatasetDict(
+            {
+                split: dllm.utils.ConstantLengthDataset(
+                    tokenizer=tokenizer,
+                    dataset=dataset[split],
+                    dataset_text_field="text",
+                    seq_length=data_args.max_length,
+                    num_of_sequences=4096,
+                    infinite=(split == "train"),
+                    append_concat_token=True,
+                )
+                for split in ["train", "test"]
+            }
+        )
 
     # ----- Training --------------------------------------------------------------
     @dataclass
