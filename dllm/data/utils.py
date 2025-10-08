@@ -429,26 +429,40 @@ def load_pt_dataset(dataset_args: str):
 
 
 if __name__ == "__main__":
-    tulu_dataset = load_sft_dataset("allenai/tulu-3-sft-mixture")
-    tulu_datatset_subset = load_sft_dataset(
-        "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
-    )
-    opc_dataset = load_sft_dataset(
-        "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"
-    )
-    ultrachat_dataset = load_sft_dataset("HuggingFaceH4/ultrachat_200k")
-    saferlhf_dataset = load_sft_dataset("PKU-Alignment/PKU-SafeRLHF[name:safe]")
+    # tulu_dataset = load_sft_dataset("allenai/tulu-3-sft-mixture")
+    # tulu_datatset_subset = load_sft_dataset(
+    #     "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    # )
+    # opc_dataset = load_sft_dataset(
+    #     "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"
+    # )
+    # ultrachat_dataset = load_sft_dataset("HuggingFaceH4/ultrachat_200k")
+    # saferlhf_dataset = load_sft_dataset("PKU-Alignment/PKU-SafeRLHF[name:safe]")
 
-    merged_dataset = load_sft_dataset(
-        "allenai/tulu-3-sft-mixture[train:10000,test:1000]|"
-        "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct,train:20000,test:2000]"
-    )
+    # merged_dataset = load_sft_dataset(
+    #     "allenai/tulu-3-sft-mixture[train:10000,test:1000]|"
+    #     "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct,train:20000,test:2000]"
+    # )
 
     dclm_dataset = load_pt_dataset(
-        "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
-    )
-    dclm_opc_dataset = load_pt_dataset(
         "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
-        "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
+        # "mlfoundations/dclm-baseline-1.0[train:10_000_000,test:500]"
     )
+    # dclm_opc_dataset = load_pt_dataset(
+    #     "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
+    #     "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
+    # )
+
+    from itertools import islice
+
+    # 1) Count exactly how many items your capped split yields
+    def count_stream(stream):
+        return sum(1 for _ in stream)
+
+    n_train = count_stream(dclm_dataset["train"])   # expect 4500
+    n_test  = count_stream(dclm_dataset["test"])    # expect 500
+    print(n_train, n_test)
+
+    for i, ex in enumerate(dclm_dataset["train"].take(3)):
+        print(i, ex)
     breakpoint()

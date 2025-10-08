@@ -38,6 +38,7 @@ from dataclasses import dataclass
 import torch
 import transformers
 import accelerate
+import datasets
 
 import dllm
 from dllm.pipelines import llada
@@ -54,7 +55,7 @@ class ModelArguments(dllm.utils.ModelArguments):
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
     dataset_args: str = "mlfoundations/dclm-baseline-1.0[train:10_000_000,test:10_000]"
-    truncation: str = "right"
+    # truncation: str = "right"
 
 
 @dataclass
@@ -98,21 +99,21 @@ def train():
     tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
 
     # ----- Dataset ----------------------------------------------------------------
-    def pt_map_fn(
-        row,
-        tokenizer: transformers.PreTrainedTokenizer,
-    ) -> dict:
-        input_ids = tokenizer.encode(row["text"])
-        # if input_ids[0] != tokenizer.bos_token_id:
-        #     input_ids = [tokenizer.bos_token_id] + input_ids
-        return {"input_ids": input_ids, "labels": input_ids}
-
+    # pack sequences to fixed length (no padding at all); infinite for training
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_pt_dataset(data_args.dataset_args)
-        dataset = dataset.map(functools.partial(pt_map_fn, tokenizer=tokenizer))
-        dataset = dllm.utils.post_process_dataset_streaming(
-            dataset, data_args
-        )  # truncate / filter long sequences if needed
+        dataset = datasets.IterableDatasetDict({
+            split: dllm.utils.ConstantLengthDataset(
+                tokenizer=tokenizer,
+                dataset=dataset[split],
+                dataset_text_field="text",
+                seq_length=data_args.max_length,
+                num_of_sequences=4096,   
+                infinite=(split == "train"),             
+                append_concat_token=True,
+            )
+            for split in ["train", "test"]
+        })
 
     # ----- Training --------------------------------------------------------------
     @dataclass
