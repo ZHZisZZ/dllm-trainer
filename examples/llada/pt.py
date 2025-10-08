@@ -27,7 +27,6 @@ Slurm users
 """
 
 import os
-import functools
 from dataclasses import dataclass
 
 import torch
