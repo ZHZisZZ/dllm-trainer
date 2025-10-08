@@ -15,13 +15,7 @@ This directory provides examples for finetuning open-weight LLaDA models, reprod
 
 ## Setup notes
 > [!IMPORTANT]  
-> **Slurm users:** Update `scripts/train.slurm.sh` for your cluster:
-> ```diff
-> - #SBATCH --partition=mllm_safety # Note: adjust this for your cluster
-> - #SBATCH --quotatype=spot        # Note: adjust this for your cluster
-> + #SBATCH --partition=YOUR_PARTITION
-> + #SBATCH --quotatype=YOUR_QUOTATYPE
-> ```
+> **Slurm users:** Update `scripts/train.slurm.sh` and `mkdir logps` before submitting sbatch jobs: see [(optional) Slurm setup](/README.md/#optional-slurm-setup) for details.
 >
 > **MoE checkpoints:** For models like [inclusionAI/LLaDA-MoE-7B-A1B-Base](https://huggingface.co/inclusionAI/LLaDA-MoE-7B-A1B-Base), set `"model_type"` to `"lladamoe"` in the checkpoint’s `config.json`:
 > ```diff
@@ -128,7 +122,7 @@ sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
 ```
 
 ## Sampling
-We support batch sampling for both continuation given prompts and fill-in-the-blank generation, where masked tokens are interleaved with provided text.
+We support batch sampling for both continuation given prompts and infilling generation, where masked tokens are interleaved with provided text.
 See [`examples/llada/generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/llada/generate.py) for a full sampling example.
 ```shell
 python examples/llada/generate.py --model_name_or_path "GSAI-ML/LLaDA-8B-Instruct"

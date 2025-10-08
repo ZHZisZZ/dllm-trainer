@@ -12,14 +12,7 @@ This directory provides an educational reference for training EditFlow models. I
 
 ## Setup notes
 > [!IMPORTANT]  
-> **Slurm users:** Update `scripts/train.slurm.sh` for your cluster:
-> ```diff
-> - #SBATCH --partition=mllm_safety # Note: adjust this for your cluster
-> - #SBATCH --quotatype=spot        # Note: adjust this for your cluster
-> + #SBATCH --partition=YOUR_PARTITION
-> + #SBATCH --quotatype=YOUR_QUOTATYPE
-> ```
->
+> **Slurm users:** Update `scripts/train.slurm.sh` and `mkdir logps` before submitting sbatch jobs: see [(optional) Slurm setup](/README.md/#optional-slurm-setup) for details.
 
 ##  Files overview
 ```
