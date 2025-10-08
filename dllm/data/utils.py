@@ -391,8 +391,10 @@ def load_pt_dataset(dataset_args: str):
             n_total = n_train + n_test
             head = shuffled.take(n_total)
             # Now split the head deterministically into train/test
-            train = head.take(n_train)
-            test = head.skip(n_train).take(n_test)
+            test = head.take(n_test)
+            train = head.skip(n_test).take(n_train)
+            # train = head.take(n_train)
+            # test = head.skip(n_train).take(n_test)
             return IterableDatasetDict({"train": train, "test": test})
 
         # Only train limit specified
@@ -445,13 +447,15 @@ if __name__ == "__main__":
     # )
 
     dclm_dataset = load_pt_dataset(
-        "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
+        "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
+        # "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
         # "mlfoundations/dclm-baseline-1.0[train:10_000_000,test:500]"
     )
     # dclm_opc_dataset = load_pt_dataset(
     #     "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
     #     "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
     # )
+    breakpoint()
 
     from itertools import islice
 
