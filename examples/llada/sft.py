@@ -5,13 +5,6 @@ Local users
     accelerate launch \
         --config_file scripts/accelerate_configs/single_gpu.yaml \
         examples/llada/sft.py
-
-- 1 GPU (4bit quant, LoRA) & Weight merging:
-    # train
-    accelerate launch \
-        --config_file scripts/accelerate_configs/single_gpu.yaml \
-        examples/llada/sft.py \
-        --load_in_4bit True --lora True
     
 - 8 GPUs (DeepSpeed ZeRO-2):
     accelerate launch \
@@ -25,11 +18,6 @@ Slurm users
 - 1 GPU:
     sbatch --gres=gpu:1 scripts/train.slurm.sh \
         --accelerate_config "single_gpu" \
-        --script_path "examples/llada/sft.py"
-
-- 8 GPUs (DeepSpeed ZeRO-2):
-    sbatch --gres=gpu:8 scripts/train.slurm.sh \
-        --accelerate_config "deepspeed_zero2" \
         --script_path "examples/llada/sft.py"
 
 - 2 Nodes, 16 GPUs (DeepSpeed ZeRO-2):

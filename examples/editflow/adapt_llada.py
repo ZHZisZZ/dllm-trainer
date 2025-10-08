@@ -20,11 +20,6 @@ Slurm users
         --accelerate_config "single_gpu" \
         --script_path "examples/editflow/adapt_llada.py"
 
-- 8 GPUs (DeepSpeed ZeRO-2):
-    sbatch --gres=gpu:8 scripts/train.slurm.sh \
-        --accelerate_config "deepspeed_zero2" \
-        --script_path "examples/editflow/adapt_llada.py"
-
 - 2 Nodes, 16 GPUs (DeepSpeed ZeRO-2):
     sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \

@@ -42,7 +42,7 @@ export NCCL_ASYNC_ERROR_HANDLING=1
 export PYTHONPATH=.
 
 # default args for dllm
-accelerate_config="deepspeed_zero3"
+accelerate_config="deepspeed_zero2"
 script_path="scripts/examples/llada_sft.py"
 script_args=""
 

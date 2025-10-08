@@ -6,9 +6,9 @@ Local users
         --config_file scripts/accelerate_configs/single_gpu.yaml \
         examples/editflow/pt_llada.py
     
-- 8 GPUs (DeepSpeed ZeRO-3):
+- 8 GPUs (DeepSpeed ZeRO-2):
     accelerate launch \
-        --config_file scripts/accelerate_configs/deepspeed_zero3.yaml \
+        --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
         examples/editflow/pt_llada.py
 
 Slurm users
@@ -20,14 +20,9 @@ Slurm users
         --accelerate_config "single_gpu" \
         --script_path "examples/editflow/pt_llada.py"
 
-- 8 GPUs (DeepSpeed ZeRO-3):
-    sbatch --gres=gpu:8 scripts/train.slurm.sh \
-        --accelerate_config "deepspeed_zero3" \
-        --script_path "examples/editflow/pt_llada.py"
-
-- 24 Nodes, 192 GPUs (DeepSpeed ZeRO-3):
+- 24 Nodes, 192 GPUs (DeepSpeed ZeRO-2):
     sbatch --nodes=24 --gres=gpu:8 scripts/train.slurm.sh \
-        --accelerate_config "deepspeed_zero3" \
+        --accelerate_config "deepspeed_zero2" \
         --script_path "examples/editflow/pt_llada.py"
 """
 
