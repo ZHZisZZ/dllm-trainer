@@ -20,16 +20,17 @@ Training Diffusion Large Language Models Made Simple
 
 ## Table of Contents
 <!-- - [Overview](#overview) -->
-- [Features & Documentation](#features--documentation)
+- [Features & Documentation](#features--documentations)
 - [Setup](#setup)
   <!-- - [Installation](#installation)
   - [(optional) Slurm setup](#optional-slurm-setup) -->
 - [Files overview](#files-overview)
+- [Training](#training)
 - [Roadmap](#roadmap)
 - [Citation](#citation)
 
 
-## Features & Documentation
+## Features & Documentations
 
 1. [`examples/llada`](/examples/llada): Finetuning open-weight LLaDA [LLaDA / LLaDA-MoE](https://arxiv.org/abs/2502.09992), as well as reproducing LLaDA by training from scratch on public data (pretraining & finetuning).
 2. [`examples/dream`](/examples/dream): Finetuning open-weight Dream [Dream](https://arxiv.org/abs/2508.15487).
@@ -55,7 +56,7 @@ pip install -r requirements.txt
 pip install -e .
 ```
 ### (optional) Slurm setup
-For slurm users, update [`scripts/train.slurm.sh`](/scripts/train.slurm.sh) for your cluster:
+For [Slurm](https://slurm.schedmd.com/) users, update [`scripts/train.slurm.sh`](/scripts/train.slurm.sh) for your cluster:
 ```diff
 - #SBATCH --partition=mllm_safety # Note: adjust this for your cluster
 - #SBATCH --quotatype=spot        # Note: adjust this for your cluster
@@ -125,7 +126,9 @@ trainer = dllm.pipelines.llada.LLaDATrainer(
 )
 trainer.train()
 ```
-You can launch the training job locally with `accelerate`, or submit it to a Slurm cluster using `sbatch`.
+
+## Training
+You can launch the training job locally with `accelerate`, or submit it to a [Slurm](https://slurm.schedmd.com/) cluster using `sbatch`.
 ```shell
 # Run locally (DeepSpeed ZeRO-2 with 8 GPUs)
 accelerate launch \
@@ -145,7 +148,7 @@ sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
     --script_path "examples/llada/sft.py" \
     --script_args "--num_train_epochs 4"
 ```
-
+See [Features & Documentation](#features--documentations) for training/inference details and task-specific recipes.
 
 
 <!-- ## Quick Start

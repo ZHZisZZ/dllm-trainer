@@ -346,169 +346,111 @@ import unicodedata
 
 def render_consecutive_trace_gif(
     trace: dict,
-    tokenizer: PreTrainedTokenizer,
+    tokenizer,
     out_path: str = "decode_trace.gif",
-    font_size: int = 30,
+    font_size: int = 15,
     line_spacing: int = 12,
-    frame_ms: int = 120,  # per-frame duration for all but last
-    final_hold_ms: int = 10_000,  # hold the final frame for 10s
-    max_width: int = 1600,
+    frame_ms: int = 250,
+    clean_final_ms: int = 10000,   # final clean frame duration
+    max_width: int = 1400,
+    max_height: int = 1600,        # kept as a cap
     margin: int = 32,
     title_color=(80, 80, 80),
     text_color=(0, 0, 0),
+    mask_color=(150, 150, 150),
+    sub_color=(0, 0, 200),
+    ins_color=(200, 0, 0),
+    del_strike_color=(120, 120, 120),
     events_color=(30, 30, 30),
     box_color=(120, 120, 120),
     bg_color=(255, 255, 255),
 ):
     """
-    Diffusion-style GIF of the *current* decoded sequence (PROMPT + RESPONSE), keeping
-    special tokens (e.g., <|im_start|>, <|im_end|>) and stripping only mask tokens.
-    Adds a bottom dashed 'events' box listing DEL/SUB/INS for the current frame.
-    Uniform canvas height across frames; final frame held for 10s.
+    Same logic as your original, but uses a single canvas height across all frames:
+    H = min(max_height, max(required_height_per_frame)).
     """
+    from PIL import Image, ImageDraw, ImageFont
+    import unicodedata
 
-    # ---- font ----
+    # --- font ---
     try:
         font = ImageFont.truetype("DejaVuSans.ttf", font_size)
     except Exception:
-        try:
-            font = ImageFont.truetype("DejaVuSansMono.ttf", font_size)
-        except Exception:
-            font = ImageFont.load_default()
+        font = ImageFont.load_default()
 
-    # ---- helpers ----
-    # Only strip mask IDs; keep other specials
-    def _mask_ids(tok: PreTrainedTokenizer) -> set:
-        s = set()
-        v = getattr(tok, "mask_token_id", None)
-        if v is not None:
-            s.add(int(v))
-        return s
-
-    MASK_IDS = _mask_ids(tokenizer)
-
-    mask_literals = {
-        "<mask>",
-        "[MASK]",
-        "[mask]",
-        "<MASK>",
-        "<|mask|>",
-        "|mask|",
-        "MASK",
-        "mask",
-    }
-    mt = getattr(tokenizer, "mask_token", None)
-    if mt:
-        mask_literals.add(str(mt))
-    MASK_RE = re.compile(
-        r"(?:▁|Ġ)?(?:"
-        + "|".join(re.escape(m) for m in sorted(mask_literals, key=len, reverse=True))
-        + r")",
-        flags=re.IGNORECASE,
-    )
-
-    def _remove_only_masks(ids: list[int]) -> list[int]:
-        return [int(i) for i in ids if int(i) not in MASK_IDS]
-
-    def _decode_keep_specials(ids: list[int]) -> str:
-        return tokenizer.decode(ids, skip_special_tokens=False)
-
-    BYTE_FALLBACK_RE = re.compile(r"<0x([0-9A-Fa-f]{2})>")
-
-    def _sanitize(text: str) -> str:
-        """Normalize artifacts while preserving spaces/indentation and special tokens."""
-        if not text:
-            return ""
-        s = unicodedata.normalize("NFKC", text)
-
-        # Strip literal mask strings (before other cleanup)
-        s = MASK_RE.sub("", s)
-
-        # Replace BPE/SPM markers -> real whitespace/newline
-        s = s.replace("Ċ", "\n")  # newline
-        s = s.replace("▁", " ")  # spm space marker
-        s = s.replace("Ġ", " ")  # gpt2 bpe space marker
-
-        # Map byte-fallback tokens (keep LF and space; drop others)
-        def _byte_sub(m):
-            b = int(m.group(1), 16)
-            if b == 0x0A:
-                return "\n"
-            if b == 0x20:
-                return " "
-            return ""
-
-        s = BYTE_FALLBACK_RE.sub(_byte_sub, s)
-
-        # Normalize whitespace *types* but NOT counts
+    # --- helpers ---
+    def _sanitize_token(s: str) -> str:
+        s = unicodedata.normalize("NFKC", s)
+        s = s.replace("Ċ", "\n").replace("▁", " ").replace("Ġ", " ")
         s = s.replace("\t", "    ")
-        s = s.replace("\u00a0", " ").replace("\u2007", " ").replace("\u202f", " ")
-
-        # Do not collapse spaces; trim trailing spaces only
-        s = "\n".join(line.rstrip() for line in s.splitlines())
+        s = s.replace("\u00A0", " ").replace("\u2007", " ").replace("\u202F", " ")
         return s
 
-    # Indentation-safe wrappers (preserve multiple spaces)
-    TOKEN_RE = re.compile(r"\s+|\S+")
-
-    def _wrap_text(draw: ImageDraw.ImageDraw, text: str, width_px: int) -> list[str]:
-        if text == "":
-            return [""]
-        lines: list[str] = []
-        for para in text.split("\n"):
-            tokens = TOKEN_RE.findall(para)
-            cur = ""
-            for tok in tokens:
-                candidate = cur + tok
-                if draw.textlength(candidate, font=font) <= width_px:
-                    cur = candidate
-                else:
-                    if cur:
-                        lines.append(cur)
-                        cur = tok
-                        while (
-                            draw.textlength(cur, font=font) > width_px and len(cur) > 0
-                        ):
-                            lo, hi, fit = 1, len(cur), 1
-                            while lo <= hi:
-                                mid = (lo + hi) // 2
-                                if draw.textlength(cur[:mid], font=font) <= width_px:
-                                    fit, lo = mid, mid + 1
-                                else:
-                                    hi = mid - 1
-                            lines.append(cur[:fit])
-                            cur = cur[fit:]
-                    else:
-                        t = tok
-                        while draw.textlength(t, font=font) > width_px and len(t) > 0:
-                            lo, hi, fit = 1, len(t), 1
-                            while lo <= hi:
-                                mid = (lo + hi) // 2
-                                if draw.textlength(t[:mid], font=font) <= width_px:
-                                    fit, lo = mid, mid + 1
-                                else:
-                                    hi = mid - 1
-                            lines.append(t[:fit])
-                            t = t[fit:]
-                        cur = t
-            lines.append(cur)
-        return lines or [""]
-
-    # Build ops list lines for a given step
     def _tok_str(tok_id: int) -> str:
         try:
             s = tokenizer.decode([int(tok_id)], skip_special_tokens=False)
             s = s if s.strip() else f"<{int(tok_id)}>"
         except Exception:
             s = f"<{int(tok_id)}>"
-        # keep special tokens; sanitize common artifacts lightly to avoid noise in ops
-        s = s.replace("\n", "\\n")
-        return s
+        return s.replace("\n", "\\n")
 
-    def _ops_lines_for_step(st: dict | None) -> list[str]:
+    tmp_img = Image.new("RGB", (10, 10), bg_color)
+    tmp_draw = ImageDraw.Draw(tmp_img)
+    text_width_budget = max_width - 2 * margin
+
+    # mask detection
+    MASK_IDS = set()
+    if getattr(tokenizer, "mask_token_id", None) is not None:
+        MASK_IDS.add(int(tokenizer.mask_token_id))
+    MASK_STRINGS = set()
+    mt = getattr(tokenizer, "mask_token", None)
+    if mt is not None:
+        MASK_STRINGS.add(str(mt))
+    MASK_STRINGS.add("<mdm_mask>")
+
+    # wrapping
+    def _wrap_tokens_with_index(tokens, deleted_flags):
+        lines, cur, cur_w = [], [], 0
+        for i, tok in enumerate(tokens):
+            t = _sanitize_token(tok)
+            parts = t.split("\n")
+            for j, seg in enumerate(parts):
+                seg_rest = seg
+                while seg_rest:
+                    w = tmp_draw.textlength(seg_rest, font=font)
+                    if cur_w + w <= text_width_budget or not cur:
+                        cur.append((seg_rest, i, deleted_flags[i]))
+                        cur_w += w
+                        seg_rest = ""
+                    else:
+                        lines.append(cur)
+                        cur, cur_w = [], 0
+                if j != len(parts) - 1:
+                    lines.append(cur)
+                    cur, cur_w = [], 0
+        if cur:
+            lines.append(cur)
+        return lines
+
+    def _draw_dashed_rectangle(draw, xy, dash=8, gap=6, width=2, outline=(120,120,120)):
+        x0, y0, x1, y1 = xy
+        x = x0
+        while x < x1:
+            x2 = min(x + dash, x1)
+            draw.line([(x, y0), (x2, y0)], fill=outline, width=width)
+            draw.line([(x, y1), (x2, y1)], fill=outline, width=width)
+            x += dash + gap
+        y = y0
+        while y < y1:
+            y2 = min(y + dash, y1)
+            draw.line([(x0, y), (x0, y2)], fill=outline, width=width)
+            draw.line([(x1, y), (x1, y2)], fill=outline, width=width)
+            y += dash + gap
+
+    def _ops_lines_for_step(st: dict):
         if st is None:
             return ["(no events)"]
-        lines: list[str] = []
+        lines = []
         x_before = st["x_before_ids"]
         choose_del = st["choose_del"]
         choose_sub = st["choose_sub"]
@@ -519,166 +461,150 @@ def render_consecutive_trace_gif(
             if choose_del[i]:
                 lines.append(f"DEL@{i}:{_tok_str(int(x_before[i]))}")
             elif choose_sub[i]:
-                lines.append(
-                    f"SUB@{i}:{_tok_str(int(x_before[i]))}->{_tok_str(int(sub_samples[i]))}"
-                )
+                lines.append(f"SUB@{i}:{_tok_str(int(x_before[i]))}->{_tok_str(int(sub_samples[i]))}")
             if ins_samples[i] is not None:
                 lines.append(f"INS@{i}->{i+1}:{_tok_str(int(ins_samples[i]))}")
         if not lines:
             lines.append("(no events)")
         return lines
 
-    # Dashed rectangle helper
-    def _draw_dashed_rectangle(
-        draw: ImageDraw.ImageDraw,
-        xy,
-        dash=6,
-        gap=6,
-        width=2,
-        fill=None,
-        outline=(120, 120, 120),
-    ):
-        x0, y0, x1, y1 = xy
-        # top
-        x = x0
-        while x < x1:
-            x2 = min(x + dash, x1)
-            draw.line([(x, y0), (x2, y0)], fill=outline, width=width)
-            x += dash + gap
-        # bottom
-        x = x0
-        while x < x1:
-            x2 = min(x + dash, x1)
-            draw.line([(x, y1), (x2, y1)], fill=outline, width=width)
-            x += dash + gap
-        # left
-        y = y0
-        while y < y1:
-            y2 = min(y + dash, y1)
-            draw.line([(x0, y), (x0, y2)], fill=outline, width=width)
-            y += dash + gap
-        # right
-        y = y0
-        while y < y1:
-            y2 = min(y + dash, y1)
-            draw.line([(x1, y), (x1, y2)], fill=outline, width=width)
-            y += dash + gap
+    # ---------- PASS 1: measure required heights per frame ----------
+    # We collect all wrapping/ops data first, so we can pick a uniform H.
+    measurement_payload = []  # list of dicts with wrapped_lines, ops_lines, and step ref
 
-    # --- measure context ---
-    tmp_img = Image.new("RGB", (10, 10), bg_color)
-    tmp_draw = ImageDraw.Draw(tmp_img)
-    text_width_budget = max_width - 2 * margin
+    for step_idx, st in enumerate([None] + trace["steps"]):
+        # build augmented sequence with injected deleted tokens
+        if step_idx == 0:
+            augmented_ids = trace["init"]["x_ids"]
+            deleted_flags = [False] * len(augmented_ids)
+        else:
+            after_ids = list(st["x_after_ids"])
+            before_ids = st["x_before_ids"]
+            choose_del = st["choose_del"]
+            deleted_positions = [i for i, d in enumerate(choose_del) if d]
 
-    # --- collect all frames' body + ops first (PROMPT+RESPONSE) ---
-    frames_payload: list[dict] = []
+            augmented_ids = list(after_ids)
+            deleted_flags = [False] * len(after_ids)
+            for i in sorted(deleted_positions, reverse=True):
+                augmented_ids.insert(i, before_ids[i])
+                deleted_flags.insert(i, True)
 
-    # Initial frame from init (full sequence)
-    init_ids_full = _remove_only_masks(trace["init"]["x_ids"])
-    init_body = _sanitize(_decode_keep_specials(init_ids_full))
-    frames_payload.append(
-        {
-            "t": None,
-            "del_count": 0,
-            "body_lines": _wrap_text(tmp_draw, init_body, text_width_budget),
-            "ops_lines": _ops_lines_for_step(None),
-        }
-    )
+        tokens = tokenizer.convert_ids_to_tokens(augmented_ids)
+        wrapped_lines = _wrap_tokens_with_index(tokens, deleted_flags)
+        ops_lines = _ops_lines_for_step(st)
 
-    # Steps
-    for st in trace["steps"]:
-        after_ids_full = _remove_only_masks(st["x_after_ids"])
-        body = _sanitize(_decode_keep_specials(after_ids_full))
-        frames_payload.append(
-            {
-                "t": float(st["t"]),
-                "del_count": sum(1 for op in st["before_ops"] if op == "DEL"),
-                "body_lines": _wrap_text(tmp_draw, body, text_width_budget),
-                "ops_lines": _wrap_text(
-                    tmp_draw,
-                    "  • " + "  • ".join(_ops_lines_for_step(st)),
-                    text_width_budget,
-                ),
-                # Using bullets and wrap to avoid over-wide op rows
-            }
-        )
+        # required height for this frame (title + body + spacer + ops box)
+        body_h = len(wrapped_lines) * (font_size + line_spacing)
+        ops_h  = len(ops_lines) * (font_size + line_spacing) + font_size + 20  # matches draw math
+        required_h = margin + (font_size + line_spacing) + body_h + 20 + ops_h  # no extra bottom margin
 
-    # --- compute uniform canvas height (max body + max ops) ---
-    max_body_lines = max(len(f["body_lines"]) for f in frames_payload)
+        measurement_payload.append({
+            "step_idx": step_idx,
+            "st": st,
+            "augmented_ids": augmented_ids,
+            "tokens": tokens,
+            "wrapped_lines": wrapped_lines,
+            "ops_lines": ops_lines,
+            "required_h": required_h,
+        })
 
-    # For the ops box: header + lines + padding
-    # Re-wrap ops without the bullet-join to also support many short lines:
-    def _measure_ops_lines(f):
-        return len(f["ops_lines"])
+    # Measure clean final frame as well (no events box)
+    final_text_ids = trace["steps"][-1]["x_after_ids"] if trace["steps"] else trace["init"]["x_ids"]
+    final_tokens = tokenizer.convert_ids_to_tokens(final_text_ids)
+    wrapped_clean = _wrap_tokens_with_index(final_tokens, [False]*len(final_tokens))
+    clean_body_h = len(wrapped_clean) * (font_size + line_spacing)
+    clean_required_h = margin + (font_size + line_spacing) + clean_body_h  # title + body
 
-    max_ops_lines = max(_measure_ops_lines(f) for f in frames_payload)
-
-    title_block = font_size + line_spacing
-    body_block = max_body_lines * (font_size + line_spacing)
-
-    # Ops box metrics
-    ops_header = font_size  # "events" label
-    ops_pad = 10
-    ops_lines_block = max_ops_lines * (font_size + line_spacing)
-    ops_box_height = (
-        ops_pad + ops_header + line_spacing // 2 + ops_lines_block + ops_pad
-    )
-
-    H = margin + title_block + body_block + line_spacing + ops_box_height + margin
+    # Pick a single canvas height: max across all frames, capped by max_height
+    max_required_h = max([p["required_h"] for p in measurement_payload] + [clean_required_h]) + 20
+    H = min(max_required_h, max_height)
     W = max_width
 
-    # --- render frames ---
-    frames: list[Image.Image] = []
-    for f in frames_payload:
+    # ---------- PASS 2: render with uniform H ----------
+    from PIL import Image
+    frames = []
+
+    for p in measurement_payload:
+        step_idx = p["step_idx"]
+        st = p["st"]
+        tokens = p["tokens"]
+        wrapped_lines = p["wrapped_lines"]
+        augmented_ids = p["augmented_ids"]
+        ops_lines = p["ops_lines"]
+
         img = Image.new("RGB", (W, H), bg_color)
         draw = ImageDraw.Draw(img)
 
-        # Title
-        title = ("initial state" if f["t"] is None else f"t = {f['t']:.3f}") + (
-            f"   \u232b{f['del_count']}" if f["del_count"] > 0 else ""
-        )
-        draw.text((margin, margin), title, fill=title_color, font=font)
+        # title
+        title = "initial state" if step_idx == 0 else f"t = {st['t']:.3f}"
+        y_title = margin
+        draw.text((margin, y_title), title, fill=title_color, font=font)
+        y = y_title + font_size + line_spacing
 
-        # Body text
-        y = margin + title_block
-        for line in f["body_lines"]:
-            draw.text((margin, y), line, fill=text_color, font=font)
+        # body
+        for line in wrapped_lines:
+            x = margin
+            for seg_text, tok_idx, is_deleted in line:
+                if seg_text == "":
+                    continue
+                tok_id = int(augmented_ids[tok_idx])
+                tok_str_exact = tokens[tok_idx]
+                if is_deleted:
+                    strike_color = mask_color if (tok_id in MASK_IDS or tok_str_exact in MASK_STRINGS) else del_strike_color
+                    strike = "".join(ch + "\u0336" for ch in seg_text)
+                    draw.text((x, y), strike, fill=strike_color, font=font)
+                    x += tmp_draw.textlength(strike, font=font)
+                else:
+                    color = mask_color if (tok_id in MASK_IDS or tok_str_exact in MASK_STRINGS) else text_color
+                    if step_idx != 0 and tok_idx < len(st["after_ops"]):
+                        op = st["after_ops"][tok_idx]
+                        if op == "INS":
+                            color = ins_color
+                        elif op == "SUB":
+                            color = sub_color
+                    draw.text((x, y), seg_text, fill=color, font=font)
+                    x += tmp_draw.textlength(seg_text, font=font)
             y += font_size + line_spacing
 
-        # Events dashed box
-        y += line_spacing
+        # events box
+        y += 20
         x0, y0 = margin, y
-        x1, y1 = W - margin, y + ops_box_height
-        _draw_dashed_rectangle(
-            draw, (x0, y0, x1, y1), dash=8, gap=6, width=2, outline=box_color
-        )
-
-        # "events" label inside the box
-        label_x = x0 + ops_pad
-        label_y = y0 + ops_pad
-        draw.text((label_x, label_y), "events", fill=events_color, font=font)
-
-        # Ops lines
-        yy = label_y + ops_header + line_spacing // 2
-        for line in f["ops_lines"]:
-            draw.text((label_x, yy), line, fill=events_color, font=font)
+        x1 = W - margin
+        ops_box_h = len(ops_lines) * (font_size + line_spacing) + font_size + 20
+        y1 = y0 + ops_box_h
+        _draw_dashed_rectangle(draw, (x0, y0, x1, y1), outline=box_color)
+        draw.text((x0 + 10, y0 + 10), "events", fill=events_color, font=font)
+        yy = y0 + font_size + 20
+        for line in ops_lines:
+            draw.text((x0 + 10, yy), line, fill=events_color, font=font)
             yy += font_size + line_spacing
 
         frames.append(img)
 
-    # --- save GIF with per-frame durations; final frame held 10s ---
-    if len(frames) == 1:
-        frames[0].save(out_path)
-    else:
-        durations = [frame_ms] * (len(frames) - 1) + [final_hold_ms]
-        frames[0].save(
-            out_path,
-            save_all=True,
-            append_images=frames[1:],
-            duration=durations,
-            loop=0,
-            disposal=2,
-            optimize=True,
-        )
+    # clean final frame (no events box)
+    clean_img = Image.new("RGB", (W, H), bg_color)
+    clean_draw = ImageDraw.Draw(clean_img)
+    clean_draw.text((margin, margin), "final text", fill=title_color, font=font)
+    y = margin + font_size + line_spacing
+    for line in wrapped_clean:
+        x = margin
+        for seg_text, _, _ in line:
+            clean_draw.text((x, y), seg_text, fill=text_color, font=font)
+            x += tmp_draw.textlength(seg_text, font=font)
+        y += font_size + line_spacing
+    frames.append(clean_img)
+
+    # save gif
+    durations = [frame_ms] * (len(frames) - 1) + [clean_final_ms]
+    frames[0].save(
+        out_path,
+        save_all=True,
+        append_images=frames[1:],
+        duration=durations,
+        loop=0,
+        disposal=2,
+        optimize=True,
+    )
     return out_path
 
 

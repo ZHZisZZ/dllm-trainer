@@ -34,7 +34,7 @@ class TrainingArguments(transformers.TrainingArguments):
     per_device_train_batch_size: int = 4
     per_device_eval_batch_size: int = 4
     gradient_accumulation_steps: int = 1
-    learning_rate: float = 2.5e-5
+    learning_rate: float = 2e-5
     lr_scheduler_type: str = "cosine"
     warmup_ratio: float = 0.1
     bf16: bool = True
