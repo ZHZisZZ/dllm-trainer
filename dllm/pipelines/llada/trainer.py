@@ -31,7 +31,10 @@ class LLaDATrainer(transformers.Trainer):
         return_outputs=False,
         **kwargs,
     ):
-        # Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md
+        """
+        Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md
+        """
+        # use -100 in labels to indicate positions where tokens should not be masked and loss is ignored; all other positions match `input_ids`
         input_ids, labels = inputs["input_ids"], inputs["labels"]
 
         b, l = input_ids.shape

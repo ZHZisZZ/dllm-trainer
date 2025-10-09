@@ -90,7 +90,7 @@ def train():
             labels[: len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
             return {
                 "input_ids": prompt_response_tokens,
-                "labels": labels,  # use -100 in labels to represent positions where tokens should not be masked and loss is ignored
+                "labels": labels,  # use -100 in labels to indicate positions where tokens should not be masked and loss is ignored; all other positions match `input_ids`
                 "prompt_len": len(
                     prompt_tokens
                 ),  # `prompt_len` to help `post_process_dataset` truncate long sequences properly
