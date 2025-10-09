@@ -2,7 +2,8 @@ import math
 import random
 from dataclasses import dataclass
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Tuple, Callable, Text
+from typing import Any, Dict, List, Optional, Tuple, Text
+from collections.abc import Callable
 
 import torch
 import transformers
@@ -12,20 +13,28 @@ import dllm
 # ------------------------------- Collator (x0 source) --------------------------------
 # ---------------- Utilities ---------------- #
 
+
 def _special_id_set(tokenizer: Any) -> set:
     s = set()
     for attr in [
-        "all_special_ids", "bos_token_id", "eos_token_id", "pad_token_id",
-        "unk_token_id", "cls_token_id", "sep_token_id", "mask_token_id"
+        "all_special_ids",
+        "bos_token_id",
+        "eos_token_id",
+        "pad_token_id",
+        "unk_token_id",
+        "cls_token_id",
+        "sep_token_id",
+        "mask_token_id",
     ]:
         v = getattr(tokenizer, attr, None)
-        if v is None: 
+        if v is None:
             continue
         if isinstance(v, (list, tuple)):
             s.update(int(x) for x in v if x is not None)
         else:
             s.add(int(v))
     return s
+
 
 def _rand_vocab_token(tokenizer: Any, *, exclude: set) -> int:
     # Uniform draw over vocab \ exclude
@@ -38,13 +47,16 @@ def _rand_vocab_token(tokenizer: Any, *, exclude: set) -> int:
         if tok not in exclude:
             return tok
 
+
 # ---------------- Implementations ---------------- #
 
-def sample_x0_empty(*args, **kwargs) -> List[int]:
+
+def sample_x0_empty(*args, **kwargs) -> list[int]:
     """Return BOS-only (i.e. no tokens after BOS)."""
     return []
 
-def sample_x0_masks(tokenizer: Any, *args, target_len=128, **kwargs) -> List[int]:
+
+def sample_x0_masks(tokenizer: Any, *args, target_len=128, **kwargs) -> list[int]:
     """
     Return a run of mask tokens of length `target_len`.
     """
@@ -53,19 +65,20 @@ def sample_x0_masks(tokenizer: Any, *args, target_len=128, **kwargs) -> List[int
         raise ValueError("tokenizer needs mask_token_id for mask-based sampler")
     return [int(mask_id)] * target_len
 
+
 def sample_x0_noisy(
-    x1_ids: List[int],
+    x1_ids: list[int],
     tokenizer: Any,
     # Per-token action probs (renormalized; p_mask ignored if tokenizer has no mask id)
-    p_del: float = 0.20,   # delete (teaches later INSERT)
-    p_sub: float = 0.15,   # substitute with a different vocab token (teaches SUB)
+    p_del: float = 0.20,  # delete (teaches later INSERT)
+    p_sub: float = 0.15,  # substitute with a different vocab token (teaches SUB)
     p_mask: float = 0.15,  # replace with [MASK]
     p_keep: float = 0.50,  # keep as-is
     # Independent chance to insert a distractor token *after* each processed position:
     p_ins_after: float = 0.05,
     # ensure_min_len: bool = True,
     target_len: int = 128,
-) -> List[int]:
+) -> list[int]:
     """
     Build x0 by applying Delete/Substitute/Mask/Keep to the provided sequence, then
     right-truncate or pad to exactly `target_len`. BOS is *not* expected here.
@@ -84,11 +97,21 @@ def sample_x0_noisy(
     s = p_del + p_sub + p_mask_eff + p_keep
     if s <= 0.0:
         # robust fallback
-        p_del, p_sub, p_mask_eff, p_keep = (0.1, 0.1, 0.2 if mask_id is not None else 0.0, 0.6)
+        p_del, p_sub, p_mask_eff, p_keep = (
+            0.1,
+            0.1,
+            0.2 if mask_id is not None else 0.0,
+            0.6,
+        )
         s = p_del + p_sub + p_mask_eff + p_keep
-    p_del, p_sub, p_mask_eff, p_keep = (p_del/s, p_sub/s, p_mask_eff/s, p_keep/s)
+    p_del, p_sub, p_mask_eff, p_keep = (
+        p_del / s,
+        p_sub / s,
+        p_mask_eff / s,
+        p_keep / s,
+    )
 
-    out: List[int] = []
+    out: list[int] = []
     for tok in x1_ids:
         r = random.random()
         if r < p_del:
@@ -126,16 +149,17 @@ def sample_x0_noisy(
 
     return out
 
+
 def sample_x0_mixture(
-    x1_ids: List[int],
+    x1_ids: list[int],
     tokenizer: Any,
     *args,
-    w_empty: float = 0.20,          # teaches INSERT beyond prompt
-    w_noisy: float = 0.20,          # teaches SUB + DEL + KEEP
-    w_masks: float = 0.60,          # optional mask-run variety
+    w_empty: float = 0.20,  # teaches INSERT beyond prompt
+    w_noisy: float = 0.20,  # teaches SUB + DEL + KEEP
+    w_masks: float = 0.60,  # optional mask-run variety
     **kwargs,
     # You can pass through knobs for noisy/mask variants by editing defaults here
-) -> List[int]:
+) -> list[int]:
     """
     Sample x0 from a mixture:
       - prompt-only (empty tail): insert-heavy supervision
@@ -146,7 +170,7 @@ def sample_x0_mixture(
     s = sum(ws)
     # if s == 0: ws = [0.3, 0.5, 0.2]
     # else: ws = [w/s for w in ws]
-    ws = [w/s for w in ws]
+    ws = [w / s for w in ws]
     r = random.random()
     if r < ws[0]:
         return sample_x0_empty(x1_ids=x1_ids, tokenizer=tokenizer)
@@ -155,27 +179,32 @@ def sample_x0_mixture(
     else:
         return sample_x0_masks(x1_ids=x1_ids, tokenizer=tokenizer)
 
+
 # ---------------- Factory ---------------- #
 
-_X0_SAMPLERS: Dict[str, Callable[[List[int], Any], List[int]]] = {
+_X0_SAMPLERS: dict[str, Callable[[list[int], Any], list[int]]] = {
     "sample_x0_empty": sample_x0_empty,
     "sample_x0_masks": sample_x0_masks,
     "sample_x0_noisy": sample_x0_noisy,
     "sample_x0_mixture": sample_x0_mixture,
 }
 
-def make_x0_sampler(name: str) -> Callable[[List[int], Any], List[int]]:
+
+def make_x0_sampler(name: str) -> Callable[[list[int], Any], list[int]]:
     try:
         return _X0_SAMPLERS[name.lower()]
     except KeyError:
-        raise ValueError(f"Unknown x0 sampler '{name}'. Available: {list(_X0_SAMPLERS)}")
+        raise ValueError(
+            f"Unknown x0 sampler '{name}'. Available: {list(_X0_SAMPLERS)}"
+        )
+
 
 @dataclass
 class EditFlowCollator:
     tokenizer: transformers.PreTrainedTokenizer = None
-    x0_sampler: Callable | Text | None = sample_x0_masks  # can be func OR name
+    x0_sampler: Callable | str | None = sample_x0_masks  # can be func OR name
 
-    def _get_sampler(self) -> Callable[[List[int], Any], List[int]]:
+    def _get_sampler(self) -> Callable[[list[int], Any], list[int]]:
         if callable(self.x0_sampler):
             return self.x0_sampler
         if isinstance(self.x0_sampler, str):
@@ -183,7 +212,7 @@ class EditFlowCollator:
         # default fallback
         return sample_x0_masks
 
-    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, List[Any]]:
+    def __call__(self, features: list[dict[str, Any]]) -> dict[str, list[Any]]:
         if not features:
             return {}
 
@@ -194,24 +223,30 @@ class EditFlowCollator:
         sampler = self._get_sampler()
 
         if "prompt_len" not in batch:
-            assert all(x1_ids[0] == self.tokenizer.bos_token_id for x1_ids in batch["x1_ids"])
+            assert all(
+                x1_ids[0] == self.tokenizer.bos_token_id for x1_ids in batch["x1_ids"]
+            )
             batch["x0_ids"] = [
                 x1_ids[:1] + sampler(x1_ids=x1_ids[1:], tokenizer=self.tokenizer)
                 for x1_ids in batch["x1_ids"]
             ]
         else:
             batch["x0_ids"] = [
-                x1_ids[:prompt_len] + sampler(x1_ids=x1_ids[prompt_len:], tokenizer=self.tokenizer)
+                x1_ids[:prompt_len]
+                + sampler(x1_ids=x1_ids[prompt_len:], tokenizer=self.tokenizer)
                 for x1_ids, prompt_len in zip(batch["x1_ids"], batch["prompt_len"])
             ]
-    
+
         batch["return_loss"] = True
         return batch
 
 
 # ------------------------------- Trainer utils --------------------------------
 
-def pad_1d(batch_lists: List[List[int]], pad_val: int) -> Tuple[torch.Tensor, torch.Tensor]:
+
+def pad_1d(
+    batch_lists: list[list[int]], pad_val: int
+) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Pads a list of variable-length integer lists into:
       - out: tensor of shape [B, Lmax] with padding value `pad_val`
@@ -291,8 +326,11 @@ def pad_1d(batch_lists: List[List[int]], pad_val: int) -> Tuple[torch.Tensor, to
 #             for k in unexpected:
 #                 dllm.utils.print_main("   -", k)
 
+
 #     return missing, unexpected
-def init_editflow_from_src(ef_model, src_model, lm_head_key: str = "lm_head", verbose: bool = True):
+def init_editflow_from_src(
+    ef_model, src_model, lm_head_key: str = "lm_head", verbose: bool = True
+):
     """
     Initialize an EditFlowModel (ef_model) from a pretrained source model.
 
@@ -305,6 +343,7 @@ def init_editflow_from_src(ef_model, src_model, lm_head_key: str = "lm_head", ve
     """
     import deepspeed
     from transformers.integrations import is_deepspeed_zero3_enabled
+
     dist_ok = torch.distributed.is_available() and torch.distributed.is_initialized()
     rank = torch.distributed.get_rank() if dist_ok else 0
 
@@ -352,13 +391,17 @@ def init_editflow_from_src(ef_model, src_model, lm_head_key: str = "lm_head", ve
         if verbose and rank == 0:
             _p = getattr(globals().get("dllm", None), "utils", None)
             printer = getattr(_p, "print_main", print) if _p else print
-            printer(f"[EditFlow init][ZeRO-3] Copied {len(new_sd)} tensors from Src Model.")
+            printer(
+                f"[EditFlow init][ZeRO-3] Copied {len(new_sd)} tensors from Src Model."
+            )
             if missing:
                 printer("  Missing (expected for new rate heads, etc.):")
-                for k in missing: printer("   -", k)
+                for k in missing:
+                    printer("   -", k)
             if unexpected:
                 printer("  Unexpected (check key names):")
-                for k in unexpected: printer("   -", k)
+                for k in unexpected:
+                    printer("   -", k)
         return missing, unexpected
 
     # --- Non-ZeRO (or DS not present) path ---
@@ -369,10 +412,12 @@ def init_editflow_from_src(ef_model, src_model, lm_head_key: str = "lm_head", ve
         printer(f"[EditFlow init] Copied {len(new_sd)} tensors from Src Model.")
         if missing:
             printer("  Missing (expected for new rate heads, etc.):")
-            for k in missing: printer("   -", k)
+            for k in missing:
+                printer("   -", k)
         if unexpected:
             printer("  Unexpected (check key names):")
-            for k in unexpected: printer("   -", k)
+            for k in unexpected:
+                printer("   -", k)
     return missing, unexpected
 
 

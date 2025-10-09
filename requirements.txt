@@ -11,3 +11,4 @@ wandb==0.19.8
 omegaconf==2.3.0
 tqdm==4.67.1
 matplotlib==3.10.1
+pytest==8.4.2

@@ -9,7 +9,9 @@ import transformers
 from dllm.utils.schedulers import BaseAlphaScheduler, LinearAlphaScheduler
 
 
-def cart_weight(masked_indices: torch.Tensor, t: torch.Tensor, p: float = 0.3) -> torch.Tensor:
+def cart_weight(
+    masked_indices: torch.Tensor, t: torch.Tensor, p: float = 0.3
+) -> torch.Tensor:
     """
     Optimized CART weight computation using matrix operations.
 
@@ -27,11 +29,15 @@ def cart_weight(masked_indices: torch.Tensor, t: torch.Tensor, p: float = 0.3) -
     idx = torch.arange(l, device=device)
     dist_matrix = (idx[None, :] - idx[:, None]).abs() - 1
     dist_matrix = torch.clamp(dist_matrix, min=0)  # (l, l)
-
-    geo_matrix = (1 - p) ** dist_matrix * p  # (l, l)
+    geo_matrix = (
+        (torch.log(torch.tensor(p, device=device))
+         + (dist_matrix - 1).clamp(min=0) * torch.log(torch.tensor(1 - p, device=device))
+        ).exp() * 0.5
+    )
+    geo_matrix.masked_fill_(dist_matrix == 0, 0.0)  # ignore distance = 0
 
     valid_mask = (~masked_indices).float()  # (b, l), 1 = unmasked
-    weights = 0.5 * valid_mask @ geo_matrix.T  # (b, l)
+    weights = valid_mask @ geo_matrix.T  # (b, l)
     weights = weights * masked_indices.float()
     return weights
 
@@ -41,18 +47,27 @@ class DreamTrainer(transformers.Trainer):
     def __init__(
         self,
         *args,
-        scheduler: Optional[BaseAlphaScheduler] = None,  # CART isn't function of time
-        geo_p: float = 0.3,
+        scheduler: BaseAlphaScheduler | None = None,  # CART isn't function of time
+        geo_p: float = 0.1,
+        token_reweighting: bool = False,
+        alpha: float = 0.25,
+        gamma: float = 2,
+        time_reweighting: str = "original",
+        
         **kwargs,
     ):
         self.scheduler = scheduler or LinearAlphaScheduler()
         self.geo_p = geo_p
-        return super().__init__(*args, **kwargs)
+        self.token_reweighting = token_reweighting
+        self.alpha = alpha
+        self.gamma = gamma
+        self.time_reweighting = time_reweighting
+        super().__init__(*args, **kwargs)
 
     def compute_loss(
         self,
-        model: Union[transformers.PreTrainedModel, nn.Module],
-        inputs: Dict[str, Union[torch.Tensor, Any]],
+        model: transformers.PreTrainedModel | nn.Module,
+        inputs: dict[str, torch.Tensor | Any],
         return_outputs: bool = False,
         **kwargs,
     ):
@@ -71,7 +86,7 @@ class DreamTrainer(transformers.Trainer):
         # 2. apply masking
         masked_indices = torch.rand((b, l), device=input_ids.device) < p_mask
         masked_indices = masked_indices & (labels != -100)
-        # Dream cannot unmask when the mask is the first token.
+        # Dream disallows masking of the first token.
         masked_indices[:, 0] = False
         noised_input_ids = torch.where(
             masked_indices, self.processing_class.mask_token_id, input_ids
@@ -80,20 +95,41 @@ class DreamTrainer(transformers.Trainer):
         # 3. forward
         outputs = model(noised_input_ids, attention_mask)
         logits = outputs.logits
-        logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
+        logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1) # Shift logits to align each position with its previous token prediction
 
         if not masked_indices.any():
             # return a zero loss that retains graph/device/dtype
             return logits.sum() * 0.0
 
-        # 4. compute CART weights
-        loss_weights = cart_weight(masked_indices, t, p=self.geo_p)
-
-        # 5. compute weighted cross entropy
+        # 4. compute base loss (per-token, unweighted)
         token_loss = F.cross_entropy(
             logits[masked_indices], input_ids[masked_indices], reduction="none"
         )
-        token_loss = token_loss * loss_weights[masked_indices]
+
+        # 5. optional token reweighting (focal-like)
+        if self.token_reweighting:
+            token_loss = (
+                self.alpha
+                * (1 - torch.exp(-token_loss)) ** self.gamma
+                * token_loss
+            )
+        # 6. time reweighting (choose scheme)
+        if self.time_reweighting == "original":
+            time_weights = 1 / t[:, None].float().expand(labels.size())
+            loss_weights = time_weights[masked_indices]
+        elif self.time_reweighting == "linear":
+            time_weights = 1 - t[:, None].float().expand(labels.size())
+            loss_weights = time_weights[masked_indices]
+        elif self.time_reweighting == "cart":
+            # keep existing CART logic
+            cart_weights = cart_weight(masked_indices, t, p=self.geo_p)
+            loss_weights = cart_weights[masked_indices]
+        else:
+            # default: uniform weights
+            loss_weights = torch.ones_like(token_loss)
+        
+        # 7. apply combined weighting
+        token_loss = token_loss * loss_weights    
 
         # normalization
         effective_lengths = torch.sum(labels != -100, dim=1, keepdim=True).repeat(1, l)

@@ -6,9 +6,9 @@ Local users
         --config_file scripts/accelerate_configs/single_gpu.yaml \
         examples/editflow/pt_dream.py
     
-- 8 GPUs (DeepSpeed ZeRO-3):
+- 8 GPUs (DeepSpeed ZeRO-2):
     accelerate launch \
-        --config_file scripts/accelerate_configs/deepspeed_zero3.yaml \
+        --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
         examples/editflow/pt_dream.py
 
 Slurm users
@@ -20,16 +20,12 @@ Slurm users
         --accelerate_config "single_gpu" \
         --script_path "examples/editflow/pt_dream.py"
 
-- 8 GPUs (DeepSpeed ZeRO-3):
-    sbatch --gres=gpu:8 scripts/train.slurm.sh \
-        --accelerate_config "deepspeed_zero3" \
-        --script_path "examples/editflow/pt_dream.py"
-
-- 24 Nodes, 192 GPUs (DeepSpeed ZeRO-3):
+- 24 Nodes, 192 GPUs (DeepSpeed ZeRO-2):
     sbatch --nodes=24 --gres=gpu:8 scripts/train.slurm.sh \
-        --accelerate_config "deepspeed_zero3" \
+        --accelerate_config "deepspeed_zero2" \
         --script_path "examples/editflow/pt_dream.py"
 """
+
 from dataclasses import dataclass
 
 import transformers
@@ -43,26 +39,28 @@ class ModelArguments(editflow_pt.ModelArguments):
     model_name_or_path: str = "Dream-org/Dream-v0-Base-7B"
     lm_head_key: str = "lm_head"
 
+
 @dataclass
 class DataArguments(editflow_pt.DataArguments):
-    dataset_args: str = "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:5000000,test:100000]"
+    dataset_args: str = "mlfoundations/dclm-baseline-1.0[train:10_000_000,test:10_000]"
+
 
 @dataclass
 class TrainingArguments(editflow_pt.TrainingArguments):
-    output_dir: str = "models/EditFlow-Dream-7B-Base/dclm-baseline-1.0[train:5000000,test:100000]"
+    output_dir: str = (
+        "models/EditFlow-Dream-7B-Base/dclm-baseline-1.0[train:10_000_000,test:10_000]"
+    )
 
 
 if __name__ == "__main__":
     # ----- Argument parsing -------------------------------------------------------
-    parser = transformers.HfArgumentParser((
-        ModelArguments, 
-        DataArguments, 
-        TrainingArguments
-    ))
+    parser = transformers.HfArgumentParser(
+        (ModelArguments, DataArguments, TrainingArguments)
+    )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     editflow_pt.train(
-        model_args=model_args, 
-        data_args=data_args, 
+        model_args=model_args,
+        data_args=data_args,
         training_args=training_args,
         ef_config_cls=dllm.pipelines.editflow.EditFlowDreamConfig,
     )

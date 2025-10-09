@@ -1,15 +1,7 @@
 """
 reference: https://github.com/ML-GSAI/LLaDA/blob/main/generate.py
-
-Local (1 GPU):
-    python dllm_trainer/pipelines/llada/generate.py
-
-Slurm (1 GPU):
-    # Note: update PARTITION and QUOTATYPE in your ~/.*rc to fit your cluster setup
-    srun -p $PARTITION --quotatype=$QUOTATYPE \
-        --gres=gpu:1 --cpus-per-task=16 --time=3-00:00:000 \
-        python dllm_trainer/pipelines/llada/generate.py
 """
+
 import math
 
 import numpy as np
@@ -23,33 +15,33 @@ from dllm.utils.schedulers import BaseAlphaScheduler, LinearAlphaScheduler
 
 
 def add_gumbel_noise(logits: torch.Tensor, temperature: float) -> torch.Tensor:
-    '''
+    """
     The Gumbel max is a method for sampling categorical distributions.
     According to arXiv:2409.02908, for MDM, low-precision Gumbel Max improves perplexity score but reduces generation quality.
     Thus, we use float64.
-    '''
+    """
     if temperature == 0:
         return logits
     logits = logits.to(torch.float64)
     noise = torch.rand_like(logits, dtype=torch.float64)
-    gumbel_noise = (- torch.log(noise)) ** temperature
+    gumbel_noise = (-torch.log(noise)) ** temperature
     return logits.exp() / gumbel_noise
 
 
-@ torch.no_grad()
+@torch.no_grad()
 def generate(
-    model: transformers.PreTrainedModel, 
+    model: transformers.PreTrainedModel,
     tokenizer: transformers.PreTrainedTokenizer,
-    prompts: list[torch.Tensor], 
+    prompts: list[torch.Tensor],
     scheduler: BaseAlphaScheduler = LinearAlphaScheduler(),
-    steps: int = 128, 
+    steps: int = 128,
     max_new_tokens: int = 256,
     max_length: int = 1024,
-    block_length: int = 128, 
-    temperature: float = 0.,
-    cfg_scale: float = 0., 
+    block_length: int = 128,
+    temperature: float = 0.0,
+    cfg_scale: float = 0.0,
     cfg_keep_tokens: list = None,
-    remasking: str = "random", 
+    remasking: str = "random",
     return_dict_in_generate: bool = False,
     stochastic_transfer: bool = False,
 ) -> torch.Tensor | dict:
@@ -70,7 +62,7 @@ def generate(
             Must provide `eos_token_id` and `mask_token_id`
             (e.g., via `tokenizer.convert_tokens_to_ids("<|mdm_mask|>")`).
         prompts (list[torch.Tensor]):
-            List of token-id tensors, each shaped [1, L_i]. For each sample, the
+            List of token-id tensors, each shaped [L_i]. For each sample, the
             L_i prompt tokens are copied into a canvas and then `max_new_tokens`
             mask tokens are appended (these are the targets to be filled).
         steps (int, default=128):
@@ -136,8 +128,10 @@ def generate(
     # ----- Initialize canvas with EOS, copy prompts, and append mask tail -----
     x = torch.full((B, T), eos_id, dtype=torch.long, device=model.device)
     for i, p in enumerate(prompts):
-        x[i, :prompt_lens[i]] = p                                            # keep original prompt tokens
-        x[i, prompt_lens[i]:prompt_lens[i]+max_new_tokens] = mask_id         # append `max_new_tokens` masks to be generated
+        x[i, : prompt_lens[i]] = p  # keep original prompt tokens
+        x[i, prompt_lens[i] : prompt_lens[i] + max_new_tokens] = (
+            mask_id  # append `max_new_tokens` masks to be generated
+        )
 
     # Tokens that were *given* at the start (non-mask, non-EOS).
     # These will be masked in the unconditional forward pass for CFG.
@@ -149,25 +143,28 @@ def generate(
 
     # ----- Block scheduling over the appended mask tail -----
     num_blocks = math.ceil(max_new_tokens / block_length)
-    steps = math.ceil(steps / num_blocks)                                    # per-block step budget
+    steps = math.ceil(steps / num_blocks)  # per-block step budget
     effective_steps_per_block: list[int] = []
 
     for b in range(num_blocks):
         # Build a per-sample mask *within this block* (aligned to each prompt's tail)
         block_mask_index = torch.zeros(
-            (B, block_length), dtype=torch.bool, device=x.device)
+            (B, block_length), dtype=torch.bool, device=x.device
+        )
 
         for j in range(B):
             start = prompt_lens[j] + b * block_length
             end = min(start + block_length, prompt_lens[j] + max_new_tokens, T)
             if start < end:
                 width = end - start
-                block_mask_index[j, :width] = (x[j, start:end] == mask_id)  # which positions in this block are still masked
+                block_mask_index[j, :width] = (
+                    x[j, start:end] == mask_id
+                )  # which positions in this block are still masked
 
         # Decide how many tokens to reveal per step in this block
         num_transfer_tokens = get_num_transfer_tokens(
-            mask_index=block_mask_index, 
-            steps=steps, 
+            mask_index=block_mask_index,
+            steps=steps,
             scheduler=scheduler,
             stochastic=stochastic_transfer,
         )
@@ -178,10 +175,10 @@ def generate(
 
         # ----- Iterative reveal inside the current block -----
         for i in range(effective_steps):
-            mask_index = (x == mask_id)                                      # current global mask map
+            mask_index = x == mask_id  # current global mask map
 
             # Optional CFG: second forward where original prompt tokens are masked out
-            if cfg_scale > 0.:
+            if cfg_scale > 0.0:
                 un_x = x.clone()
                 un_x[unmasked_index] = mask_id
                 x_ = torch.cat([x, un_x], dim=0)
@@ -193,25 +190,30 @@ def generate(
 
             # Argmax decoding with optional Gumbel-Max noise for exploration
             logits_with_noise = add_gumbel_noise(logits, temperature=temperature)
-            x0 = torch.argmax(logits_with_noise, dim=-1) # [B, T] predicted token ids
+            x0 = torch.argmax(logits_with_noise, dim=-1)  # [B, T] predicted token ids
 
             # Per-position confidence used to pick which masks to commit this step
-            if remasking == 'low_confidence':
+            if remasking == "low_confidence":
                 p = F.softmax(logits, dim=-1)
                 x0_p = torch.squeeze(
-                    torch.gather(p, dim=-1, index=torch.unsqueeze(x0, -1)), -1) # [B, T] confidence of predicted token
-            elif remasking == 'random':
-                x0_p = torch.rand((x0.shape[0], x0.shape[1]), device=x0.device) # random scores
+                    torch.gather(p, dim=-1, index=torch.unsqueeze(x0, -1)), -1
+                )  # [B, T] confidence of predicted token
+            elif remasking == "random":
+                x0_p = torch.rand(
+                    (x0.shape[0], x0.shape[1]), device=x0.device
+                )  # random scores
             else:
                 raise NotImplementedError(remasking)
 
             # Restrict selection window to the *current block's* tail region
             for j in range(B):
-                x0_p[j, prompt_lens[j] + (b + 1) * block_length:] = -np.inf
+                x0_p[j, prompt_lens[j] + (b + 1) * block_length :] = -np.inf
 
             # Only allow updates at currently masked positions; keep others fixed
             x0 = torch.where(mask_index, x0, x)
-            confidence = torch.where(mask_index, x0_p, -np.inf) # consider masked positions only
+            confidence = torch.where(
+                mask_index, x0_p, -np.inf
+            )  # consider masked positions only
 
             # Pick exactly `num_transfer_tokens[j, i]` highest-confidence positions per sample
             transfer_index = torch.zeros_like(x0, dtype=torch.bool, device=x0.device)
@@ -233,17 +235,17 @@ def generate(
 
 
 @torch.no_grad()
-def fill_in_blanks(
-    model: transformers.PreTrainedModel, 
+def infilling(
+    model: transformers.PreTrainedModel,
     tokenizer: transformers.PreTrainedTokenizer,
-    inputs_with_blanks: list[torch.Tensor], 
+    inputs_with_blanks: list[torch.Tensor],
     scheduler: BaseAlphaScheduler = LinearAlphaScheduler(),
-    steps: int = 128,  
+    steps: int = 128,
     block_length: int | None = None,
-    temperature: float = 0.,
-    cfg_scale: float = 0., 
+    temperature: float = 0.0,
+    cfg_scale: float = 0.0,
     cfg_keep_tokens: list = None,
-    remasking: str = "random", 
+    remasking: str = "random",
     return_dict_in_generate: bool = False,
     stochastic_transfer: bool = False,
 ) -> torch.Tensor | dict:
@@ -259,7 +261,7 @@ def fill_in_blanks(
       unconditional branch, identical to `generate`.
     - Only masked positions are ever updated; non-mask tokens are left intact.
     """
-    # TODO: attention mask to avoid looking at the padding eos 
+    # TODO: attention mask to avoid looking at the padding eos
     #       (short sequences in the batch).
     device = model.device
     mask_id = tokenizer.mask_token_id
@@ -279,7 +281,7 @@ def fill_in_blanks(
 
     x = torch.full((B, T), eos_id, dtype=torch.long, device=device)
     for i, t in enumerate(inputs_with_blanks):
-        x[i, :seq_lens[i]] = t
+        x[i, : seq_lens[i]] = t
 
     # Tokens that were *given* at the start (non-mask, non-EOS).
     # These will be masked in the unconditional forward pass for CFG.
@@ -299,14 +301,16 @@ def fill_in_blanks(
         stop = min(start + block_length, T)
 
         # Per-sample view of which positions in this block are masks
-        block_mask_index = torch.zeros((B, block_length), dtype=torch.bool, device=device)
+        block_mask_index = torch.zeros(
+            (B, block_length), dtype=torch.bool, device=device
+        )
         widths = []
         for j in range(B):
             # Width limited by sample's true length and sequence end
             width = max(0, min(seq_lens[j], stop) - start)
             widths.append(width)
             if width > 0:
-                block_mask_index[j, :width] = (x[j, start:start+width] == mask_id)
+                block_mask_index[j, :width] = x[j, start : start + width] == mask_id
 
         # Decide how many tokens to reveal at each step in this block
         num_transfer_tokens = get_num_transfer_tokens(
@@ -321,10 +325,10 @@ def fill_in_blanks(
         effective_steps_per_block.append(effective_steps)
 
         for s in range(effective_steps):
-            mask_index_full = (x == mask_id)
+            mask_index_full = x == mask_id
 
             # ----- Forward pass (+ optional CFG) -----
-            if cfg_scale > 0.:
+            if cfg_scale > 0.0:
                 un_x = x.clone()
                 un_x[unmasked_index] = mask_id  # mask out originally known tokens
                 x_ = torch.cat([x, un_x], dim=0)
@@ -339,10 +343,12 @@ def fill_in_blanks(
             x0 = torch.argmax(logits_with_noise, dim=-1)  # [B, T]
 
             # Confidence used for choosing which masks to commit this step
-            if remasking == 'low_confidence':
+            if remasking == "low_confidence":
                 p = F.softmax(logits, dim=-1)
-                x0_p = torch.gather(p, dim=-1, index=x0.unsqueeze(-1)).squeeze(-1)  # [B, T]
-            elif remasking == 'random':
+                x0_p = torch.gather(p, dim=-1, index=x0.unsqueeze(-1)).squeeze(
+                    -1
+                )  # [B, T]
+            elif remasking == "random":
                 x0_p = torch.rand((B, T), device=device)
             else:
                 raise NotImplementedError(remasking)

@@ -8,6 +8,7 @@ Slurm users
 srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --time=03:00:000 \
     python examples/dream/generate.py --model_name_or_path "YOUR_MODEL_PATH"
 """
+
 from dataclasses import dataclass
 
 import tyro
@@ -15,6 +16,7 @@ import transformers
 
 import dllm
 from dllm.pipelines import dream
+
 
 @dataclass
 class ScriptArguments:
@@ -27,7 +29,11 @@ class ScriptArguments:
     alg: str = "entropy"
     alg_temp: float = 0.0
     seed: int = 42
-    def __post_init__(self): self.model_name_or_path = dllm.utils.resolve_with_base_env(self.model_name_or_path, "BASE_MODELS_DIR")
+
+    def __post_init__(self):
+        self.model_name_or_path = dllm.utils.resolve_with_base_env(
+            self.model_name_or_path, "BASE_MODELS_DIR"
+        )
 
 
 script_args = tyro.cli(ScriptArguments)
@@ -45,7 +51,7 @@ print("=" * 80)
 
 messages = [
     [{"role": "user", "content": "Lily runs 12 km/h for 4 hours. How far in 8 hours?"}],
-    [{"role": "user", "content": "Please write an educational python function."}]
+    [{"role": "user", "content": "Please write an educational python function."}],
 ]
 
 input_ids_list = [
@@ -74,7 +80,10 @@ out = dream.generate(
 )
 
 # remove left padding <eos_tokens> and tokens after the final <eos_token>
-generations = [g.lstrip("<|endoftext|>").split(tokenizer.eos_token, 1)[0] for g in tokenizer.batch_decode(out)]
+generations = [
+    g.lstrip("<|endoftext|>").split(tokenizer.eos_token, 1)[0]
+    for g in tokenizer.batch_decode(out)
+]
 
 for i, o in enumerate(generations):
     print("\n" + "-" * 80)
@@ -86,17 +95,23 @@ print("\n" + "=" * 80 + "\n")
 
 # --- Example 2: Batch fill-in-the-blanks ---
 print("\n" + "=" * 80)
-print("TEST: dream.fill_in_blanks()".center(80))
+print("TEST: dream.infilling()".center(80))
 print("=" * 80)
 
 masked_inputs = [
     [
-        {"role": "user", "content": tokenizer.mask_token*20},
-        {"role": "assistant", "content": "Sorry, I do not have answer to this question."}
+        {"role": "user", "content": tokenizer.mask_token * 20},
+        {
+            "role": "assistant",
+            "content": "Sorry, I do not have answer to this question.",
+        },
     ],
     [
         {"role": "user", "content": "Please write an educational python function."},
-        {"role": "assistant", "content": "def hello_" + tokenizer.mask_token*20 + " return"}
+        {
+            "role": "assistant",
+            "content": "def hello_" + tokenizer.mask_token * 20 + " return",
+        },
     ],
 ]
 
@@ -110,7 +125,7 @@ fib_input_ids_list = [
     for m in masked_inputs
 ]
 
-out = dream.fill_in_blanks(
+out = dream.infilling(
     model=model,
     tokenizer=tokenizer,
     inputs_with_blanks=fib_input_ids_list,

@@ -7,7 +7,7 @@ from dllm.utils.configs import ModelArguments, TrainingArguments
 
 
 def get_model(
-    model_args: ModelArguments, 
+    model_args: ModelArguments,
 ) -> transformers.PreTrainedModel:
     # Map string dtype to torch dtype
     dtype_map = {
@@ -33,8 +33,9 @@ def get_model(
             else {}
         ),
         quantization_config=(
-            transformers.BitsAndBytesConfig(load_in_4bit=True) 
-            if getattr(model_args, "load_in_4bit", None) and transformers.utils.is_bitsandbytes_available() 
+            transformers.BitsAndBytesConfig(load_in_4bit=True)
+            if getattr(model_args, "load_in_4bit", None)
+            and transformers.utils.is_bitsandbytes_available()
             else None
         ),
     )
@@ -42,19 +43,21 @@ def get_model(
 
 
 def get_tokenizer(
-    model_args: ModelArguments, 
-    model: transformers.PreTrainedModel | None = None
+    model_args: ModelArguments, model: transformers.PreTrainedModel | None = None
 ) -> transformers.PreTrainedTokenizer:
     from dllm.pipelines.llada.models.modeling_llada import LLaDAModelLM
     from dllm.pipelines.llada.models.modeling_lladamoe import LLaDAMoEModelLM
     from dllm.pipelines.dream.models.modeling_dream import DreamModel
     from dllm.pipelines.editflow.models.dream.modelling_dream import EditFlowDreamModel
+
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
         padding_side="right",
     )
-    if not tokenizer.pad_token: tokenizer.pad_token = tokenizer.eos_token
-    if not model: return tokenizer
+    if not tokenizer.pad_token:
+        tokenizer.pad_token = tokenizer.eos_token
+    if not model:
+        return tokenizer
     if isinstance(model, (LLaDAModelLM)):
         tokenizer.mask_token = "<|mdm_mask|>"
         tokenizer.mask_token_id = tokenizer.convert_tokens_to_ids("<|mdm_mask|>")

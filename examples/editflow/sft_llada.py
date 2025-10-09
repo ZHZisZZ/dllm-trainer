@@ -20,47 +20,46 @@ Slurm users
         --accelerate_config "single_gpu" \
         --script_path "examples/editflow/sft_llada.py"
 
-- 8 GPUs (DeepSpeed ZeRO-2):
-    sbatch --gres=gpu:8 scripts/train.slurm.sh \
-        --accelerate_config "deepspeed_zero2" \
-        --script_path "examples/editflow/sft_llada.py"
-
 - 2 Nodes, 16 GPUs (DeepSpeed ZeRO-2):
     sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
         --script_path "examples/editflow/sft_llada.py"
 """
+
 from dataclasses import dataclass
 
 import transformers
 
-import dllm
 import examples.editflow.sft as editflow_sft
 
 
 @dataclass
 class ModelArguments(editflow_sft.ModelArguments):
-    model_name_or_path: str = "models/EditFlow-LLaDA-8B-Base/dclm-baseline-1.0[train:5000000,test:100000]"
+    model_name_or_path: str = (
+        "models/EditFlow-LLaDA-8B-Base/dclm-baseline-1.0[train:10_000_000,test:10_000]/checkpoint-final"
+    )
+
 
 @dataclass
 class DataArguments(editflow_sft.DataArguments):
-    dataset_args: str = "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    dataset_args: str = "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+
 
 @dataclass
 class TrainingArguments(editflow_sft.TrainingArguments):
-    output_dir: str = "models/EditFlow-LLaDA-8B-Instruct-SFT/tulu-3-sft-mixture[train:10000,test:1000]"
+    output_dir: str = (
+        "models/EditFlow-LLaDA-8B-Instruct-SFT/tulu-3-sft-mixture[train:10000,test:1000]"
+    )
 
 
 if __name__ == "__main__":
     # ----- Argument parsing -------------------------------------------------------
-    parser = transformers.HfArgumentParser((
-        ModelArguments, 
-        DataArguments, 
-        TrainingArguments
-    ))
+    parser = transformers.HfArgumentParser(
+        (ModelArguments, DataArguments, TrainingArguments)
+    )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     editflow_sft.train(
-        model_args=model_args, 
-        data_args=data_args, 
+        model_args=model_args,
+        data_args=data_args,
         training_args=training_args,
     )

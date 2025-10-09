@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2024 The Dream team, HKUNLP Group and the HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,9 +21,7 @@ import torch
 import torch.distributions as dists
 from torch.nn import functional as F
 from transformers import __version__
-from transformers.generation.configuration_utils import (
-    GenerationConfig
-)
+from transformers.generation.configuration_utils import GenerationConfig
 from transformers.utils import (
     ModelOutput,
     is_torchdynamo_compiling,
@@ -47,6 +44,7 @@ def top_p_logits(logits, top_p=None):
     logits = logits.masked_fill(mask, torch.finfo(logits.dtype).min)
     return logits
 
+
 def top_k_logits(logits, top_k=None):
     top_k = min(top_k, logits.size(-1))  # Safety check
     # Remove all tokens with a probability less than the last token of the top-k
@@ -55,7 +53,14 @@ def top_k_logits(logits, top_k=None):
     return logits
 
 
-def sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, margin_confidence=False, neg_entropy=False):
+def sample_tokens(
+    logits,
+    temperature=0.0,
+    top_p=None,
+    top_k=None,
+    margin_confidence=False,
+    neg_entropy=False,
+):
 
     if temperature > 0:
         logits = logits / temperature
@@ -73,45 +78,47 @@ def sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, margin_confid
             confidence, x0 = probs.max(dim=-1)
     else:
         confidence, x0 = probs.max(dim=-1)
-    
+
     if margin_confidence:
         sorted_probs, _ = torch.sort(probs, dim=-1, descending=True)
         # Extract top1 and top2 probabilities
-        top1_probs = sorted_probs[:, 0] 
-        top2_probs = sorted_probs[:, 1] 
+        top1_probs = sorted_probs[:, 0]
+        top2_probs = sorted_probs[:, 1]
         # Calculate confidence as top1 - top2
-        confidence = top1_probs - top2_probs 
-    
+        confidence = top1_probs - top2_probs
+
     if neg_entropy:
         epsilon = 1e-10
         log_probs = torch.log(probs + epsilon)
         confidence = torch.sum(probs * log_probs, dim=-1)
-    
+
     return confidence, x0
 
 
 @dataclass
 class DreamModelOutput(ModelOutput):
     sequences: torch.LongTensor = None
-    history: Optional[Tuple[torch.FloatTensor]] = None
+    history: tuple[torch.FloatTensor] | None = None
 
 
 class DreamGenerationConfig(GenerationConfig):
     def __init__(self, **kwargs):
         self.temperature: float = kwargs.pop("temperature", 0.0)
-        self.top_p: Optional[float] = kwargs.pop("top_p", None)
-        self.top_k: Optional[int] = kwargs.pop("top_k", None)
+        self.top_p: float | None = kwargs.pop("top_p", None)
+        self.top_k: int | None = kwargs.pop("top_k", None)
         self.max_length = kwargs.pop("max_length", 20)
         self.max_new_tokens = kwargs.pop("max_new_tokens", None)
         # diffusion specific params
         self.eps: float = kwargs.pop("eps", 1e-3)
         self.steps: int = kwargs.pop("steps", 512)
-        self.alg: str = kwargs.pop("alg", 'origin')
-        self.alg_temp: Optional[float] = kwargs.pop("alg_temp", None)
+        self.alg: str = kwargs.pop("alg", "origin")
+        self.alg_temp: float | None = kwargs.pop("alg_temp", None)
 
         # Parameters that define the output variables of `generate`
         self.num_return_sequences: int = kwargs.pop("num_return_sequences", 1)
-        self.return_dict_in_generate: bool = kwargs.pop("return_dict_in_generate", False)
+        self.return_dict_in_generate: bool = kwargs.pop(
+            "return_dict_in_generate", False
+        )
         self.output_history: bool = kwargs.pop("output_history", False)
 
         # Special tokens that can be used at generation time
@@ -146,13 +153,14 @@ class DreamGenerationConfig(GenerationConfig):
     def validate(self, is_init=False):
         pass
 
+
 class DreamGenerationMixin:
     @staticmethod
     def _expand_inputs_for_generation(
         expand_size: int = 1,
-        input_ids: Optional[torch.LongTensor] = None,
-        attention_mask: Optional[torch.LongTensor] = None
-    ) -> Tuple[torch.LongTensor, Dict[str, Any]]:
+        input_ids: torch.LongTensor | None = None,
+        attention_mask: torch.LongTensor | None = None,
+    ) -> tuple[torch.LongTensor, dict[str, Any]]:
         """Expands tensors from [batch_size, ...] to [batch_size * expand_size, ...]"""
         # Do not call torch.repeat_interleave if expand_size is 1 because it clones
         # the input tensor and thus requires more memory although no change is applied
@@ -164,7 +172,9 @@ class DreamGenerationMixin:
             attention_mask = attention_mask.repeat_interleave(expand_size, dim=0)
         return input_ids, attention_mask
 
-    def _validate_generated_length(self, generation_config, input_ids_length, has_default_max_length):
+    def _validate_generated_length(
+        self, generation_config, input_ids_length, has_default_max_length
+    ):
         """Performs validation related to the resulting generated length"""
 
         # Can't throw warnings/exceptions during compilation
@@ -172,7 +182,11 @@ class DreamGenerationMixin:
             return
 
         # 1. Max length warnings related to poor parameterization
-        if has_default_max_length and generation_config.max_new_tokens is None and generation_config.max_length == 20:
+        if (
+            has_default_max_length
+            and generation_config.max_new_tokens is None
+            and generation_config.max_length == 20
+        ):
             # 20 is the default max_length of the generation config
             warnings.warn(
                 f"Using the model-agnostic default `max_length` (={generation_config.max_length}) to control the "
@@ -204,19 +218,27 @@ class DreamGenerationMixin:
                     "Please refer to the documentation for more information. "
                     "(https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)"
                 )
-            generation_config.max_length = generation_config.max_new_tokens + input_ids_length
+            generation_config.max_length = (
+                generation_config.max_new_tokens + input_ids_length
+            )
 
         elif has_default_max_length:
             if generation_config.max_length == DreamGenerationConfig().max_length:
-                generation_config.max_length = generation_config.max_length + input_ids_length
-                max_position_embeddings = getattr(self.config, "max_position_embeddings", None)
+                generation_config.max_length = (
+                    generation_config.max_length + input_ids_length
+                )
+                max_position_embeddings = getattr(
+                    self.config, "max_position_embeddings", None
+                )
                 if max_position_embeddings is not None:
-                    generation_config.max_length = min(generation_config.max_length, max_position_embeddings)
+                    generation_config.max_length = min(
+                        generation_config.max_length, max_position_embeddings
+                    )
 
         return generation_config
 
     def _prepare_generation_config(
-        self, generation_config: Optional[DreamGenerationConfig], **kwargs: Dict
+        self, generation_config: DreamGenerationConfig | None, **kwargs: dict
     ) -> DreamGenerationConfig:
         """
         Prepares the base generation config, then applies any generation configuration options from kwargs. This
@@ -243,14 +265,16 @@ class DreamGenerationMixin:
                 if generation_config.pad_token_id is None:
                     generation_config.pad_token_id = self.generation_config.pad_token_id
                 if generation_config.mask_token_id is None:
-                    generation_config.mask_token_id = self.generation_config.mask_token_id
+                    generation_config.mask_token_id = (
+                        self.generation_config.mask_token_id
+                    )
 
         return generation_config
 
     def _prepare_special_tokens(
         self,
         generation_config: DreamGenerationConfig,
-        device: Optional[Union[torch.device, str]] = None,
+        device: torch.device | str | None = None,
     ):
         """
         Prepares the special tokens for generation, overwriting the generation config with their processed versions
@@ -271,10 +295,18 @@ class DreamGenerationMixin:
                 return token.to(device)
             return torch.tensor(token, device=device, dtype=torch.long)
 
-        bos_token_tensor = _tensor_or_none(generation_config.bos_token_id, device=device)
-        eos_token_tensor = _tensor_or_none(generation_config.eos_token_id, device=device)
-        pad_token_tensor = _tensor_or_none(generation_config.pad_token_id, device=device)
-        mask_token_tensor = _tensor_or_none(generation_config.mask_token_id, device=device)
+        bos_token_tensor = _tensor_or_none(
+            generation_config.bos_token_id, device=device
+        )
+        eos_token_tensor = _tensor_or_none(
+            generation_config.eos_token_id, device=device
+        )
+        pad_token_tensor = _tensor_or_none(
+            generation_config.pad_token_id, device=device
+        )
+        mask_token_tensor = _tensor_or_none(
+            generation_config.mask_token_id, device=device
+        )
 
         # We can have more than one eos token. Always treat it as a 1D tensor (when it exists).
         if eos_token_tensor is not None and eos_token_tensor.ndim == 0:
@@ -283,7 +315,9 @@ class DreamGenerationMixin:
         # Set pad token if unset (and there are conditions to do so)
         if pad_token_tensor is None and eos_token_tensor is not None:
             pad_token_tensor = eos_token_tensor[0]
-            logger.warning(f"Setting `pad_token_id` to `eos_token_id`:{pad_token_tensor} for open-end generation.")
+            logger.warning(
+                f"Setting `pad_token_id` to `eos_token_id`:{pad_token_tensor} for open-end generation."
+            )
 
         # Update generation config with the updated special tokens tensors
         # NOTE: this must be written into a different attribute name than the one holding the original special tokens
@@ -297,14 +331,18 @@ class DreamGenerationMixin:
     @torch.no_grad()
     def diffusion_generate(
         self,
-        inputs: Optional[torch.Tensor] = None,
-        generation_config: Optional[DreamGenerationConfig] = None,
+        inputs: torch.Tensor | None = None,
+        generation_config: DreamGenerationConfig | None = None,
         **kwargs,
-    ) -> Union[DreamModelOutput, torch.LongTensor]:
+    ) -> DreamModelOutput | torch.LongTensor:
         # 1. Handle `generation_config` and kwargs that might update it, and validate the `.generate()` call
         generation_config = self._prepare_generation_config(generation_config, **kwargs)
-        generation_tokens_hook_func = kwargs.pop("generation_tokens_hook_func", lambda step, x, logits: x)
-        generation_logits_hook_func = kwargs.pop("generation_logits_hook_func", lambda step, x, logits: logits)
+        generation_tokens_hook_func = kwargs.pop(
+            "generation_tokens_hook_func", lambda step, x, logits: x
+        )
+        generation_logits_hook_func = kwargs.pop(
+            "generation_logits_hook_func", lambda step, x, logits: logits
+        )
 
         # 2. Define model inputs
         assert inputs is not None
@@ -315,15 +353,20 @@ class DreamGenerationMixin:
 
         # 3. Prepare `max_length`.
         input_ids_length = input_ids.shape[-1]
-        has_default_max_length = kwargs.get("max_length") is None and generation_config.max_length is not None
+        has_default_max_length = (
+            kwargs.get("max_length") is None
+            and generation_config.max_length is not None
+        )
         generation_config = self._prepare_generated_length(
             generation_config=generation_config,
             has_default_max_length=has_default_max_length,
             input_ids_length=input_ids_length,
         )
 
-        self._validate_generated_length(generation_config, input_ids_length, has_default_max_length)
-        
+        self._validate_generated_length(
+            generation_config, input_ids_length, has_default_max_length
+        )
+
         # 4. Check input_ids
         if not is_torchdynamo_compiling() and self.device.type != input_ids.device.type:
             warnings.warn(
@@ -336,9 +379,9 @@ class DreamGenerationMixin:
                 UserWarning,
             )
         if (
-            hasattr(generation_config, "pad_token_id") and
-            torch.any(input_ids == generation_config.pad_token_id) and 
-            attention_mask is None
+            hasattr(generation_config, "pad_token_id")
+            and torch.any(input_ids == generation_config.pad_token_id)
+            and attention_mask is None
         ):
             warnings.warn(
                 "Padding was detected but no attention mask is passed here. For correct "
@@ -349,7 +392,7 @@ class DreamGenerationMixin:
         input_ids, attention_mask = self._expand_inputs_for_generation(
             expand_size=generation_config.num_return_sequences,
             input_ids=input_ids,
-            attention_mask=attention_mask 
+            attention_mask=attention_mask,
         )
 
         result = self._sample(
@@ -357,20 +400,20 @@ class DreamGenerationMixin:
             attention_mask=attention_mask,
             generation_config=generation_config,
             generation_tokens_hook_func=generation_tokens_hook_func,
-            generation_logits_hook_func=generation_logits_hook_func
+            generation_logits_hook_func=generation_logits_hook_func,
         )
         return result
 
     def _sample(
         self,
         input_ids: torch.LongTensor,
-        attention_mask: Optional[torch.LongTensor],
+        attention_mask: torch.LongTensor | None,
         generation_config: DreamGenerationConfig,
         generation_tokens_hook_func,
-        generation_logits_hook_func
-    ) -> Union[DreamModelOutput, torch.LongTensor]:
+        generation_logits_hook_func,
+    ) -> DreamModelOutput | torch.LongTensor:
         # init values
-        
+
         output_history = generation_config.output_history
         return_dict_in_generate = generation_config.return_dict_in_generate
         max_length = generation_config.max_length
@@ -390,9 +433,11 @@ class DreamGenerationMixin:
 
         if attention_mask is not None and torch.any(attention_mask == 0.0):
             # we do not mask the [MASK] tokens so value = 1.0
-            attention_mask = F.pad(attention_mask, (0, max_length - attention_mask.shape[1]), value=1.0)
+            attention_mask = F.pad(
+                attention_mask, (0, max_length - attention_mask.shape[1]), value=1.0
+            )
             tok_idx = attention_mask.long().cumsum(-1) - 1
-            tok_idx.masked_fill_(attention_mask == 0, 1) 
+            tok_idx.masked_fill_(attention_mask == 0, 1)
             # attention_mask is of shape [B, N]
             # broadcast to [B, 1, N, N]
             attention_mask = torch.logical_and(
@@ -408,10 +453,10 @@ class DreamGenerationMixin:
         # this allows user-defined token control of the intermediate steps
         x = generation_tokens_hook_func(None, x, None)
         for i in range(steps):
-            
-            mask_index = (x == mask_token_id)
+
+            mask_index = x == mask_token_id
             logits = self(x, attention_mask, tok_idx).logits
-            logits = torch.cat([logits[:,:1], logits[:, :-1]], dim=1)
+            logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
             # this allows user-defined logits control of the intermediate steps
             logits = generation_logits_hook_func(i, x, logits)
 
@@ -419,43 +464,86 @@ class DreamGenerationMixin:
             t = timesteps[i]
             s = timesteps[i + 1]
 
-            if alg == 'origin':
+            if alg == "origin":
                 p_transfer = 1 - s / t if i < steps - 1 else 1
-                x0 = torch.zeros_like(x[mask_index], device=self.device, dtype=torch.long) + mask_token_id
-                transfer_index_t_s = torch.rand(*x0.shape, device=self.device) < p_transfer
-                _, x0[transfer_index_t_s]= sample_tokens(mask_logits[transfer_index_t_s], temperature=temperature, top_p=top_p, top_k=top_k)
+                x0 = (
+                    torch.zeros_like(
+                        x[mask_index], device=self.device, dtype=torch.long
+                    )
+                    + mask_token_id
+                )
+                transfer_index_t_s = (
+                    torch.rand(*x0.shape, device=self.device) < p_transfer
+                )
+                _, x0[transfer_index_t_s] = sample_tokens(
+                    mask_logits[transfer_index_t_s],
+                    temperature=temperature,
+                    top_p=top_p,
+                    top_k=top_k,
+                )
                 x[mask_index] = x0.clone()
             else:
-                if alg == 'maskgit_plus':
-                    confidence, x0 = sample_tokens(mask_logits, temperature=temperature, top_p=top_p, top_k=top_k)
-                elif alg == 'topk_margin':
-                    confidence, x0 = sample_tokens(mask_logits, temperature=temperature, top_p=top_p, top_k=top_k, margin_confidence=True)
-                elif alg == 'entropy':
-                    confidence, x0 = sample_tokens(mask_logits, temperature, top_p=top_p, top_k=top_k, neg_entropy=True)
+                if alg == "maskgit_plus":
+                    confidence, x0 = sample_tokens(
+                        mask_logits, temperature=temperature, top_p=top_p, top_k=top_k
+                    )
+                elif alg == "topk_margin":
+                    confidence, x0 = sample_tokens(
+                        mask_logits,
+                        temperature=temperature,
+                        top_p=top_p,
+                        top_k=top_k,
+                        margin_confidence=True,
+                    )
+                elif alg == "entropy":
+                    confidence, x0 = sample_tokens(
+                        mask_logits,
+                        temperature,
+                        top_p=top_p,
+                        top_k=top_k,
+                        neg_entropy=True,
+                    )
                 else:
                     raise RuntimeError(f"Unknown alg: {alg}")
                 num_mask_token = mask_index.sum() / mask_index.shape[0]
-                number_transfer_tokens = int(num_mask_token * (1 - s / t)) if i < steps - 1 else int(num_mask_token)
-                full_confidence = torch.full_like(x, -torch.inf, device=self.device, dtype=logits.dtype)
+                number_transfer_tokens = (
+                    int(num_mask_token * (1 - s / t))
+                    if i < steps - 1
+                    else int(num_mask_token)
+                )
+                full_confidence = torch.full_like(
+                    x, -torch.inf, device=self.device, dtype=logits.dtype
+                )
                 full_confidence[mask_index] = confidence
                 if number_transfer_tokens > 0:
                     if alg_temp is None or alg_temp == 0:
-                        _, transfer_index = torch.topk(full_confidence, number_transfer_tokens)
+                        _, transfer_index = torch.topk(
+                            full_confidence, number_transfer_tokens
+                        )
                     else:
                         full_confidence = full_confidence / alg_temp
                         full_confidence = F.softmax(full_confidence, dim=-1)
-                        transfer_index = torch.multinomial(full_confidence, num_samples=number_transfer_tokens)
-                    x_ = torch.zeros_like(x, device=self.device, dtype=torch.long) + mask_token_id
+                        transfer_index = torch.multinomial(
+                            full_confidence, num_samples=number_transfer_tokens
+                        )
+                    x_ = (
+                        torch.zeros_like(x, device=self.device, dtype=torch.long)
+                        + mask_token_id
+                    )
                     x_[mask_index] = x0.clone()
-                    row_indices = torch.arange(x.size(0), device=self.device).unsqueeze(1).expand_as(transfer_index)
-                    x[row_indices,transfer_index] = x_[row_indices,transfer_index]
+                    row_indices = (
+                        torch.arange(x.size(0), device=self.device)
+                        .unsqueeze(1)
+                        .expand_as(transfer_index)
+                    )
+                    x[row_indices, transfer_index] = x_[row_indices, transfer_index]
 
             # this allows user-defined token control of the intermediate steps
             x = generation_tokens_hook_func(i, x, logits)
 
             if histories is not None:
                 histories.append(x.clone())
-        
+
         if return_dict_in_generate:
             return DreamModelOutput(
                 sequences=x,

@@ -1,19 +1,41 @@
 import re
-from datasets import Dataset, DatasetDict, IterableDatasetDict, load_dataset  # NEW
 
-from dllm.data.alpaca import load_dataset_alpaca
-from dllm.data.opc import load_dataset_opc
-from dllm.data.saferlhf import load_dataset_pku_rlhf_sft
+from typing import List, Optional
+from datasets import (
+    Dataset,
+    DatasetDict,
+    IterableDatasetDict,
+    IterableDataset,
+    load_dataset,
+)
+
 from dllm.utils.utils import resolve_with_base_env
 
 
 def _parse_kv_string(s: str) -> dict:
-    return dict(
-        part.split("=", 1) for part in s.split(",") if "=" in part
-    )
+    return dict(part.split("=", 1) for part in s.split(",") if "=" in part)
+
 
 def _parse_one_spec(spec: str):
-    m = re.search(r"\[(.*?)\]$", spec.strip())
+    """
+    Parse a single dataset spec.
+
+    Supports:
+      - Bare dataset path, e.g. "tatsu-lab/alpaca"
+      - Optional bracket suffix with comma-separated entries:
+          * split limits:   train:5000, test:1_000
+          * extra options:  name:educational_instruct
+      - Optional "key=value" pairs outside the bracket (existing behavior)
+
+    Returns:
+      kvs:    dict of options, guaranteed to include 'dataset_name_or_path'
+      limits: dict of split -> int row limits
+    """
+    s = spec.strip()
+
+    # Extract bracket content if present
+    m = re.search(r"\[(.*?)\]$", s)
+    bracket_kvs = {}
     limits = {}
     if m:
         bracket = m.group(1).strip()
@@ -23,16 +45,45 @@ def _parse_one_spec(spec: str):
                 if not part:
                     continue
                 if ":" not in part:
-                    raise ValueError(f"Invalid split limit entry '{part}' in '{spec}' (expected split:count).")
-                split, count = part.split(":", 1)
-                split = split.strip()
-                count = count.strip()
-                if not count.isdigit():
-                    raise ValueError(f"Count must be an integer for '{part}' in '{spec}'.")
-                limits[split] = int(count)
-        spec = spec[:m.start()]
-    kvs = _parse_kv_string(spec)
+                    raise ValueError(
+                        f"Invalid entry '{part}' in '{spec}' (expected key:value)."
+                    )
+                key, value = part.split(":", 1)
+                key = key.strip()
+                value = value.strip()
+
+                # Integers (with optional underscores) -> split limits
+                if re.fullmatch(r"\d(?:_?\d)*", value):
+                    limits[key] = int(value.replace("_", ""))
+                else:
+                    # Otherwise treat as an option (e.g., name:educational_instruct)
+                    bracket_kvs[key] = value
+
+        # Remove the bracket suffix from the working string
+        s = s[: m.start()].rstrip()
+
+    # Anything outside the bracket:
+    # - if it contains "=", use existing "a=b,c=d" parsing
+    # - else treat as the dataset path
+    if "=" in s:
+        outer_kvs = _parse_kv_string(s)
+        kvs = dict(outer_kvs)
+    else:
+        kvs = {}
+        if s:
+            kvs["dataset_name_or_path"] = s
+
+    # Merge bracket kvs last so they can override outer values if needed
+    kvs.update(bracket_kvs)
+
+    # Ensure dataset_name_or_path is present
+    if "dataset_name_or_path" not in kvs:
+        raise ValueError(
+            f"'dataset_name_or_path' missing and could not be inferred from spec: {spec}"
+        )
+
     return kvs, limits
+
 
 def _truncate_split(split_data, n: int):
     if n is None:
@@ -54,6 +105,7 @@ def _truncate_split(split_data, n: int):
         # Last resort: iterate
         return type(split_data)(item for i, item in enumerate(split_data) if i < n)
 
+
 def _truncate_dataset(ds, limits: dict):
     """
     Ensure and return a DatasetDict, truncating splits mentioned in `limits`.
@@ -64,6 +116,7 @@ def _truncate_dataset(ds, limits: dict):
         n = limits.get(split, None)
         out[split] = _truncate_split(data, n) if n is not None else data
     return DatasetDict(out)
+
 
 def _concat_splits(a, b):
     """
@@ -79,6 +132,7 @@ def _concat_splits(a, b):
     # Prefer datasets' concatenate_datasets when both are Datasets
     try:
         from datasets import concatenate_datasets
+
         if isinstance(a, Dataset) and isinstance(b, Dataset):
             return concatenate_datasets([a, b])
     except Exception:
@@ -94,7 +148,10 @@ def _concat_splits(a, b):
     except Exception:
         pass
 
-    raise TypeError(f"Cannot concatenate split objects of types {type(a)} and {type(b)}")
+    raise TypeError(
+        f"Cannot concatenate split objects of types {type(a)} and {type(b)}"
+    )
+
 
 def _merge_datasetdicts(d1, d2):
     """
@@ -116,6 +173,7 @@ def _merge_datasetdicts(d1, d2):
             out[split] = _concat_splits(a, b)
     return DatasetDict(out)
 
+
 def _ensure_datasetdict(ds):
     """
     Normalize various loader outputs into a DatasetDict.
@@ -132,6 +190,18 @@ def _ensure_datasetdict(ds):
     # Single split -> assume train
     return DatasetDict({"train": ds})
 
+
+def _match(name: str, needle) -> bool:
+    """
+    Returns True if `name` matches any of the provided needles.
+    Accepts a single string or a list/tuple of strings.
+    Match condition: name endswith(needle) or needle in name.
+    """
+    if isinstance(needle, (list, tuple)):
+        return any(name.endswith(n) or n in name for n in needle)
+    return name.endswith(needle) or needle in name
+
+
 def load_sft_dataset(dataset_args: str):
     """
     Returns:
@@ -141,29 +211,36 @@ def load_sft_dataset(dataset_args: str):
       - Multiple datasets separated by '|', concatenated per split.
       - Unmentioned splits remain full.
     Examples of dataset_args:
-      - "dataset_name_or_path=tatsu-lab/alpaca"
-      - "dataset_name_or_path=OpenCoder-LLM/opc-sft-stage2,name=educational_instruct"
-      - "dataset_name_or_path=tatsu-lab/alpaca[train:5000] | dataset_name_or_path=HuggingFaceH4/ultrachat_200k[train:5000]"
+      - "tatsu-lab/alpaca"
+      - "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"
+      - "tatsu-lab/alpaca[train:5000]"
+      - "tatsu-lab/alpaca[train:5000] | HuggingFaceH4/ultrachat_200k[train:5000]"
     """
+    from dllm.data.alpaca import load_dataset_alpaca
+    from dllm.data.opc import load_dataset_opc
+    from dllm.data.saferlhf import load_dataset_pku_rlhf_sft
+
     specs = [p.strip() for p in dataset_args.split("|") if p.strip()]
     all_parts = []
 
     for raw in specs:
         kvs, limits = _parse_one_spec(raw)
-        assert "dataset_name_or_path" in kvs, f"'dataset_name_or_path' missing in spec: {raw}"
+        assert (
+            "dataset_name_or_path" in kvs
+        ), f"'dataset_name_or_path' missing in spec: {raw}"
         dataset_name_or_path = kvs.pop("dataset_name_or_path")
-        dataset_name_or_path = resolve_with_base_env(dataset_name_or_path, "BASE_DATASETS_DIR")
-
-        def _match(name, needle):
-            return name.endswith(needle) or needle in name
+        dataset_name_or_path = resolve_with_base_env(
+            dataset_name_or_path, "BASE_DATASETS_DIR"
+        )
 
         if _match(dataset_name_or_path, "tatsu-lab/alpaca"):
             ds = load_dataset_alpaca(dataset_name_or_path)
         elif _match(dataset_name_or_path, "allenai/tulu-3-sft-mixture"):
             ds = load_dataset(dataset_name_or_path)
             ds = ds["train"].train_test_split(test_size=0.1, seed=42)
-        elif (_match(dataset_name_or_path, "OpenCoder-LLM/opc-sft-stage1") or 
-              _match(dataset_name_or_path, "OpenCoder-LLM/opc-sft-stage2")):
+        elif _match(dataset_name_or_path, "OpenCoder-LLM/opc-sft-stage1") or _match(
+            dataset_name_or_path, "OpenCoder-LLM/opc-sft-stage2"
+        ):
             name = kvs.pop("name", None)
             ds = load_dataset_opc(dataset_name_or_path, name)
         elif _match(dataset_name_or_path, "HuggingFaceH4/ultrachat_200k"):
@@ -191,59 +268,205 @@ def load_sft_dataset(dataset_args: str):
     return _ensure_datasetdict(merged)
 
 
+def _concat_iterable_datasets(parts: list[IterableDataset]) -> IterableDataset:
+    """
+    Concatenate IterableDatasets sequentially without materialization.
+    Preserves streaming nature; supports downstream .take()/.skip()/.shuffle().
+    """
+    if not parts:
+        raise ValueError("No IterableDatasets to concatenate.")
+    # Try to reuse features from the first dataset when available
+    features = getattr(parts[0], "features", None)
+
+    def _gen():
+        for ds in parts:
+            yield from ds
+
+    return IterableDataset.from_generator(_gen, features=features)
+
+
+def _ensure_iterabledatasetdict(obj) -> IterableDatasetDict:
+    if isinstance(obj, IterableDatasetDict):
+        return obj
+    if isinstance(obj, dict):
+        return IterableDatasetDict(obj)
+    # Single stream -> assume train
+    return IterableDatasetDict({"train": obj})
+
+
+def _merge_iterabledatasetdicts(
+    d1: IterableDatasetDict, d2: IterableDatasetDict
+) -> IterableDatasetDict:
+    """
+    Merge by concatenating any overlapping splits (streaming-safe).
+    """
+    d1 = _ensure_iterabledatasetdict(d1)
+    d2 = _ensure_iterabledatasetdict(d2)
+    all_splits = set(d1.keys()) | set(d2.keys())
+    out = {}
+    for split in all_splits:
+        a = d1.get(split, None)
+        b = d2.get(split, None)
+        if a is None:
+            out[split] = b
+        elif b is None:
+            out[split] = a
+        else:
+            out[split] = _concat_iterable_datasets([a, b])
+    return IterableDatasetDict(out)
+
+
+def _truncate_stream(ds: IterableDataset, n: int | None) -> IterableDataset:
+    if n is None:
+        return ds
+    return ds.take(n)
+
+
 def load_pt_dataset(dataset_args: str):
-    # only support streaming
-    raw = dataset_args
-    kvs, limits = _parse_one_spec(raw)
-    # dataset_name_or_path = kvs.pop("dataset_name_or_path")
-    assert "dataset_name_or_path" in kvs, f"'dataset_name_or_path' missing in spec: {raw}"
-    dataset_name_or_path = kvs.pop("dataset_name_or_path")
-    dataset_name_or_path = resolve_with_base_env(dataset_name_or_path, "BASE_DATASETS_DIR")
+    """
+    Streaming loader with concatenation across multiple dataset specs (separated by '|').
 
-    def _match(name, needle):
-        return name.endswith(needle) or needle in name
+    Spec syntax (new, simpler):
+      - Bare path:               "mlfoundations/dclm-baseline-1.0"
+      - With limits:             "mlfoundations/dclm-baseline-1.0[train:5000]"
+      - With multiple limits:    "mlfoundations/dclm-baseline-1.0[train:5000,test:1000]"
+      - Multiple datasets:       "d1[train:5000] | d2[test:1000]"
+      - Options in brackets (kept for future use): "OpenCoder-LLM/opc-fineweb-code-corpus[name:foo]"
 
-    if _match(dataset_name_or_path, "mlfoundations/dclm-baseline-1.0"):
-        n_total = limits["train"] + limits["test"]
-        n_train = limits["train"]
-        ds = load_dataset(
+    Notes on limits:
+      - Underscores allowed in integers (e.g., train:1_000_000).
+      - If both train and test are provided:
+          * We shuffle a streaming buffer, take (train+test), then split deterministically.
+      - If only train is provided: returns {'train': ...}
+      - If only test is provided:  returns {'test': ...}
+      - If no limits:              returns {'train': full shuffled stream}
+
+    Current supported streaming datasets:
+      - "mlfoundations/dclm-baseline-1.0"
+      - "OpenCoder-LLM/opc-fineweb-code-corpus"
+      - "OpenCoder-LLM/opc-fineweb-math-corpus"
+    """
+    specs = [p.strip() for p in dataset_args.split("|") if p.strip()]
+    if not specs:
+        raise ValueError("Empty dataset_args for load_pt_dataset.")
+
+    def _load_one_streaming_spec(raw: str) -> IterableDatasetDict:
+        kvs, limits = _parse_one_spec(raw)
+        assert (
+            "dataset_name_or_path" in kvs
+        ), f"'dataset_name_or_path' missing in spec: {raw}"
+        dataset_name_or_path = kvs.pop("dataset_name_or_path")
+        dataset_name_or_path = resolve_with_base_env(
+            dataset_name_or_path, "BASE_DATASETS_DIR"
+        )
+
+        # ---- Supported streaming datasets ----
+        if _match(
             dataset_name_or_path,
-            split="train",
-            streaming=True
-        ).take(n_total)
+            [
+                "mlfoundations/dclm-baseline-1.0",
+                "OpenCoder-LLM/opc-fineweb-code-corpus",
+                "OpenCoder-LLM/opc-fineweb-math-corpus",
+            ],
+        ):
+            # Base stream (single 'train' split on HF hub)
+            base = load_dataset(
+                dataset_name_or_path,
+                split="train",
+                streaming=True,
+            )
+        else:
+            raise NotImplementedError(
+                f"Streaming dataset not supported: {dataset_name_or_path}"
+            )
 
-        # Shuffle with a buffer (larger buffer ⇒ better mixing, more RAM/IO)
-        shuffled = ds.shuffle(seed=42, buffer_size=10_000)
+        # Optional shuffle before slicing to avoid order bias when we split into train/test
+        # Tune buffer_size for your I/O memory constraints
+        shuffled = base.shuffle(seed=42, buffer_size=10_000)
 
-        train = shuffled.take(n_train)
-        test  = shuffled.skip(n_train)
-        dataset = IterableDatasetDict({"train": train, "test": test})
-    
-    else:
-        raise NotImplementedError
+        n_train = limits.get("train", None)
+        n_test = limits.get("test", None)
 
-    return dataset
+        if n_train is not None and n_test is not None:
+            n_total = n_train + n_test
+            head = shuffled.take(n_total)
+            # Now split the head deterministically into train/test
+            test = head.take(n_test)
+            train = head.skip(n_test).take(n_train)
+            # train = head.take(n_train)
+            # test = head.skip(n_train).take(n_test)
+            return IterableDatasetDict({"train": train, "test": test})
+
+        # Only train limit specified
+        if n_train is not None and n_test is None:
+            train = shuffled.take(n_train)
+            return IterableDatasetDict({"train": train})
+
+        # Only test limit specified
+        if n_test is not None and n_train is None:
+            test = shuffled.take(n_test)
+            return IterableDatasetDict({"test": test})
+
+        # No explicit limits → expose full stream as train
+        return IterableDatasetDict({"train": shuffled})
+
+    # Load each spec to an IterableDatasetDict and apply *post* truncation per split if extra limits exist.
+    # (For sources that already split internally, we respect what _load_one_streaming_spec produced.)
+    parts: list[IterableDatasetDict] = []
+    for raw in specs:
+        ds_part = _load_one_streaming_spec(raw)
+        # Apply *additional* per-split truncations if provided in spec (safe no-ops when already exact-sized)
+        _, limits = _parse_one_spec(raw)
+        truncated = {}
+        for split, stream in ds_part.items():
+            truncated[split] = _truncate_stream(stream, limits.get(split, None))
+        parts.append(IterableDatasetDict(truncated))
+
+    # Merge all parts by concatenating per-split streams
+    merged = parts[0]
+    for p in parts[1:]:
+        merged = _merge_iterabledatasetdicts(merged, p)
+
+    return merged
 
 
 if __name__ == "__main__":
-    # tulu_dataset = load_sft_dataset(
-    #     "dataset_name_or_path=allenai/tulu-3-sft-mixture")
+    # tulu_dataset = load_sft_dataset("allenai/tulu-3-sft-mixture")
     # tulu_datatset_subset = load_sft_dataset(
-    #     "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    #     "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
     # )
     # opc_dataset = load_sft_dataset(
-    #     "dataset_name_or_path=OpenCoder-LLM/opc-sft-stage2,name=educational_instruct")
-    # ultrachat_dataset = load_sft_dataset(
-    #     "dataset_name_or_path=HuggingFaceH4/ultrachat_200k")
-    # saferlhf_dataset = load_sft_dataset(
-    #     "dataset_name_or_path=PKU-Alignment/PKU-SafeRLHF,name=safe")
+    #     "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"
+    # )
+    # ultrachat_dataset = load_sft_dataset("HuggingFaceH4/ultrachat_200k")
+    # saferlhf_dataset = load_sft_dataset("PKU-Alignment/PKU-SafeRLHF[name:safe]")
 
     # merged_dataset = load_sft_dataset(
-    #     "dataset_name_or_path=allenai/tulu-3-sft-mixture[train:10000,test:1000]|"
-    #     "dataset_name_or_path=OpenCoder-LLM/opc-sft-stage2,name=educational_instruct[train:20000,test:2000]"
+    #     "allenai/tulu-3-sft-mixture[train:10000,test:1000]|"
+    #     "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct,train:20000,test:2000]"
     # )
 
     dclm_dataset = load_pt_dataset(
-        "dataset_name_or_path=mlfoundations/dclm-baseline-1.0[train:4500,test:500]"
+        "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
+        # "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
+        # "mlfoundations/dclm-baseline-1.0[train:10_000_000,test:500]"
     )
+    # dclm_opc_dataset = load_pt_dataset(
+    #     "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
+    #     "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
+    # )
+    breakpoint()
+
+    from itertools import islice
+
+    # 1) Count exactly how many items your capped split yields
+    def count_stream(stream):
+        return sum(1 for _ in stream)
+
+    n_train = count_stream(dclm_dataset["train"])  # expect 4500
+    n_test = count_stream(dclm_dataset["test"])  # expect 500
+    print(n_train, n_test)
+
+    for i, ex in enumerate(dclm_dataset["train"].take(3)):
+        print(i, ex)
     breakpoint()

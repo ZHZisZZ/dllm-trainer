@@ -16,6 +16,7 @@ def _map_to_messages(ds: Dataset) -> Dataset:
                 {"role": "assistant", "content": example["output"]},
             ]
         }
+
     # Remove all original columns after mapping
     remove_cols = ds.column_names
     return ds.map(map_fn, remove_columns=remove_cols, num_proc=4)
@@ -26,7 +27,7 @@ def _load_one_config(dataset_name_or_path: str, cfg_name: str) -> Dataset:
     return _map_to_messages(ds)
 
 
-def load_dataset_opc(dataset_name_or_path: str, name: Optional[Text] = None) -> DatasetDict:
+def load_dataset_opc(dataset_name_or_path: str, name: str | None = None) -> DatasetDict:
     """
     Load OpenCoder OPC SFT dataset(s) and produce a DatasetDict with a train/test split.
     - If `name` is provided: load that specific config.
@@ -36,7 +37,7 @@ def load_dataset_opc(dataset_name_or_path: str, name: Optional[Text] = None) -> 
         train_ds = _load_one_config(dataset_name_or_path, name)
     else:
         # Enumerate and load all configs, then concatenate
-        cfgs: List[str] = get_dataset_config_names(dataset_name_or_path)
+        cfgs: list[str] = get_dataset_config_names(dataset_name_or_path)
         if not cfgs:
             raise ValueError(f"No configs found for dataset: {dataset_name_or_path}")
         parts = [_load_one_config(dataset_name_or_path, c) for c in cfgs]
@@ -49,7 +50,10 @@ def load_dataset_opc(dataset_name_or_path: str, name: Optional[Text] = None) -> 
 
 if __name__ == "__main__":
     from dllm.utils import resolve_with_base_env
-    dataset_name_or_path = resolve_with_base_env("OpenCoder-LLM/opc-sft-stage1", "BASE_DATASETS_DIR")
+
+    dataset_name_or_path = resolve_with_base_env(
+        "OpenCoder-LLM/opc-sft-stage1", "BASE_DATASETS_DIR"
+    )
     # If you want a specific config:
     dataset_edu = load_dataset_opc(dataset_name_or_path, "educational_instruct")
     # Otherwise, all configs concatenated:

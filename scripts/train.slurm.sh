@@ -2,7 +2,7 @@
 #SBATCH --job-name=dllm
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:8
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=64
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=mllm_safety # Note: adjust this for your cluster
 #SBATCH --quotatype=spot        # Note: adjust this for your cluster
@@ -39,11 +39,10 @@ echo "============================"
 
 # force crashing on nccl issues like hanging broadcast
 export NCCL_ASYNC_ERROR_HANDLING=1
-export WANDB_MODE=disabled
 export PYTHONPATH=.
 
 # default args for dllm
-accelerate_config="deepspeed_zero3"
+accelerate_config="deepspeed_zero2"
 script_path="scripts/examples/llada_sft.py"
 script_args=""
 

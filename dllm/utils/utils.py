@@ -2,7 +2,9 @@ import os
 from contextlib import contextmanager
 from dataclasses import dataclass, asdict
 from typing import TYPE_CHECKING
-if TYPE_CHECKING: from dllm.utils.configs import ModelArguments, DataArguments, TrainingArguments
+
+if TYPE_CHECKING:
+    from dllm.utils.configs import ModelArguments, DataArguments, TrainingArguments
 
 import pprint
 import torch
@@ -50,6 +52,7 @@ def init_device_context_manager(device: str | torch.device | None = None):
     if device is None:
         try:
             from accelerate import PartialState
+
             idx = PartialState().local_process_index
         except Exception:
             idx = 0
@@ -82,8 +85,11 @@ def pprint_main(*args, **kwargs):
         pprint.pprint(*args, **kwargs)
 
 
-def load_peft(model: transformers.PreTrainedModel, training_args: "TrainingArguments") -> transformers.PreTrainedModel:
-    if not training_args.lora: return model
+def load_peft(
+    model: transformers.PreTrainedModel, training_args: "TrainingArguments"
+) -> transformers.PreTrainedModel:
+    if not training_args.lora:
+        return model
     peft_config = peft.LoraConfig(
         r=training_args.r,
         target_modules=training_args.target_modules,
@@ -99,7 +105,11 @@ def load_peft(model: transformers.PreTrainedModel, training_args: "TrainingArgum
     return model
 
 
-def print_args_main(model_args: "ModelArguments", data_args: "DataArguments", training_args: "TrainingArguments"):
+def print_args_main(
+    model_args: "ModelArguments",
+    data_args: "DataArguments",
+    training_args: "TrainingArguments",
+):
     print_main("\n===== Parsed arguments =====")
     for name, args in [
         ("model_args", model_args),
@@ -117,8 +127,10 @@ def print_args_main(model_args: "ModelArguments", data_args: "DataArguments", tr
 def disable_caching_allocator_warmup():
     try:
         from transformers import modeling_utils as _mu
-        def _noop(*args, **kwargs): 
+
+        def _noop(*args, **kwargs):
             return
+
         _mu.caching_allocator_warmup = _noop
     except Exception:
         pass
@@ -127,6 +139,7 @@ def disable_caching_allocator_warmup():
 def disable_dataset_progress_bar_except_main():
     # state = accelerate.PartialState()  # figures out your rank/world automatically
     from datasets.utils.logging import disable_progress_bar, enable_progress_bar
+
     if accelerate.PartialState().is_main_process:
         enable_progress_bar()
     else:
@@ -152,8 +165,7 @@ def clip_row(row: dict, max_length: int, truncation: str = "right") -> dict:
 
 
 def post_process_dataset(
-    dataset: datasets.DatasetDict, 
-    data_args: "DataArguments"
+    dataset: datasets.DatasetDict, data_args: "DataArguments"
 ) -> datasets.DatasetDict:
     if data_args.truncation == "filter":
         return dataset.filter(
@@ -185,9 +197,9 @@ def clip_row_streaming(row: dict, max_length: int, truncation: str = "right") ->
 
     def clip_preserve_prompt(seq, prompt_len: int):
         prompt = seq[:prompt_len]
-        resp   = seq[prompt_len:]
+        resp = seq[prompt_len:]
         budget = max(0, max_length - len(prompt))
-        resp   = resp[:budget] if truncation == "right" else resp[-budget:]
+        resp = resp[:budget] if truncation == "right" else resp[-budget:]
         return prompt + resp
 
     prompt_len = row.get("prompt_len", None)
@@ -199,7 +211,6 @@ def clip_row_streaming(row: dict, max_length: int, truncation: str = "right") ->
                 else clip(row[k])
             )
     return row
-
 
 
 def post_process_dataset_streaming(
@@ -222,17 +233,24 @@ def post_process_dataset_streaming(
     if mode == "filter":
         # Keep rows with len(input_ids) <= max_len (emulate .filter with generator map)
         def keep_if_short(row):
-            if "input_ids" in row and isinstance(row["input_ids"], list) and len(row["input_ids"]) <= max_len:
+            if (
+                "input_ids" in row
+                and isinstance(row["input_ids"], list)
+                and len(row["input_ids"]) <= max_len
+            ):
                 yield row  # keep
             # else: drop (yield nothing)
 
-        return datasets.IterableDatasetDict({name: ds.map(keep_if_short) for name, ds in dataset.items()})
+        return datasets.IterableDatasetDict(
+            {name: ds.map(keep_if_short) for name, ds in dataset.items()}
+        )
 
     elif mode == "right":
         ds_out = dataset
 
         # Do this only if TRAIN split has "prompt_len" (same condition as your non-streaming code)
         if _train_has_prompt_len_streaming(ds_out):
+
             def keep_if_prompt_fits(row):
                 pl = row.get("prompt_len", None)
                 if isinstance(pl, int) and pl <= max_len:
@@ -243,13 +261,17 @@ def post_process_dataset_streaming(
                     return
                 # else: drop
 
-            ds_out = datasets.IterableDatasetDict({name: ds.map(keep_if_prompt_fits) for name, ds in ds_out.items()})
+            ds_out = datasets.IterableDatasetDict(
+                {name: ds.map(keep_if_prompt_fits) for name, ds in ds_out.items()}
+            )
 
         # Then clip right (same clipping as clip_row)
         def clip_right(row):
             return clip_row(row, max_len, truncation="right")
 
-        return datasets.IterableDatasetDict({name: ds.map(clip_right) for name, ds in ds_out.items()})
+        return datasets.IterableDatasetDict(
+            {name: ds.map(clip_right) for name, ds in ds_out.items()}
+        )
 
     else:
         raise NotImplementedError

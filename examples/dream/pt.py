@@ -4,97 +4,92 @@ Local users
 - 1 GPU:
     accelerate launch \
         --config_file scripts/accelerate_configs/single_gpu.yaml \
-        examples/llada/pt.py
-    
+        examples/dream/pt.py
+
 - 8 GPUs (DeepSpeed ZeRO-2):
     accelerate launch \
         --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
-        examples/llada/pt.py
+        examples/dream/pt.py
 
 Slurm users
-# Note: run `mkdir logs` before running sbatch; and adjust 
-#       `partition` and `quotatype` in `scripts/train.slurm.sh` for your cluster.
 ------------
+# Note: run `mkdir logs` before running sbatch; adjust partition & quotatype as needed.
 - 1 GPU:
     sbatch --gres=gpu:1 scripts/train.slurm.sh \
         --accelerate_config "single_gpu" \
-        --script_path "examples/llada/pt.py"
+        --script_path "examples/dream/pt.py"
 
-- 24 Nodes, 192 GPUs (DeepSpeed ZeRO-2):
-    sbatch --nodes=24 --gres=gpu:8 scripts/train.slurm.sh \
+- 16 GPUs (2 Nodes, ZeRO-2):
+    sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
         --accelerate_config "deepspeed_zero2" \
-        --script_path "examples/llada/pt.py"
+        --script_path "examples/dream/pt.py"
 """
 
 import os
 from dataclasses import dataclass
-
 import torch
 import transformers
 import accelerate
 import datasets
 
 import dllm
-from dllm.pipelines import llada
+from dllm.pipelines import dream
 
+
+# ---------------------------- Arguments -------------------------------- #
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
-    # Uses only the configuration from model_name_or_path to initialize the model from scratch
-    model_name_or_path: str = (
-        "GSAI-ML/LLaDA-8B-Base"  # "inclusionAI/LLaDA-MoE-7B-A1B-Base"
-    )
+    model_name_or_path: str = "Dream-org/Dream-v0-Base-7B"
 
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
+    # Default dataset example (can be replaced)
     dataset_args: str = "mlfoundations/dclm-baseline-1.0[train:10_000_000,test:10_000]"
 
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = (
-        "models/LLaDA-8B-Base/dclm-baseline-1.0[train:10_000_000,test:10_000]"
-    )
+    output_dir: str = "models/Dream-7B-PT"
     learning_rate: float = 3e-4
     max_steps: int = 2_000
     per_device_train_batch_size: int = 4
     gradient_accumulation_steps: int = 4
     eval_steps: float = 0.05
     save_steps: float = 0.05
-    # llada specific
-    random_length_ratio: float = (
-        0.01  # https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md
-    )
+
+    # Dream-specific pretraining params: https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml
+    resp_cutoff_ratio: float = 0.1
+
 
 
 def train():
-    # ----- Argument parsing -------------------------------------------------------
+    # ----- Parse & setup --------------------------------------------------------
     parser = transformers.HfArgumentParser(
         (ModelArguments, DataArguments, TrainingArguments)
     )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    training_args.accelerator_config.dispatch_batches = (
-        False  # necessary for streaming dataset
-    )
+    training_args.accelerator_config.dispatch_batches = False  # for streaming dataset
     dllm.utils.print_args_main(model_args, data_args, training_args)
     dllm.utils.initial_training_setup(training_args)
 
-    # ----- Model ------------------------------------------------------------------
-    # initialize model weights from scratch
+    # ----- Model ---------------------------------------------------------------
+    # Initialize from config (Dream pretraining = from scratch)
     config = transformers.AutoConfig.from_pretrained(model_args.model_name_or_path)
     with dllm.utils.init_device_context_manager():
         model = transformers.AutoModel.from_config(
-            config, torch_dtype=torch.bfloat16, init_params=True
+            config, torch_dtype=torch.bfloat16
         )
+        # model.apply(model._init_weights) # DreamModel doesn't have init_param(); using model._init_weights leads to deepspeed_zero3 error
 
-    # ----- Tokenizer --------------------------------------------------------------
+    # ----- Tokenizer -----------------------------------------------------------
     tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
-    # ----- Optional PEFT: LoRA ----------------------------------------------------
+    # ----- Optional PEFT: LoRA -------------------------------------------------
     model = dllm.utils.load_peft(model=model, training_args=training_args)
 
-    # ----- Dataset ----------------------------------------------------------------
-    # pack sequences to fixed length (no padding at all); infinite for training
+    # ----- Dataset -------------------------------------------------------------
+    # Similar to LLaDA: infinite stream of packed sequences
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_pt_dataset(data_args.dataset_args)
         dataset = datasets.IterableDatasetDict(
@@ -112,38 +107,38 @@ def train():
                 for split in dataset.keys()
             }
         )
-
-    # ----- Training --------------------------------------------------------------
+    # ----- Data Collator -------------------------------------------------------
     @dataclass
-    class LLaDAPTCollator(transformers.DataCollatorForSeq2Seq):
-        # Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md
-        random_length_ratio: float = 0.01
+    class DreamPTCollator(transformers.DataCollatorForSeq2Seq):
+        resp_cutoff_ratio: float = 0.01
 
         def __call__(self, features, return_tensors=None):
             outputs = super().__call__(features, return_tensors)
-            if torch.rand(1) < self.random_length_ratio:
-                random_length = torch.randint(
-                    1, outputs["input_ids"].shape[1] + 1, (1,)
-                )
+            # Randomly truncate sequences for length robustness (Dream-style)
+            if torch.rand(1) < self.resp_cutoff_ratio:
+                random_length = torch.randint(1, outputs["input_ids"].shape[1] + 1, (1,))
                 outputs["input_ids"] = outputs["input_ids"][:, :random_length]
                 outputs["labels"] = outputs["labels"][:, :random_length]
             return outputs
 
-    trainer = llada.LLaDATrainer(
+    # ----- Trainer -------------------------------------------------------------
+    trainer = dream.DreamTrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],
         eval_dataset=dataset.get("test", None),
         args=training_args,
-        data_collator=LLaDAPTCollator(
+        data_collator=DreamPTCollator(
             tokenizer,
             pad_to_multiple_of=8,
             return_tensors="pt",
             padding=True,
-            label_pad_token_id=tokenizer.pad_token_id,  # LLaDA is trained on padding <eos_token>
-            random_length_ratio=training_args.random_length_ratio,
+            label_pad_token_id=tokenizer.pad_token_id,
+            resp_cutoff_ratio=training_args.resp_cutoff_ratio,
         ),
     )
+
+    # ----- Training Loop -------------------------------------------------------
     trainer.train()
     trainer.save_model(os.path.join(training_args.output_dir, "checkpoint-final"))
     trainer.processing_class.save_pretrained(

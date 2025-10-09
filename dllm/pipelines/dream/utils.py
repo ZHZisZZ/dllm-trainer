@@ -38,8 +38,9 @@ class DreamSFTCollator(transformers.DataCollatorForSeq2Seq):
 
     Reference: https://github.com/DreamLM/Dream/blob/main/src/trainer/fsdp_sft_trainer.py
     """
-    perbatch_cutoff: bool = True        # Use prebatch truncation if True
-    resp_cutoff_ratio: float = 0.0      # Prob. of post-collation truncation
+
+    perbatch_cutoff: bool = True  # Use prebatch truncation if True
+    resp_cutoff_ratio: float = 0.0  # Prob. of post-collation truncation
 
     # -------------------------------------------------------------------------
     # 1) Pre-collation truncation (per-sample)
@@ -54,12 +55,11 @@ class DreamSFTCollator(transformers.DataCollatorForSeq2Seq):
         After:
         [<--promptA----><---respA--->]
         [<--promptB-><--respB-->]
-        [<---promptC----><--respC-->]    
+        [<---promptC----><--respC-->]
         kept_len = 10  → trim each response to ≤10 tokens (before padding)
         """
         resp_lens = torch.tensor(
-            [len(f["input_ids"]) - f["prompt_len"] for f in features],
-            dtype=torch.long
+            [len(f["input_ids"]) - f["prompt_len"] for f in features], dtype=torch.long
         )
         kept_len = int(np.random.choice(resp_lens))
         for f, r_len in zip(features, resp_lens):
@@ -88,8 +88,7 @@ class DreamSFTCollator(transformers.DataCollatorForSeq2Seq):
         """
         orig_seq_lens = [len(f["input_ids"]) for f in features]
         resp_lens = torch.tensor(
-            [len(f["input_ids"]) - f["prompt_len"] for f in features],
-            dtype=torch.long
+            [len(f["input_ids"]) - f["prompt_len"] for f in features], dtype=torch.long
         )
         min_resp_len = resp_lens.min().item()
         if min_resp_len <= 1:
@@ -129,9 +128,11 @@ class DreamSFTCollator(transformers.DataCollatorForSeq2Seq):
         batch = super().__call__(base, return_tensors=return_tensors)
 
         # optional post-collation truncation
-        if (not self.perbatch_cutoff
+        if (
+            not self.perbatch_cutoff
             and self.resp_cutoff_ratio > 0
-            and np.random.rand() < self.resp_cutoff_ratio):
+            and np.random.rand() < self.resp_cutoff_ratio
+        ):
             batch = self.apply_resp_cutoff(batch, features)
 
         batch.pop("prompt_len", None)

@@ -11,7 +11,7 @@ Number = Union[float, torch.Tensor]
 # ---------------- Registry-enabled Base ---------------- #
 @dataclasses.dataclass
 class BaseKappaScheduler:
-    __registry__: ClassVar[Dict[str, Type["BaseKappaScheduler"]]] = {}
+    __registry__: ClassVar[dict[str, type[BaseKappaScheduler]]] = {}
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -25,8 +25,9 @@ class BaseKappaScheduler:
     # ---- common API ----
     def kappa(self, t: Number) -> Number:
         t_tensor = torch.as_tensor(
-            t, dtype=torch.float32,
-            device=t.device if isinstance(t, torch.Tensor) else None
+            t,
+            dtype=torch.float32,
+            device=t.device if isinstance(t, torch.Tensor) else None,
         )
         if not torch.all((0.0 <= t_tensor) & (t_tensor <= 1.0)):
             raise ValueError(f"t={t} not in [0,1]")
@@ -35,8 +36,9 @@ class BaseKappaScheduler:
 
     def kappa_derivative(self, t: Number) -> Number:
         t_tensor = torch.as_tensor(
-            t, dtype=torch.float32,
-            device=t.device if isinstance(t, torch.Tensor) else None
+            t,
+            dtype=torch.float32,
+            device=t.device if isinstance(t, torch.Tensor) else None,
         )
         if not torch.all((0.0 <= t_tensor) & (t_tensor <= 1.0)):
             raise ValueError(f"t={t} not in [0,1]")
@@ -45,7 +47,7 @@ class BaseKappaScheduler:
 
     def weight(self, t: Number) -> Number:
         # w(t) = κ'(t) / (1 - κ(t))
-        return self.kappa_derivative(t) / (1 - self.kappa(t) + 1e-6)    
+        return self.kappa_derivative(t) / (1 - self.kappa(t) + 1e-6)
 
     # ---- hooks implemented by subclasses ----
     def _kappa(self, t: torch.Tensor) -> torch.Tensor:
@@ -57,6 +59,7 @@ class BaseKappaScheduler:
 
 # ---------------- Implementations ---------------- #
 
+
 @dataclasses.dataclass
 class CubicKappaScheduler(BaseKappaScheduler):
     a: float = 1.0
@@ -64,11 +67,11 @@ class CubicKappaScheduler(BaseKappaScheduler):
 
     def _kappa(self, t: torch.Tensor) -> torch.Tensor:
         # κ(t) = (a+1) t^3 - (a+b+1) t^2 + (b+1) t
-        return (self.a + 1) * (t ** 3) - (self.a + self.b + 1) * (t ** 2) + (self.b + 1) * t
+        return (self.a + 1) * (t**3) - (self.a + self.b + 1) * (t**2) + (self.b + 1) * t
 
     def _kappa_derivative(self, t: torch.Tensor) -> torch.Tensor:
         # κ'(t) = 3(a+1) t^2 - 2(a+b+1) t + (b+1)
-        return 3 * (self.a + 1) * (t ** 2) - 2 * (self.a + self.b + 1) * t + (self.b + 1)
+        return 3 * (self.a + 1) * (t**2) - 2 * (self.a + self.b + 1) * t + (self.b + 1)
 
 
 @dataclasses.dataclass
@@ -91,13 +94,17 @@ class CosineKappaScheduler(BaseKappaScheduler):
 
 # ---------------- Factory helpers ---------------- #
 
-def get_kappa_scheduler_class(name: str) -> Type[BaseKappaScheduler]:
+
+def get_kappa_scheduler_class(name: str) -> type[BaseKappaScheduler]:
     """Return the scheduler class by name (case-insensitive)."""
-    cls = BaseKappaScheduler.__registry__.get(name) or BaseKappaScheduler.__registry__.get(name.lower())
+    cls = BaseKappaScheduler.__registry__.get(
+        name
+    ) or BaseKappaScheduler.__registry__.get(name.lower())
     if cls is None:
         available = sorted(k for k in BaseKappaScheduler.__registry__ if k[0].isupper())
         raise ValueError(f"Unknown scheduler '{name}'. Available: {available}")
     return cls
+
 
 def make_kappa_scheduler(name: str, **kwargs: Any) -> BaseKappaScheduler:
     """Instantiate a scheduler by name with optional kwargs."""
