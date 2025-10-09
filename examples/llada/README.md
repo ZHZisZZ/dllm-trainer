@@ -116,7 +116,7 @@ sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
 
 ## Sampling
 We support batch sampling for standard generation and infilling generation.
-See [`examples/llada/generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/llada/generate.py) for a full example.
+See [`examples/llada/generate.py`](/examples/llada/generate.py) for a full example.
 ```shell
 python examples/llada/generate.py --model_name_or_path "GSAI-ML/LLaDA-8B-Instruct"
 ```

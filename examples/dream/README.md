@@ -105,7 +105,7 @@ sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
 
 ## Sampling
 We support batch sampling for standard generation and infilling generation.
-See [`examples/dream/generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/dream/generate.py) for a full example.
+See [`examples/dream/generate.py`](/examples/dream/generate.py) for a full example.
 ```shell
 python examples/dream/generate.py --model_name_or_path "Dream-org/Dream-v0-Base-7B"
 ```
