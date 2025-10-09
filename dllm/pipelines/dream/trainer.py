@@ -48,20 +48,13 @@ class DreamTrainer(transformers.Trainer):
         self,
         *args,
         scheduler: BaseAlphaScheduler | None = None,  # CART isn't function of time
-        geo_p: float = 0.1,
-        token_reweighting: bool = False,
-        alpha: float = 0.25,
-        gamma: float = 2,
-        time_reweighting: str = "original",
-        
+        geo_p: float = 0.3,
+        loss_reweight: str = "cart",
         **kwargs,
     ):
         self.scheduler = scheduler or LinearAlphaScheduler()
         self.geo_p = geo_p
-        self.token_reweighting = token_reweighting
-        self.alpha = alpha
-        self.gamma = gamma
-        self.time_reweighting = time_reweighting
+        self.loss_reweight = loss_reweight
         super().__init__(*args, **kwargs)
 
     def compute_loss(
@@ -78,7 +71,6 @@ class DreamTrainer(transformers.Trainer):
             inputs.get("attention_mask", None),
         )
         b, l = input_ids.shape
-
         # 1. sample timesteps
         t = torch.rand(b, device=input_ids.device)  # (b,)
         p_mask = 1 - self.scheduler(t).unsqueeze(1).repeat(1, l)  # (b, l)
@@ -86,7 +78,7 @@ class DreamTrainer(transformers.Trainer):
         # 2. apply masking
         masked_indices = torch.rand((b, l), device=input_ids.device) < p_mask
         masked_indices = masked_indices & (labels != -100)
-        # Dream disallows masking of the first token.
+        # Dream cannot unmask when the mask is the first token.
         masked_indices[:, 0] = False
         noised_input_ids = torch.where(
             masked_indices, self.processing_class.mask_token_id, input_ids
@@ -95,41 +87,23 @@ class DreamTrainer(transformers.Trainer):
         # 3. forward
         outputs = model(noised_input_ids, attention_mask)
         logits = outputs.logits
-        logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1) # Shift logits to align each position with its previous token prediction
+        logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
 
         if not masked_indices.any():
             # return a zero loss that retains graph/device/dtype
             return logits.sum() * 0.0
 
-        # 4. compute base loss (per-token, unweighted)
+        # 4. compute CART weights
+        if self.loss_reweight == "cart":
+            loss_weights = cart_weight(masked_indices, t, p=self.geo_p)
+        else:
+            loss_weights = torch.ones_like(input_ids)
+
+        # 5. compute weighted cross entropy
         token_loss = F.cross_entropy(
             logits[masked_indices], input_ids[masked_indices], reduction="none"
         )
-
-        # 5. optional token reweighting (focal-like)
-        if self.token_reweighting:
-            token_loss = (
-                self.alpha
-                * (1 - torch.exp(-token_loss)) ** self.gamma
-                * token_loss
-            )
-        # 6. time reweighting (choose scheme)
-        if self.time_reweighting == "original":
-            time_weights = 1 / t[:, None].float().expand(labels.size())
-            loss_weights = time_weights[masked_indices]
-        elif self.time_reweighting == "linear":
-            time_weights = 1 - t[:, None].float().expand(labels.size())
-            loss_weights = time_weights[masked_indices]
-        elif self.time_reweighting == "cart":
-            # keep existing CART logic
-            cart_weights = cart_weight(masked_indices, t, p=self.geo_p)
-            loss_weights = cart_weights[masked_indices]
-        else:
-            # default: uniform weights
-            loss_weights = torch.ones_like(token_loss)
-        
-        # 7. apply combined weighting
-        token_loss = token_loss * loss_weights    
+        token_loss = token_loss * loss_weights[masked_indices]
 
         # normalization
         effective_lengths = torch.sum(labels != -100, dim=1, keepdim=True).repeat(1, l)
