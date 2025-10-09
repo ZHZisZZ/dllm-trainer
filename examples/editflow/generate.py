@@ -351,9 +351,9 @@ def render_consecutive_trace_gif(
     font_size: int = 15,
     line_spacing: int = 12,
     frame_ms: int = 250,
-    clean_final_ms: int = 10000,   # final clean frame duration
+    clean_final_ms: int = 10000,  # final clean frame duration
     max_width: int = 1400,
-    max_height: int = 1600,        # kept as a cap
+    max_height: int = 1600,  # kept as a cap
     margin: int = 32,
     title_color=(80, 80, 80),
     text_color=(0, 0, 0),
@@ -383,7 +383,7 @@ def render_consecutive_trace_gif(
         s = unicodedata.normalize("NFKC", s)
         s = s.replace("Ċ", "\n").replace("▁", " ").replace("Ġ", " ")
         s = s.replace("\t", "    ")
-        s = s.replace("\u00A0", " ").replace("\u2007", " ").replace("\u202F", " ")
+        s = s.replace("\u00a0", " ").replace("\u2007", " ").replace("\u202f", " ")
         return s
 
     def _tok_str(tok_id: int) -> str:
@@ -432,7 +432,9 @@ def render_consecutive_trace_gif(
             lines.append(cur)
         return lines
 
-    def _draw_dashed_rectangle(draw, xy, dash=8, gap=6, width=2, outline=(120,120,120)):
+    def _draw_dashed_rectangle(
+        draw, xy, dash=8, gap=6, width=2, outline=(120, 120, 120)
+    ):
         x0, y0, x1, y1 = xy
         x = x0
         while x < x1:
@@ -461,7 +463,9 @@ def render_consecutive_trace_gif(
             if choose_del[i]:
                 lines.append(f"DEL@{i}:{_tok_str(int(x_before[i]))}")
             elif choose_sub[i]:
-                lines.append(f"SUB@{i}:{_tok_str(int(x_before[i]))}->{_tok_str(int(sub_samples[i]))}")
+                lines.append(
+                    f"SUB@{i}:{_tok_str(int(x_before[i]))}->{_tok_str(int(sub_samples[i]))}"
+                )
             if ins_samples[i] is not None:
                 lines.append(f"INS@{i}->{i+1}:{_tok_str(int(ins_samples[i]))}")
         if not lines:
@@ -470,7 +474,9 @@ def render_consecutive_trace_gif(
 
     # ---------- PASS 1: measure required heights per frame ----------
     # We collect all wrapping/ops data first, so we can pick a uniform H.
-    measurement_payload = []  # list of dicts with wrapped_lines, ops_lines, and step ref
+    measurement_payload = (
+        []
+    )  # list of dicts with wrapped_lines, ops_lines, and step ref
 
     for step_idx, st in enumerate([None] + trace["steps"]):
         # build augmented sequence with injected deleted tokens
@@ -495,33 +501,46 @@ def render_consecutive_trace_gif(
 
         # required height for this frame (title + body + spacer + ops box)
         body_h = len(wrapped_lines) * (font_size + line_spacing)
-        ops_h  = len(ops_lines) * (font_size + line_spacing) + font_size + 20  # matches draw math
-        required_h = margin + (font_size + line_spacing) + body_h + 20 + ops_h  # no extra bottom margin
+        ops_h = (
+            len(ops_lines) * (font_size + line_spacing) + font_size + 20
+        )  # matches draw math
+        required_h = (
+            margin + (font_size + line_spacing) + body_h + 20 + ops_h
+        )  # no extra bottom margin
 
-        measurement_payload.append({
-            "step_idx": step_idx,
-            "st": st,
-            "augmented_ids": augmented_ids,
-            "tokens": tokens,
-            "wrapped_lines": wrapped_lines,
-            "ops_lines": ops_lines,
-            "required_h": required_h,
-        })
+        measurement_payload.append(
+            {
+                "step_idx": step_idx,
+                "st": st,
+                "augmented_ids": augmented_ids,
+                "tokens": tokens,
+                "wrapped_lines": wrapped_lines,
+                "ops_lines": ops_lines,
+                "required_h": required_h,
+            }
+        )
 
     # Measure clean final frame as well (no events box)
-    final_text_ids = trace["steps"][-1]["x_after_ids"] if trace["steps"] else trace["init"]["x_ids"]
+    final_text_ids = (
+        trace["steps"][-1]["x_after_ids"] if trace["steps"] else trace["init"]["x_ids"]
+    )
     final_tokens = tokenizer.convert_ids_to_tokens(final_text_ids)
-    wrapped_clean = _wrap_tokens_with_index(final_tokens, [False]*len(final_tokens))
+    wrapped_clean = _wrap_tokens_with_index(final_tokens, [False] * len(final_tokens))
     clean_body_h = len(wrapped_clean) * (font_size + line_spacing)
-    clean_required_h = margin + (font_size + line_spacing) + clean_body_h  # title + body
+    clean_required_h = (
+        margin + (font_size + line_spacing) + clean_body_h
+    )  # title + body
 
     # Pick a single canvas height: max across all frames, capped by max_height
-    max_required_h = max([p["required_h"] for p in measurement_payload] + [clean_required_h]) + 20
+    max_required_h = (
+        max([p["required_h"] for p in measurement_payload] + [clean_required_h]) + 20
+    )
     H = min(max_required_h, max_height)
     W = max_width
 
     # ---------- PASS 2: render with uniform H ----------
     from PIL import Image
+
     frames = []
 
     for p in measurement_payload:
@@ -550,12 +569,20 @@ def render_consecutive_trace_gif(
                 tok_id = int(augmented_ids[tok_idx])
                 tok_str_exact = tokens[tok_idx]
                 if is_deleted:
-                    strike_color = mask_color if (tok_id in MASK_IDS or tok_str_exact in MASK_STRINGS) else del_strike_color
+                    strike_color = (
+                        mask_color
+                        if (tok_id in MASK_IDS or tok_str_exact in MASK_STRINGS)
+                        else del_strike_color
+                    )
                     strike = "".join(ch + "\u0336" for ch in seg_text)
                     draw.text((x, y), strike, fill=strike_color, font=font)
                     x += tmp_draw.textlength(strike, font=font)
                 else:
-                    color = mask_color if (tok_id in MASK_IDS or tok_str_exact in MASK_STRINGS) else text_color
+                    color = (
+                        mask_color
+                        if (tok_id in MASK_IDS or tok_str_exact in MASK_STRINGS)
+                        else text_color
+                    )
                     if step_idx != 0 and tok_idx < len(st["after_ops"]):
                         op = st["after_ops"][tok_idx]
                         if op == "INS":

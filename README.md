@@ -85,7 +85,8 @@ dllm
 │   ├── dream
 │   ├── editflow
 │   └── llada
-│       ├── ...
+│       ├── models      # Model architecture and configs 
+│       ├── generate.py # Generation utilities
 │       └── trainer.py  # Core training logic
 ├── tools
 └── utils

@@ -27,7 +27,7 @@ Slurm users
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
 import transformers
@@ -63,8 +63,14 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     eval_steps: float = 0.05
     save_steps: float = 0.05
     # llada specific
-    random_length_ratio: float = (
-        0.01  # https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md
+    random_length_ratio: float = field(
+        default=0.01,
+        metadata={
+            "help": (
+                "The probability of randomly cut sequences during training. "
+                "See https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md."
+            )
+        },
     )
 
 
