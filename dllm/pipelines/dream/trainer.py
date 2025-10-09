@@ -29,11 +29,15 @@ def cart_weight(
     idx = torch.arange(l, device=device)
     dist_matrix = (idx[None, :] - idx[:, None]).abs() - 1
     dist_matrix = torch.clamp(dist_matrix, min=0)  # (l, l)
-
-    geo_matrix = (1 - p) ** dist_matrix * p  # (l, l)
+    geo_matrix = (
+        (torch.log(torch.tensor(p, device=device))
+         + (dist_matrix - 1).clamp(min=0) * torch.log(torch.tensor(1 - p, device=device))
+        ).exp() * 0.5  # Ensure numerical stability
+    )
+    geo_matrix.masked_fill_(dist_matrix == 0, 0.0)  # ignore distance = 0
 
     valid_mask = (~masked_indices).float()  # (b, l), 1 = unmasked
-    weights = 0.5 * valid_mask @ geo_matrix.T  # (b, l)
+    weights = valid_mask @ geo_matrix.T  # (b, l)
     weights = weights * masked_indices.float()
     return weights
 
@@ -45,10 +49,12 @@ class DreamTrainer(transformers.Trainer):
         *args,
         scheduler: BaseAlphaScheduler | None = None,  # CART isn't function of time
         geo_p: float = 0.3,
+        loss_reweight: str = "cart",
         **kwargs,
     ):
         self.scheduler = scheduler or LinearAlphaScheduler()
         self.geo_p = geo_p
+        self.loss_reweight = loss_reweight
         super().__init__(*args, **kwargs)
 
     def compute_loss(
@@ -65,7 +71,7 @@ class DreamTrainer(transformers.Trainer):
             inputs.get("attention_mask", None),
         )
         b, l = input_ids.shape
-
+        
         # 1. sample timesteps
         t = torch.rand(b, device=input_ids.device)  # (b,)
         p_mask = 1 - self.scheduler(t).unsqueeze(1).repeat(1, l)  # (b, l)
@@ -89,7 +95,10 @@ class DreamTrainer(transformers.Trainer):
             return logits.sum() * 0.0
 
         # 4. compute CART weights
-        loss_weights = cart_weight(masked_indices, t, p=self.geo_p)
+        if self.loss_reweight == "cart":
+            loss_weights = cart_weight(masked_indices, t, p=self.geo_p)
+        else:
+            loss_weights = (1.0 / t).expand_as(input_ids)
 
         # 5. compute weighted cross entropy
         token_loss = F.cross_entropy(
