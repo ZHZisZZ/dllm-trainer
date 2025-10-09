@@ -108,3 +108,4 @@ See [`examples/dream/generate.py`](/examples/dream/generate.py) for a full examp
 ```shell
 python examples/dream/generate.py --model_name_or_path "Dream-org/Dream-v0-Base-7B"
 ```
+

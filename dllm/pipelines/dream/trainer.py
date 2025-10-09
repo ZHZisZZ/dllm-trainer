@@ -71,6 +71,7 @@ class DreamTrainer(transformers.Trainer):
             inputs.get("attention_mask", None),
         )
         b, l = input_ids.shape
+        
         # 1. sample timesteps
         t = torch.rand(b, device=input_ids.device)  # (b,)
         p_mask = 1 - self.scheduler(t).unsqueeze(1).repeat(1, l)  # (b, l)
