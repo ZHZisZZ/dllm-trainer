@@ -26,7 +26,7 @@ Slurm users
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import torch
 import transformers
 import accelerate
@@ -41,7 +41,6 @@ from dllm.pipelines import dream
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = "Dream-org/Dream-v0-Base-7B"
-
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
@@ -60,7 +59,16 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     save_steps: float = 0.05
 
     # Dream-specific pretraining params: https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml
-    resp_cutoff_ratio: float = 0.1
+    loss_reweight: str = field(
+            default="cart",
+            metadata={
+                "help": (
+                    "Loss reweighting strategy. Options: 'original' (uniform token weights), "
+                    "'cart' (Context-Adaptive noise Rescheduling at Token-level - weights tokens "
+                    "based on surrounding context)"
+                )
+            },
+        ),
 
 
 
@@ -89,7 +97,6 @@ def train():
     model = dllm.utils.load_peft(model=model, training_args=training_args)
 
     # ----- Dataset -------------------------------------------------------------
-    # Similar to LLaDA: infinite stream of packed sequences
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_pt_dataset(data_args.dataset_args)
         dataset = datasets.IterableDatasetDict(

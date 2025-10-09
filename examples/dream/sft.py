@@ -28,7 +28,7 @@ Slurm users
 
 import os
 import functools
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import transformers
 import accelerate
@@ -54,7 +54,16 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     perbatch_cutoff: bool = True
     resp_cutoff_ratio: float = 0.1
     mask_prompt_loss: bool = True
-    loss_reweight: str = "cart"
+    loss_reweight: str = field(
+            default="cart",
+            metadata={
+                "help": (
+                    "Loss reweighting strategy. Options: 'original' (uniform token weights), "
+                    "'cart' (Context-Adaptive noise Rescheduling at Token-level - weights tokens "
+                    "based on surrounding context)"
+                )
+            },
+        ),
 
 
 def train():
