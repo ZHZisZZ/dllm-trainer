@@ -1,6 +1,6 @@
 import os
 import functools
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
 import transformers
@@ -12,9 +12,18 @@ from dllm.pipelines import editflow
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
-    model_name_or_path: str = None  # TODO: overwrite this
-    lm_head_key: str = None  # TODO: overwrite this if `init_editflow_from_src` = True
-    init_editflow_from_src: bool = True
+    model_name_or_path: str = None  # overwrite this
+    lm_head_key: str = field(
+        default=None,
+        metadata={"help": (
+            "The key to the `lm_head` in the source model for initializing operation heads in the EditFlow model. "
+            "Overwrite this when `init_editflow_from_src` = True"
+        )},
+    )
+    init_editflow_from_src: bool = field(
+        default=True,
+        metadata={"help": "Whether to initialize EditFlow model from the source model."},
+    )
 
 
 @dataclass
@@ -26,7 +35,7 @@ class DataArguments(dllm.utils.DataArguments):
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = None  # TODO: overwrite this
+    output_dir: str = None  # overwrite this
     learning_rate: float = 3e-4
     max_steps: int = 10_000
     per_device_train_batch_size: int = 2
@@ -34,11 +43,21 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     eval_steps: float = 0.05
     save_steps: float = 0.05
     # others (editflow specific training params)
-    scheduler_cls: str = "LinearKappaScheduler"
-    normalize_per_position: bool = True
-    max_w: float = 20
-    x0_sampler: str = (
-        "sample_x0_masks"  # sample_x0_masks, sample_x0_empty, sample_x0_noisy, sample_x0_mixture
+    scheduler_cls: str = field(
+        default="LinearKappaScheduler",
+        metadata={"help": "The scheduler class to use."},
+    )
+    normalize_per_position: bool = field(
+        default=True,
+        metadata={"help": "Whether to normalize the loss per position."},
+    )
+    max_w: float = field(
+        default=20.0,
+        metadata={"help": "The maximum weight (κ'(t) / (1 - κ(t))) for the loss."},
+    )
+    x0_sampler: str = field(
+        default="masks[length:128]",
+        metadata={"help": "The x0 sampler to use. Default to 128 mask tokens."},
     )
 
 

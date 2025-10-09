@@ -38,9 +38,11 @@ from dllm.pipelines import dream
 
 # ---------------------------- Arguments -------------------------------- #
 
+
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = "Dream-org/Dream-v0-Base-7B"
+
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
@@ -68,7 +70,8 @@ class TrainingArguments(dllm.utils.TrainingArguments):
             )
         },
     )
-    loss_reweight: str = field(
+    loss_reweight: str = (
+        field(
             default="cart",
             metadata={
                 "help": (
@@ -78,7 +81,7 @@ class TrainingArguments(dllm.utils.TrainingArguments):
                 )
             },
         ),
-
+    )
 
 
 def train():
@@ -95,9 +98,7 @@ def train():
     # Initialize from config (Dream pretraining = from scratch)
     config = transformers.AutoConfig.from_pretrained(model_args.model_name_or_path)
     with dllm.utils.init_device_context_manager():
-        model = transformers.AutoModel.from_config(
-            config, torch_dtype=torch.bfloat16
-        )
+        model = transformers.AutoModel.from_config(config, torch_dtype=torch.bfloat16)
         # model.apply(model._init_weights) # DreamModel doesn't have init_param(); using model._init_weights leads to deepspeed_zero3 error
 
     # ----- Tokenizer -----------------------------------------------------------
@@ -123,6 +124,7 @@ def train():
                 for split in dataset.keys()
             }
         )
+
     # ----- Data Collator -------------------------------------------------------
     @dataclass
     class DreamPTCollator(transformers.DataCollatorForSeq2Seq):
@@ -132,7 +134,9 @@ def train():
             outputs = super().__call__(features, return_tensors)
             # Randomly truncate sequences for length robustness (Dream-style)
             if torch.rand(1) < self.resp_cutoff_ratio:
-                random_length = torch.randint(1, outputs["input_ids"].shape[1] + 1, (1,))
+                random_length = torch.randint(
+                    1, outputs["input_ids"].shape[1] + 1, (1,)
+                )
                 outputs["input_ids"] = outputs["input_ids"][:, :random_length]
                 outputs["labels"] = outputs["labels"][:, :random_length]
             return outputs
@@ -164,4 +168,3 @@ def train():
 
 if __name__ == "__main__":
     train()
-

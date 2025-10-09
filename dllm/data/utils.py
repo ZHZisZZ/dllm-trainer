@@ -9,80 +9,7 @@ from datasets import (
     load_dataset,
 )
 
-from dllm.utils.utils import resolve_with_base_env
-
-
-def _parse_kv_string(s: str) -> dict:
-    return dict(part.split("=", 1) for part in s.split(",") if "=" in part)
-
-
-def _parse_one_spec(spec: str):
-    """
-    Parse a single dataset spec.
-
-    Supports:
-      - Bare dataset path, e.g. "tatsu-lab/alpaca"
-      - Optional bracket suffix with comma-separated entries:
-          * split limits:   train:5000, test:1_000
-          * extra options:  name:educational_instruct
-      - Optional "key=value" pairs outside the bracket (existing behavior)
-
-    Returns:
-      kvs:    dict of options, guaranteed to include 'dataset_name_or_path'
-      limits: dict of split -> int row limits
-    """
-    s = spec.strip()
-
-    # Extract bracket content if present
-    m = re.search(r"\[(.*?)\]$", s)
-    bracket_kvs = {}
-    limits = {}
-    if m:
-        bracket = m.group(1).strip()
-        if bracket:
-            for part in bracket.split(","):
-                part = part.strip()
-                if not part:
-                    continue
-                if ":" not in part:
-                    raise ValueError(
-                        f"Invalid entry '{part}' in '{spec}' (expected key:value)."
-                    )
-                key, value = part.split(":", 1)
-                key = key.strip()
-                value = value.strip()
-
-                # Integers (with optional underscores) -> split limits
-                if re.fullmatch(r"\d(?:_?\d)*", value):
-                    limits[key] = int(value.replace("_", ""))
-                else:
-                    # Otherwise treat as an option (e.g., name:educational_instruct)
-                    bracket_kvs[key] = value
-
-        # Remove the bracket suffix from the working string
-        s = s[: m.start()].rstrip()
-
-    # Anything outside the bracket:
-    # - if it contains "=", use existing "a=b,c=d" parsing
-    # - else treat as the dataset path
-    if "=" in s:
-        outer_kvs = _parse_kv_string(s)
-        kvs = dict(outer_kvs)
-    else:
-        kvs = {}
-        if s:
-            kvs["dataset_name_or_path"] = s
-
-    # Merge bracket kvs last so they can override outer values if needed
-    kvs.update(bracket_kvs)
-
-    # Ensure dataset_name_or_path is present
-    if "dataset_name_or_path" not in kvs:
-        raise ValueError(
-            f"'dataset_name_or_path' missing and could not be inferred from spec: {spec}"
-        )
-
-    return kvs, limits
+from dllm.utils.utils import resolve_with_base_env, parse_spec
 
 
 def _truncate_split(split_data, n: int):
@@ -224,11 +151,11 @@ def load_sft_dataset(dataset_args: str):
     all_parts = []
 
     for raw in specs:
-        kvs, limits = _parse_one_spec(raw)
-        assert (
-            "dataset_name_or_path" in kvs
-        ), f"'dataset_name_or_path' missing in spec: {raw}"
-        dataset_name_or_path = kvs.pop("dataset_name_or_path")
+        dataset_name_or_path, kvs = parse_spec(raw)
+        # assert (
+        #     "dataset_name_or_path" in kvs
+        # ), f"'dataset_name_or_path' missing in spec: {raw}"
+        # dataset_name_or_path = kvs.pop("dataset_name_or_path")
         dataset_name_or_path = resolve_with_base_env(
             dataset_name_or_path, "BASE_DATASETS_DIR"
         )
@@ -254,7 +181,7 @@ def load_sft_dataset(dataset_args: str):
 
         # Normalize to DatasetDict and apply per-split limits
         ds = _ensure_datasetdict(ds)
-        ds = _truncate_dataset(ds, limits)
+        ds = _truncate_dataset(ds, kvs)
         all_parts.append(ds)
 
     # If only one part, return as DatasetDict
@@ -351,11 +278,11 @@ def load_pt_dataset(dataset_args: str):
         raise ValueError("Empty dataset_args for load_pt_dataset.")
 
     def _load_one_streaming_spec(raw: str) -> IterableDatasetDict:
-        kvs, limits = _parse_one_spec(raw)
-        assert (
-            "dataset_name_or_path" in kvs
-        ), f"'dataset_name_or_path' missing in spec: {raw}"
-        dataset_name_or_path = kvs.pop("dataset_name_or_path")
+        dataset_name_or_path, kvs = parse_spec(raw)
+        # assert (
+        #     "dataset_name_or_path" in kvs
+        # ), f"'dataset_name_or_path' missing in spec: {raw}"
+        # dataset_name_or_path = kvs.pop("dataset_name_or_path")
         dataset_name_or_path = resolve_with_base_env(
             dataset_name_or_path, "BASE_DATASETS_DIR"
         )
@@ -384,8 +311,8 @@ def load_pt_dataset(dataset_args: str):
         # Tune buffer_size for your I/O memory constraints
         shuffled = base.shuffle(seed=42, buffer_size=10_000)
 
-        n_train = limits.get("train", None)
-        n_test = limits.get("test", None)
+        n_train = kvs.get("train", None)
+        n_test = kvs.get("test", None)
 
         if n_train is not None and n_test is not None:
             n_total = n_train + n_test
@@ -416,10 +343,10 @@ def load_pt_dataset(dataset_args: str):
     for raw in specs:
         ds_part = _load_one_streaming_spec(raw)
         # Apply *additional* per-split truncations if provided in spec (safe no-ops when already exact-sized)
-        _, limits = _parse_one_spec(raw)
+        _, kvs = parse_spec(raw)
         truncated = {}
         for split, stream in ds_part.items():
-            truncated[split] = _truncate_stream(stream, limits.get(split, None))
+            truncated[split] = _truncate_stream(stream, kvs.get(split, None))
         parts.append(IterableDatasetDict(truncated))
 
     # Merge all parts by concatenating per-split streams
@@ -431,42 +358,28 @@ def load_pt_dataset(dataset_args: str):
 
 
 if __name__ == "__main__":
-    # tulu_dataset = load_sft_dataset("allenai/tulu-3-sft-mixture")
-    # tulu_datatset_subset = load_sft_dataset(
-    #     "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
-    # )
-    # opc_dataset = load_sft_dataset(
-    #     "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"
-    # )
-    # ultrachat_dataset = load_sft_dataset("HuggingFaceH4/ultrachat_200k")
-    # saferlhf_dataset = load_sft_dataset("PKU-Alignment/PKU-SafeRLHF[name:safe]")
+    tulu_dataset = load_sft_dataset("allenai/tulu-3-sft-mixture")
+    tulu_datatset_subset = load_sft_dataset(
+        "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    )
+    opc_dataset = load_sft_dataset(
+        "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"
+    )
+    ultrachat_dataset = load_sft_dataset("HuggingFaceH4/ultrachat_200k")
+    saferlhf_dataset = load_sft_dataset("PKU-Alignment/PKU-SafeRLHF[name:safe]")
 
-    # merged_dataset = load_sft_dataset(
-    #     "allenai/tulu-3-sft-mixture[train:10000,test:1000]|"
-    #     "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct,train:20000,test:2000]"
-    # )
+    merged_dataset = load_sft_dataset(
+        "allenai/tulu-3-sft-mixture[train:10000,test:1000]|"
+        "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct,train:20000,test:2000]"
+    )
 
     dclm_dataset = load_pt_dataset(
         "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
         # "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
         # "mlfoundations/dclm-baseline-1.0[train:10_000_000,test:500]"
     )
-    # dclm_opc_dataset = load_pt_dataset(
-    #     "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
-    #     "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
-    # )
-    breakpoint()
-
-    from itertools import islice
-
-    # 1) Count exactly how many items your capped split yields
-    def count_stream(stream):
-        return sum(1 for _ in stream)
-
-    n_train = count_stream(dclm_dataset["train"])  # expect 4500
-    n_test = count_stream(dclm_dataset["test"])  # expect 500
-    print(n_train, n_test)
-
-    for i, ex in enumerate(dclm_dataset["train"].take(3)):
-        print(i, ex)
+    dclm_opc_dataset = load_pt_dataset(
+        "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
+        "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
+    )
     breakpoint()

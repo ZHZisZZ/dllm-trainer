@@ -1,6 +1,6 @@
 import os
 import functools
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import transformers
 import accelerate
@@ -11,9 +11,7 @@ from dllm.pipelines import editflow
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
-    model_name_or_path: str = None  # TODO: overwrite this
-    # lm_head_key: str = None # TODO: overwrite this
-    # init_editflow_from_src: bool = True
+    model_name_or_path: str = None  # overwrite this
 
 
 @dataclass
@@ -23,17 +21,30 @@ class DataArguments(dllm.utils.DataArguments):
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = None  # TODO: overwrite this
+    output_dir: str = None  # overwrite this
     gradient_accumulation_steps: int = 2
     learning_rate: float = 5e-5
-    # others (editflow specific training params)
-    scheduler_cls: str = "LinearKappaScheduler"
-    normalize_per_position: bool = True
-    max_w: float = 20
-    x0_sampler: str = (
-        "sample_x0_masks"  # sample_x0_masks, sample_x0_empty, sample_x0_noisy, sample_x0_mixture
+    # editflow specific
+    scheduler_cls: str = field(
+        default="LinearKappaScheduler",
+        metadata={"help": "The scheduler class to use."},
     )
-    mask_prompt_loss: bool = True
+    normalize_per_position: bool = field(
+        default=True,
+        metadata={"help": "Whether to normalize the loss per position."},
+    )
+    max_w: float = field(
+        default=20.0,
+        metadata={"help": "The maximum weight (κ'(t) / (1 - κ(t))) for the loss."},
+    )
+    x0_sampler: str = field(
+        default="masks[length:128]",
+        metadata={"help": "The x0 sampler to use. Default to 128 mask tokens."},
+    )
+    mask_prompt_loss: bool = field(
+        default=True,
+        metadata={"help": "Whether to mask the loss on the prompt tokens"},
+    )
 
 
 def train(
