@@ -47,11 +47,10 @@ examples/dream
 ## Training
 
 > [!NOTE]
-> Use `--dataset_args "allenai/tulu-3-sft-mixture[train:10000,test:1000]"` to train/evaluate only on a subset.  
-> Use `--dataset_args "allenai/tulu-3-sft-mixture | OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"` to concatenate datasets.
+> Use `--dataset_args "allenai/tulu-3-sft-mixture[train:10000,test:1000]"` to train/evaluate only on a subset; Use `--dataset_args "allenai/tulu-3-sft-mixture | OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"` to concatenate datasets.
 
 ### Finetuning [Dream-v0-Base-7B](https://huggingface.co/Dream-org/Dream-v0-Base-7B)
-Dream supports training with DDP or DeepSpeed ZeRO-{1,2,3}. For example, to SFT Dream-v0-Base-7B on [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture) using DeepSpeed ZeRO-2 on 8 GPUs:
+Dream supports training with DDP or DeepSpeed ZeRO-{1,2,3}. For example, to SFT [Dream-v0-Base-7B](https://huggingface.co/Dream-org/Dream-v0-Base-7B) on [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture) using DeepSpeed ZeRO-2 on 8 GPUs:
 ```shell
 accelerate launch --config_file scripts/accelerate_configs/deepspeed_zero2.yaml examples/dream/sft.py \
     --model_name_or_path "Dream-org/Dream-v0-Base-7B" \
