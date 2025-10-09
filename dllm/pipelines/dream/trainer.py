@@ -97,7 +97,7 @@ class DreamTrainer(transformers.Trainer):
         if self.loss_reweight == "cart":
             loss_weights = cart_weight(masked_indices, t, p=self.geo_p)
         else:
-            loss_weights = torch.ones_like(input_ids)
+            loss_weights = (1.0 / t).expand_as(input_ids)
 
         # 5. compute weighted cross entropy
         token_loss = F.cross_entropy(
