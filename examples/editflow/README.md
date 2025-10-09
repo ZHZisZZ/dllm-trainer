@@ -12,7 +12,7 @@ This directory provides an educational reference for training EditFlow models. I
 
 ## Setup notes
 > [!IMPORTANT]  
-> **Slurm users:** Update `scripts/train.slurm.sh` and `mkdir logps` before submitting sbatch jobs: see [(optional) Slurm setup](/README.md/#optional-slurm-setup) for details.
+> **Slurm users:** Update `scripts/train.slurm.sh` and `mkdir logps`: see [(optional) Slurm setup](/README.md/#optional-slurm-setup) for details.
 
 ##  Files overview
 ```
@@ -71,7 +71,6 @@ If you are using slurm and want to train across, for example, two nodes (16 GPUs
 sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "deepspeed_zero2" \
     --script_path "examples/editflow/adapt_llada.py" \
-    --script_args '
     --model_name_or_path "GSAI-ML/LLaDA-8B-Instruct" \
     --lm_head_key "model.transformer.ff_out" \
     --init_editflow_from_src True \
@@ -80,7 +79,6 @@ sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
     --x0_sampler "sample_x0_masks" \
     --max_length 1024 \ 
     --num_train_epochs 4
-    '
 ```
 
 After training, you can use the generate scripts to provide a visualized decoding trace to see how the model performs *insertion* and *deletion* beyond regular mask *substitutions*.
@@ -95,14 +93,12 @@ Pretrain on a subset of [mlfoundations/dclm-baseline-1.0](https://huggingface.co
 sbatch --nodes=32 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "deepspeed_zero2" \
     --script_path "examples/editflow/pt_llada.py" \
-    --script_args '
     --model_name_or_path "GSAI-ML/LLaDA-8B-Base" \
     --dataset_args "mlfoundations/dclm-baseline-1.0[train:10_000_000,test:10_000]" \
     --output_dir "models/EditFlow-LLaDA-8B-Base/dclm-baseline-1.0[train:10_000_000,test:10_000]" \
     --x0_sampler "sample_x0_masks" \
     --max_length 1024 \ 
     --max_steps 10000
-    '
 ```
 
 Finetune on a subset of [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture) using 8 GPUS and DeepSpeed ZeRO-2 for better instruction following:
@@ -112,14 +108,12 @@ Finetune on a subset of [allenai/tulu-3-sft-mixture](https://huggingface.co/data
 sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "deepspeed_zero2" \
     --script_path "examples/editflow/sft_llada.py" \
-    --script_args '
     --model_name_or_path "models/EditFlow-LLaDA-8B-Base/dclm-baseline-1.0[train:10_000_000,test:10_000]/checkpoint-final" \
     --dataset_args "allenai/tulu-3-sft-mixture[train:10000,test:1000]" \
     --output_dir "models/EditFlow-LLaDA-8B-Base/dclm-baseline-1.0[train:10_000_000,test:10_000]" \
     --x0_sampler "sample_x0_masks" \
     --max_length 1024 \ 
     --num_train_epochs 4
-    '
 ```
 
 ## Acknowledgement

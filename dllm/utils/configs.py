@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import transformers
 
@@ -7,7 +7,7 @@ from dllm.utils.utils import resolve_with_base_env
 
 @dataclass
 class ModelArguments:
-    model_name_or_path: str = None  # TODO: overwrite this
+    model_name_or_path: str = None  # overwrite this
     load_in_4bit: bool = False
     torch_dtype: str = "bfloat16"
 
@@ -19,15 +19,25 @@ class ModelArguments:
 
 @dataclass
 class DataArguments:
-    dataset_args: str = None  # TODO: overwrite this
+    dataset_args: str = None  # overwrite this
     num_proc: int = 8
     max_length: int = 1024
     truncation: str = "filter"  # "filter", "right"
+    truncation: str = field(
+        default="filter",
+        metadata={
+            "help": (
+                'The truncation strategy to use ("filter" or "right"). '
+                '"filter" only keeps sequences that are shorter than max_length; '
+                '"right" only keeps the rightmost max_length tokens for each sequence.'
+            )
+        },
+    )
 
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
-    output_dir: str = None  # TODO: overwrite this
+    output_dir: str = None  # overwrite this
     report_to: str = "wandb"
     overwrite_output_dir: bool = True
     seed: int = 42

@@ -28,7 +28,7 @@ Slurm users
 
 import os
 import functools
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import transformers
 import accelerate
@@ -40,8 +40,6 @@ from dllm.pipelines import llada
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = "GSAI-ML/LLaDA-8B-Base"
-    # "inclusionAI/LLaDA-MoE-7B-A1B-Base",
-    # "models/LLaDA-8B-Base/dclm-baseline-1.0[train:10_000_000,test:10_000]/checkpoint-final" (after `examples/llada/pt.py`)
 
 
 @dataclass
@@ -52,8 +50,11 @@ class DataArguments(dllm.utils.DataArguments):
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = "models/LLaDA-8B-SFT/tulu-3-sft-mixture[train:10000,test:1000]"
-    # others (llada specific training params)
-    mask_prompt_loss: bool = True
+    # llada specific
+    mask_prompt_loss: bool = field(
+        default=True,
+        metadata={"help": "Whether to mask the loss on the prompt tokens"},
+    )
 
 
 def train():
@@ -90,7 +91,7 @@ def train():
             labels[: len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
             return {
                 "input_ids": prompt_response_tokens,
-                "labels": labels,  # use -100 in labels to represent positions where tokens should not be masked and loss is ignored
+                "labels": labels,  # use -100 in labels to indicate positions where tokens should not be masked and loss is ignored; all other positions match `input_ids`
                 "prompt_len": len(
                     prompt_tokens
                 ),  # `prompt_len` to help `post_process_dataset` truncate long sequences properly
