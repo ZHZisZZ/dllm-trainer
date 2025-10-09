@@ -59,6 +59,15 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     save_steps: float = 0.05
 
     # Dream-specific pretraining params: https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml
+    resp_cutoff_ratio: float = field(
+        default=0.1,
+        metadata={
+            "help": (
+                "The probability of randomly cut sequences during training. "
+                "See https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml."
+            )
+        },
+    )
     loss_reweight: str = field(
             default="cart",
             metadata={

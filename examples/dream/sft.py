@@ -50,21 +50,39 @@ class DataArguments(dllm.utils.DataArguments):
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = "models/Dream-7B-SFT"
-    # others (dream specific training params)
-    perbatch_cutoff: bool = True
-    resp_cutoff_ratio: float = 0.1
     mask_prompt_loss: bool = True
-    loss_reweight: str = field(
-            default="cart",
-            metadata={
-                "help": (
-                    "Loss reweighting strategy. Options: 'original' (uniform token weights), "
-                    "'cart' (Context-Adaptive noise Rescheduling at Token-level - weights tokens "
-                    "based on surrounding context)"
-                )
-            },
-        ),
+    # Dream-specific
+    perbatch_cutoff: bool = field(
+        default=True,
+        metadata={
+            "help": (
+                "Randomly pick a response length from batch (`kept_len`) "
+                "and trim other responses."
+            )
+        },
+    )
 
+    resp_cutoff_ratio: float = field(
+        default=0.1,
+        metadata={
+            "help": (
+                "The probability of randomly cutting sequences during training. "
+                "See https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml."
+            )
+        },
+    )
+
+    loss_reweight: str = field(
+        default="cart",
+        metadata={
+            "help": (
+                "Loss reweighting strategy. Options: "
+                "'original' (uniform token weights), or "
+                "'cart' (Context-Adaptive noise Rescheduling at Token-level, "
+                "which weights tokens based on surrounding context)."
+            )
+        },
+    )
 
 def train():
     # ----- Argument parsing -------------------------------------------------------
