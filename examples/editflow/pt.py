@@ -30,16 +30,15 @@ class ModelArguments(dllm.utils.ModelArguments):
 class DataArguments(dllm.utils.DataArguments):
     dataset_args: str = "mlfoundations/dclm-baseline-1.0[train:10_000_000,test:10_000]"
     truncation: str = "right"
-    max_length: int = 2048
 
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = None  # overwrite this
     learning_rate: float = 3e-4
-    max_steps: int = 10_000
-    per_device_train_batch_size: int = 2
-    gradient_accumulation_steps: int = 2
+    max_steps: int = 2_000
+    per_device_train_batch_size: int = 4
+    gradient_accumulation_steps: int = 4
     eval_steps: float = 0.05
     save_steps: float = 0.05
     # others (editflow specific training params)

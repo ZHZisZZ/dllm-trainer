@@ -42,7 +42,7 @@ examples/editflow
 
 ## Adapting [LLaDA-8B-Instruct](https://huggingface.co/GSAI-ML/LLaDA-8B-Instruct) to support *insertion* and *deletion*
 
-The original LLaDA model generated text by iteratively substituting the given `mask` tokens to real tokens. 
+The original LLaDA model generated text by iteratively substituting the given `<mask>` tokens to real tokens. 
 
 <!-- <div style="display: flex; justify-content: center; flex-wrap: wrap;">
     <img src="https://github.com/ML-GSAI/LLaDA/blob/main/imgs/example_gradio.gif" style="width: 80%" />
@@ -64,7 +64,7 @@ accelerate launch --config_file scripts/accelerate_configs/deepspeed_zero2.yaml 
     --x0_sampler "masks[length:128]" \
     --max_length 1024 \ 
     --num_train_epochs 4 \
-    --learning_rate 2e-5
+    --learning_rate 5e-5
 ```
 
 If you are using slurm and want to train across, for example, four nodes (32 GPUs total), run:
@@ -78,12 +78,12 @@ sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
     --dataset_args "allenai/tulu-3-sft-mixture" \
     --output_dir "models/EditFlow-LLaDA-8B-Instruct-Adapt/tulu-3-sft-mixture" \
     --x0_sampler "masks[length:128]" \
-    --max_length 1024 \ 
+    --max_length 1024 \
     --num_train_epochs 4 \
-    --learning_rate 2e-5
+    --learning_rate 5e-5
 ```
 
-After training, you can use the generate scripts to provide a visualized decoding trace to see how the model performs *insertion* and *deletion* beyond regular mask *substitutions*.
+After training, you can use the [generate.py](/examples/editflow/generate.py) scripts to provide a visualized decoding trace to see how the model performs *insertion* and *deletion* beyond regular mask *substitutions*. See [Sampling](#optional-slurm-setup) for details.
 
 
 ## Pretraining & Finetuning from scratch
@@ -99,7 +99,7 @@ sbatch --nodes=32 --gres=gpu:8 scripts/train.slurm.sh \
     --dataset_args "mlfoundations/dclm-baseline-1.0" \
     --output_dir "models/EditFlow-LLaDA-8B-Base/dclm-baseline-1.0" \
     --x0_sampler "masks[length:128]" \
-    --max_length 1024 \ 
+    --max_length 1024 \
     --max_steps 2000 \
     --learning_rate 3e-4
 ```
@@ -115,10 +115,38 @@ sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
     --dataset_args "allenai/tulu-3-sft-mixture[train:10000,test:1000]" \
     --output_dir "models/EditFlow-LLaDA-8B-Base/dclm-baseline-1.0" \
     --x0_sampler "masks[length:128]" \
-    --max_length 1024 \ 
+    --max_length 1024 \
     --num_train_epochs 4 \
-    --learning_rate 2e-5
+    --learning_rate 5e-5
 ```
+
+## Sampling
+
+After training, you can visualize how the model performs mask substitution, insertion, and deletion during generation with [generate.py](/examples/editflow/generate.py). Inserted tokens appear <span style="color:blue; font-weight:bold">blue</span>, and tokens substituted from `<mask>` appear <span style="color:black; font-weight:bold">black</span>, and deleted tokens are shown with a strikethrough before they disappear.
+
+```shell
+# Generate a long sequence to visualize insertions after 128 <mask> tokens
+python examples/editflow/generate.py \
+  --model_name_or_path "models/EditFlow-LLaDA-8B-Instruct-Adapt/tulu-3-sft-mixture/checkpoint-final" \
+  --tau 0.02 --mask_length 128 --seed 7070 \
+  --prompt "write a romantic story" --make_gif
+
+# Generate a short sequence to visualize deletions after 128 <mask> tokens
+python examples/editflow/generate.py \
+  --model_name_or_path "models/EditFlow-LLaDA-8B-Instruct-Adapt/tulu-3-sft-mixture/checkpoint-final" \
+  --tau 0.02 --mask_length 128 --seed 7070 \
+  --prompt "write a single-sentence romantic story" --make_gif
+```
+
+<p align="center">
+  <img src="/examples/editflow/assets/deletion.gif" alt="EditFlow deletion demo" width="95%">
+</p>
+<p align="center"><em>Figure: Deletion & Substitution trace</code></em></p>
+
+<p align="center">
+  <img src="/examples/editflow/assets/insertion.gif" alt="LLaDA demo" width="95%">
+</p>
+<p align="center"><em>Figure: Inserction & Substitution trace</em></p>
 
 ## Acknowledgement
 
