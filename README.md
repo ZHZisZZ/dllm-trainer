@@ -183,9 +183,9 @@ See [Features & Documentation](#features--documentations) for training/inference
 ```
 @misc{dllm,
     author = {Zhanhui Zhou and Lingjie Chen},
-    title = {dLLM: Training Diffusion Large Language Models Made Easy},
+    title = {dLLM: Training Diffusion Large Language Models Made Simple},
     howpublished = {https://github.com/ZHZisZZ/dllm},
-    note = {Accessed: 2025-10-07},
+    note = {Accessed: 2025-10-10},
     year = {2025}
 }
 ```

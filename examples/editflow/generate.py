@@ -11,6 +11,7 @@ What changed vs. your original:
     * KEEP tokens are black
     * If any deletions happened in the step, the title shows ⌫N (red)
 """
+
 # srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --time=03:00:000 python examples/editflow/generate.py --model_name_or_path "models/EditFlow-Dream-Instruct-7B/tulu-3-sft-mixture/checkpoint-final"  --tau 0.02 --mask_length 128 --seed 7070  --prompt "write a romantic story" --make_gif
 
 import math
@@ -334,7 +335,6 @@ def generate_editflow_minimal(
     return final_text, _trace
 
 
-
 # ---------------------------------------- CLI -------------------------------------
 
 
@@ -403,6 +403,7 @@ def main():
 
     if args.make_gif:
         from examples.editflow.viz import render_consecutive_trace_gif
+
         out = args.gif_path or "decode_trace.gif"
         path = render_consecutive_trace_gif(
             trace,

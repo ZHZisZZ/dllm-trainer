@@ -15,14 +15,18 @@ class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = None  # overwrite this
     lm_head_key: str = field(
         default=None,
-        metadata={"help": (
-            "The key to the `lm_head` in the source model for initializing operation heads in the EditFlow model. "
-            "Overwrite this when `init_editflow_from_src` = True"
-        )},
+        metadata={
+            "help": (
+                "The key to the `lm_head` in the source model for initializing operation heads in the EditFlow model. "
+                "Overwrite this when `init_editflow_from_src` = True"
+            )
+        },
     )
     init_editflow_from_src: bool = field(
         default=True,
-        metadata={"help": "Whether to initialize EditFlow model from the source model."},
+        metadata={
+            "help": "Whether to initialize EditFlow model from the source model."
+        },
     )
 
 
@@ -44,7 +48,12 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     # others (editflow specific training params)
     scheduler_cls: str = field(
         default="LinearKappaScheduler",
-        metadata={"help": "The scheduler class to use."},
+        metadata={
+            "help": (
+                "The scheduler class controlling κ(t). "
+                "Available options: see `dllm/utils/schedulers/kappa.py`"
+            )
+        },
     )
     normalize_per_position: bool = field(
         default=True,
@@ -52,7 +61,12 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     )
     max_w: float = field(
         default=20.0,
-        metadata={"help": "The maximum weight (κ'(t) / (1 - κ(t))) for the loss."},
+        metadata={
+            "help": (
+                "Choose the x0 sampler. "
+                "Available options: see `dllm/pipelines/editflow/utils.py`"
+            )
+        },
     )
     x0_sampler: str = field(
         default="masks[length:128]",

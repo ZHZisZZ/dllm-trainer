@@ -27,7 +27,12 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     # editflow specific
     scheduler_cls: str = field(
         default="LinearKappaScheduler",
-        metadata={"help": "The scheduler class to use."},
+        metadata={
+            "help": (
+                "The scheduler class controlling κ(t). "
+                "Available options: see `dllm/utils/schedulers/kappa.py`"
+            )
+        },
     )
     normalize_per_position: bool = field(
         default=True,
@@ -39,7 +44,12 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     )
     x0_sampler: str = field(
         default="masks[length:128]",
-        metadata={"help": "The x0 sampler to use. Default to 128 mask tokens."},
+        metadata={
+            "help": (
+                "Choose the x0 sampler. "
+                "Available options: see `dllm/pipelines/editflow/utils.py`"
+            )
+        },
     )
     mask_prompt_loss: bool = field(
         default=True,
