@@ -163,3 +163,4 @@ def test_dream_attention_mask():
         "Mismatch between explicit mask (A) and no-mask (E) outputs."
 
     print(f"✅ Dream attention mask test passed — all variants match within {ERROR_THRESHOLD} tolerance.")
+
