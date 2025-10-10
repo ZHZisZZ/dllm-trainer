@@ -348,12 +348,12 @@ def render_consecutive_trace_gif(
     trace: dict,
     tokenizer,
     out_path: str = "decode_trace.gif",
-    font_size: int = 15,
+    font_size: int = 25,
     line_spacing: int = 12,
     frame_ms: int = 250,
     final_ms: int = 5000,          # final clean frame duration (ms)
     max_width: int = 1400,
-    max_height: int = 1600,
+    max_height: int = 3000,
     margin: int = 32,
     title_color=(80, 80, 80),
     text_color=(0, 0, 0),          # base black
@@ -377,16 +377,22 @@ def render_consecutive_trace_gif(
 
     # ---------- font ----------
     try:
-        font = ImageFont.truetype("DejaVuSans.ttf", font_size)
+        font = ImageFont.truetype("JetBrains_Mono/JetBrainsMono-VariableFont_wght.ttf", font_size)
     except Exception:
+        print(f"fail to load target font")
         font = ImageFont.load_default()
 
     # ---------- helpers ----------
     def _sanitize_token(s: str) -> str:
+        vis_mask_token = "<|m|>"
         s = unicodedata.normalize("NFKC", s)
         s = s.replace("Ċ", "\n").replace("▁", " ").replace("Ġ", " ")
         s = s.replace("\t", "    ")
         s = s.replace("\u00a0", " ").replace("\u2007", " ").replace("\u202f", " ")
+        if "mdm_mask" in s.lower():
+            # Replace any variant like <|mdm_mask|>, ▁<mdm_mask>, Ġ<mdm_mask>
+            s = re.sub(r"<[\|]?\s*mdm_mask\s*[\|]?>", vis_mask_token, s, flags=re.IGNORECASE)
+            s = s.replace("mdm_mask", vis_mask_token)
         return s
 
     def _tok_str(tok_id: int) -> str:
@@ -396,6 +402,48 @@ def render_consecutive_trace_gif(
         except Exception:
             s = f"<{int(tok_id)}>"
         return s.replace("\n", "\\n")
+    
+    TOKEN_RE = re.compile(r"\s+|\S+")
+    def _wrap_text(draw: ImageDraw.ImageDraw, text: str, width_px: int) -> List[str]:
+        if text == "":
+            return [""]
+        lines: List[str] = []
+        for para in text.split("\n"):
+            tokens = TOKEN_RE.findall(para)
+            cur = ""
+            for tok in tokens:
+                candidate = cur + tok
+                if draw.textlength(candidate, font=font) <= width_px:
+                    cur = candidate
+                else:
+                    if cur:
+                        lines.append(cur)
+                        cur = tok
+                        while draw.textlength(cur, font=font) > width_px and len(cur) > 0:
+                            lo, hi, fit = 1, len(cur), 1
+                            while lo <= hi:
+                                mid = (lo + hi) // 2
+                                if draw.textlength(cur[:mid], font=font) <= width_px:
+                                    fit, lo = mid, mid + 1
+                                else:
+                                    hi = mid - 1
+                            lines.append(cur[:fit])
+                            cur = cur[fit:]
+                    else:
+                        t = tok
+                        while draw.textlength(t, font=font) > width_px and len(t) > 0:
+                            lo, hi, fit = 1, len(t), 1
+                            while lo <= hi:
+                                mid = (lo + hi) // 2
+                                if draw.textlength(t[:mid], font=font) <= width_px:
+                                    fit, lo = mid, mid + 1
+                                else:
+                                    hi = mid - 1
+                            lines.append(t[:fit])
+                            t = t[fit:]
+                        cur = t
+            lines.append(cur)
+        return lines or [""]
 
     tmp_img = Image.new("RGB", (10, 10), bg_color)
     tmp_draw = ImageDraw.Draw(tmp_img)
@@ -512,24 +560,17 @@ def render_consecutive_trace_gif(
         wrapped_lines = _wrap_tokens_with_index(tokens, deleted_flags)
 
         # estimate ops lines for this step
-        ops_lines = []
         if st:
-            x_before = st["x_before_ids"]
-            choose_del = st["choose_del"]
-            choose_sub = st["choose_sub"]
-            sub_samples = st["sub_samples"]
-            ins_samples = st["ins_samples"]
-            for i in range(len(x_before)):
-                if choose_del[i]:
-                    ops_lines.append(f"DEL@{i}:{_tok_str(int(x_before[i]))}")
-                elif choose_sub[i]:
-                    ops_lines.append(
-                        f"SUB@{i}:{_tok_str(int(x_before[i]))}->{_tok_str(int(sub_samples[i]))}"
-                    )
-                if ins_samples[i] is not None:
-                    ops_lines.append(f"INS@{i}->{i+1}:{_tok_str(int(ins_samples[i]))}")
-        if not ops_lines:
-            ops_lines = ["(no events)"]
+            ops_text = "  • " + "  • ".join(_ops_lines_for_step(st))
+        else:
+            ops_text = "(no events)"
+        ops_lines = _wrap_text(tmp_draw, ops_text, text_width_budget)
+
+        # compute height needed
+        body_h = len(wrapped_lines) * (font_size + line_spacing)
+        ops_h = len(ops_lines) * (font_size + line_spacing) + font_size + 20
+        required_h = margin + (font_size + line_spacing) + body_h + 20 + ops_h
+
 
         # compute height needed
         body_h = len(wrapped_lines) * (font_size + line_spacing)
@@ -627,7 +668,9 @@ def render_consecutive_trace_gif(
 
             # commit next state
             curr_ids, curr_inst = next_ids, next_inst
-            ops_lines = _ops_lines_for_step(st)
+            ops_text = "  • " + "  • ".join(_ops_lines_for_step(st))
+            ops_lines = _wrap_text(tmp_draw, ops_text, text_width_budget)
+
 
         # ----- render this frame -----
         tokens = tokenizer.convert_ids_to_tokens(aug_ids)
@@ -665,19 +708,19 @@ def render_consecutive_trace_gif(
             y += font_size + line_spacing
 
         # draw events box for all but the extra final-clean frame we'll add later
-        if step_idx != len(steps_with_initial) - 1:
-            y += 20
-            x0, y0 = margin, y
-            x1 = max_width - margin
-            box_h = len(ops_lines) * (font_size + line_spacing) + font_size + 20
-            y1 = y0 + box_h
-            _draw_dashed_rectangle(draw, (x0, y0, x1, y1), outline=box_color)
-            draw.text((x0 + 10, y0 + 10), "events", fill=events_color, font=font)
-            yy = y0 + font_size + 20
-            for l in ops_lines:
-                draw.text((x0 + 10, yy), l, fill=events_color, font=font)
-                yy += font_size + line_spacing
-
+        # if step_idx != len(steps_with_initial) - 1:
+        #     y += 20
+        #     x0, y0 = margin, y
+        #     x1 = max_width - margin
+        #     box_h = len(ops_lines) * (font_size + line_spacing) + font_size + 20
+        #     y1 = y0 + box_h
+        #     _draw_dashed_rectangle(draw, (x0, y0, x1, y1), outline=box_color)
+        #     draw.text((x0 + 10, y0 + 10), "events", fill=events_color, font=font)
+        #     yy = y0 + font_size + 20
+        #     for l in ops_lines:
+        #         draw.text((x0 + 10, yy), l, fill=events_color, font=font)
+        #         yy += font_size + line_spacing
+        # y += 10
         frames.append(img)
 
     # ----- extra final clean frame (no events box), 5s -----
@@ -806,9 +849,6 @@ def main():
 
     final_text, trace = generate_editflow_minimal(model, tokenizer, args, cfg)
     print(final_text)
-    import json
-    with open("test_trace_no_mask.json", 'w') as f:
-        json.dump(trace, f, indent=4)
 
     if args.make_gif:
         out = args.gif_path or "decode_trace.gif"
