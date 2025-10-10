@@ -30,6 +30,7 @@ import os
 import functools
 from dataclasses import dataclass, field
 
+import torch
 import transformers
 import accelerate
 
@@ -118,6 +119,17 @@ def train():
         labels = prompt_response_tokens.copy()
         if mask_prompt_loss:
             labels[: len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
+        else:
+            # When training on all tokens, prepend a BOS token (if missing)
+            # so the model can make predictions for the first mask token.
+            if prompt_response_tokens[0] != tokenizer.bos_token_id:
+                prompt_response_tokens = [
+                    tokenizer.bos_token_id
+                ] + prompt_response_tokens
+                prompt_tokens = [
+                    tokenizer.bos_token_id
+                ] + prompt_tokens
+            labels[0] = label_pad_token_id  # ignore loss on the BOS token
         return {
             "input_ids": prompt_response_tokens,
             "labels": labels,
@@ -140,6 +152,16 @@ def train():
         )  # truncate / filter long sequences if needed
 
     # ----- Training --------------------------------------------------------------
+    from types import MethodType
+    old_forward = model.forward  # already bound -> no need to pass self
+    def wrapped_forward(self, *args, **kwargs):
+        outputs = old_forward(*args, **kwargs)
+        logits = outputs.logits
+        outputs.logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
+        return outputs
+    # bind to the model instance
+    model.forward = MethodType(wrapped_forward, model)
+
     trainer = dream.DreamTrainer(
         model=model,
         tokenizer=tokenizer,

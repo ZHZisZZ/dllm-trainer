@@ -35,7 +35,12 @@ class LLaDATrainer(transformers.Trainer):
         Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md
         """
         # use -100 in labels to indicate positions where tokens should not be masked and loss is ignored; all other positions match `input_ids`
-        input_ids, labels = inputs["input_ids"], inputs["labels"]
+        # input_ids, labels = inputs["input_ids"], inputs["labels"]
+        input_ids, labels, attention_mask = (
+            inputs["input_ids"],
+            inputs.get("labels", inputs["input_ids"]),
+            inputs.get("attention_mask", None),
+        )        
 
         b, l = input_ids.shape
         # affine transform: t ∈ [eps, 1)
@@ -53,7 +58,7 @@ class LLaDATrainer(transformers.Trainer):
         noised_input_ids = torch.where(
             masked_indices, self.processing_class.mask_token_id, input_ids
         )
-        outputs = model(input_ids=noised_input_ids)
+        outputs = model(input_ids=noised_input_ids, attention_mask=attention_mask)
         logits = outputs.logits
 
         if not masked_indices.any():
