@@ -25,7 +25,6 @@ import torch
 import torch.utils.checkpoint
 from torch import nn
 
-from transformers.models.auto import AutoModel
 from transformers.activations import ACT2FN
 from transformers.cache_utils import Cache, DynamicCache
 from transformers.modeling_outputs import (
@@ -963,5 +962,6 @@ class DreamModel(DreamGenerationMixin, DreamPreTrainedModel):
         )
 
 
+from transformers import AutoModel
 # Register the model so that it is available for transformer pipelines, auto-loading, etc.
 AutoModel.register(DreamConfig, DreamModel)

@@ -533,3 +533,8 @@ class RND1LM(RND1PreTrainedModel, RND1GenerationMixin):
             loss=loss,
             logits=logits,
         )
+
+
+from transformers import AutoModel
+# Register the model so that it is available for transformer pipelines, auto-loading, etc.
+AutoModel.register(RND1Config, RND1LM)

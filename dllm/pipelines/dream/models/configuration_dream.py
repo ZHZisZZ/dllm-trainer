@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Dream model configuration"""
-from transformers import AutoConfig
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_rope_utils import rope_config_validation
 from transformers.utils import logging
@@ -85,5 +84,6 @@ class DreamConfig(PretrainedConfig):
         self.pad_token_id = pad_token_id
 
 
+from transformers import AutoConfig
 # Register the config class so that it is available for transformer pipelines, auto-loading etc.
 AutoConfig.register("Dream", DreamConfig)

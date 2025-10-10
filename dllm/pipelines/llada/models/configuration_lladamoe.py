@@ -2,7 +2,6 @@
 LLaDA MoE configuration
 """
 
-from transformers import AutoConfig
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_rope_utils import rope_config_validation
 
@@ -98,5 +97,6 @@ class LLaDAMoEConfig(PretrainedConfig):
         )
 
 
+from transformers import AutoConfig
 # Register the config class so that it is available for transformer pipelines, auto-loading etc.
 AutoConfig.register("lladamoe", LLaDAMoEConfig)
