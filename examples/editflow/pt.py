@@ -41,7 +41,7 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = None  # overwrite this
     learning_rate: float = 3e-4
     max_steps: int = 2_000
-    per_device_train_batch_size: int = 4
+    per_device_train_batch_size: int = 3
     gradient_accumulation_steps: int = 4
     eval_steps: float = 0.05
     save_steps: float = 0.05
