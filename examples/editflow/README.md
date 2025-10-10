@@ -83,7 +83,7 @@ sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
     --learning_rate 5e-5
 ```
 
-After training, you can use the [generate.py](/examples/editflow/generate.py) scripts to provide a visualized decoding trace to see how the model performs *insertion* and *deletion* beyond regular mask *substitutions*. See [Sampling](#optional-slurm-setup) for details.
+After training, you can use the [generate.py](/examples/editflow/generate.py) scripts to provide a visualized decoding trace to see how the model performs *insertion* and *deletion* beyond regular mask *substitutions*. See [Sampling](#sampling) for details.
 
 
 ## Pretraining & Finetuning from scratch
