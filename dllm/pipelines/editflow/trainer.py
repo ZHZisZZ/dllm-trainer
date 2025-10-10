@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 import transformers
 
-from dllm.utils.schedulers import BaseKappaScheduler, CubicKappaScheduler
+from dllm.core.schedulers import BaseKappaScheduler, CubicKappaScheduler
 from dllm.pipelines.editflow.utils import pad_1d
 
 

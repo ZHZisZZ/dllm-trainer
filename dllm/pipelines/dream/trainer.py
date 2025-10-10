@@ -1,12 +1,8 @@
-from typing import Any, Dict, Union, Optional
+from typing import Any
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
-import transformers
-
-from dllm.utils.schedulers import BaseAlphaScheduler, LinearAlphaScheduler
+from dllm.core.trainers import MDLMTrainer
 
 
 def cart_weight(
@@ -41,83 +37,40 @@ def cart_weight(
     return weights
 
 
-class DreamTrainer(transformers.Trainer):
+class DreamTrainer(MDLMTrainer):
+    """
+    DreamTrainer: specialization of MDLMTrainer for Dream pretraining.
+
+    - Uses CART-style geometric loss reweighting by default.
+    - Supports label padding with configurable token id.
+    """
 
     def __init__(
         self,
         *args,
-        scheduler: BaseAlphaScheduler | None = None,  # CART isn't function of time
-        time_epsilon: float = 1e-3,
-        geo_p: float = 0.3,
-        loss_reweight: str = "cart",
+        loss_weight_type: str = "cart[geo_p:0.3]",
         **kwargs,
     ):
-        self.scheduler = scheduler or LinearAlphaScheduler()
-        if not (0.0 < time_epsilon < 1.0):
-            raise ValueError("eps must be in the open interval (0, 1).")
-        self.time_epsilon = time_epsilon
-        self.geo_p = geo_p
-        self.loss_reweight = loss_reweight
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, loss_weight_type=loss_weight_type, **kwargs)
 
-    def compute_loss(
-        self,
-        model: transformers.PreTrainedModel | nn.Module,
-        inputs: dict[str, torch.Tensor | Any],
-        return_outputs: bool = False,
-        **kwargs,
-    ):
-        assert self.processing_class.padding_side == "right"
-        input_ids, labels, attention_mask = (
-            inputs["input_ids"],
-            inputs.get("labels", inputs["input_ids"]),
-            inputs.get("attention_mask", None),
-        )
-        b, l = input_ids.shape
-
-        # 1. sample timesteps
-        # affine transform: t ∈ [eps, 1)
-        t = self.time_epsilon + (1 - self.time_epsilon) * torch.rand(
-            b, device=input_ids.device
-        )
-        p_mask = 1 - self.scheduler(t).unsqueeze(1).repeat(1, l)  # (b, l)
-
-        # 2. apply masking
-        masked_indices = torch.rand((b, l), device=input_ids.device) < p_mask
-        masked_indices = masked_indices & (labels != -100)
-        # Dream cannot unmask when the mask is the first token.
-        # masked_indices[:, 0] = False
-        noised_input_ids = torch.where(
-            masked_indices, self.processing_class.mask_token_id, input_ids
-        )
-
-        # 3. forward
-        outputs = model(input_ids=noised_input_ids, attention_mask=attention_mask)
+    def _preprocess_inputs(self, inputs): 
+        labels = inputs["labels"]
+        assert (labels[:, 0] == -100).all()
+        
+    def _postprocess_outputs(self, outputs): 
         logits = outputs.logits
-        # logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
+        outputs.logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
 
-        if not masked_indices.any():
-            # return a zero loss that retains graph/device/dtype
-            return logits.sum() * 0.0
-
-        # 4. compute CART weights
-        if self.loss_reweight == "cart":
-            loss_weights = cart_weight(masked_indices, t, p=self.geo_p)
+    def _compute_loss_weights(
+        self, t: torch.Tensor, inputs: dict[str, Any], masked_indices: torch.Tensor,
+    ) -> torch.Tensor:
+        if self.loss_weight_type.startswith("cart"):
+            # parse geo_p
+            import re
+            match = re.search(r"geo_p:(0\.\d+)", self.loss_weight_type)
+            geo_p = float(match.group(1)) if match else 0.3
+            loss_weights = cart_weight(masked_indices, t, p=geo_p)
         else:
-            loss_weights = (1.0 / t).expand_as(input_ids)
-
-        # 5. compute weighted cross entropy
-        token_loss = F.cross_entropy(
-            logits[masked_indices], input_ids[masked_indices], reduction="none"
-        )
-        token_loss = token_loss * loss_weights[masked_indices]
-
-        # normalization
-        effective_lengths = torch.sum(labels != -100, dim=1, keepdim=True).repeat(1, l)
-        loss = torch.sum(token_loss / effective_lengths[masked_indices]) / b
-
-        return (loss, outputs) if return_outputs else loss
-
-
-if __name__ == "__main__":
-    pass
+            loss_weights = super()._compute_loss_weights(t=t, inputs=inputs, masked_indices=masked_indices)
+        return loss_weights
+    

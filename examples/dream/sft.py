@@ -27,10 +27,8 @@ Slurm users
 """
 
 import os
-import functools
 from dataclasses import dataclass, field
 
-import torch
 import transformers
 import accelerate
 
@@ -71,16 +69,9 @@ class TrainingArguments(dllm.utils.TrainingArguments):
             )
         },
     )
-    loss_reweight: str = field(
-        default="cart",
-        metadata={
-            "help": (
-                "Loss reweighting strategy. Options: "
-                "'original' (uniform token weights), or "
-                "'cart' (Context-Adaptive noise Rescheduling at Token-level, "
-                "which weights tokens based on surrounding context)."
-            )
-        },
+    loss_weight_type: str = field(
+        default="cart[geo_p:0.3]",
+        metadata={"help": ("loss weight type")},
     )
 
 
@@ -104,12 +95,7 @@ def train():
     model = dllm.utils.load_peft(model=model, training_args=training_args)
 
     # ----- Dataset ----------------------------------------------------------------
-    def sft_map_fn(
-        row,
-        tokenizer: transformers.PreTrainedTokenizer,
-        mask_prompt_loss: bool = True,
-        label_pad_token_id: int = -100,
-    ) -> dict:
+    def sft_map_fn(row) -> dict:
         prompt_tokens = tokenizer.apply_chat_template(
             row["messages"][:-1], tokenize=True, add_generation_prompt=True
         )
@@ -117,19 +103,17 @@ def train():
             row["messages"], tokenize=True, add_generation_prompt=False
         )
         labels = prompt_response_tokens.copy()
-        if mask_prompt_loss:
-            labels[: len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
+        if training_args.mask_prompt_loss:
+            labels[: len(prompt_tokens)] = [-100] * len(prompt_tokens)
         else:
             # When training on all tokens, prepend a BOS token (if missing)
             # so the model can make predictions for the first mask token.
             if prompt_response_tokens[0] != tokenizer.bos_token_id:
-                prompt_response_tokens = [
-                    tokenizer.bos_token_id
-                ] + prompt_response_tokens
-                prompt_tokens = [
-                    tokenizer.bos_token_id
-                ] + prompt_tokens
-            labels[0] = label_pad_token_id  # ignore loss on the BOS token
+                bos = [tokenizer.bos_token_id]
+                prompt_response_tokens = bos + prompt_response_tokens
+                prompt_tokens = bos + prompt_tokens
+                labels = bos + labels
+            labels[0] = -100  # ignore loss on the BOS token
         return {
             "input_ids": prompt_response_tokens,
             "labels": labels,
@@ -139,35 +123,18 @@ def train():
 
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_sft_dataset(data_args.dataset_args)
-        dataset = dataset.map(
-            functools.partial(
-                sft_map_fn,
-                tokenizer=tokenizer,
-                mask_prompt_loss=training_args.mask_prompt_loss,
-            ),
-            num_proc=data_args.num_proc,
-        )
-        dataset = dllm.utils.post_process_dataset(
-            dataset, data_args
-        )  # truncate / filter long sequences if needed
+        dataset = dataset.map(sft_map_fn, num_proc=data_args.num_proc)
+        # truncate / filter long sequences if needed
+        dataset = dllm.utils.post_process_dataset(dataset, data_args)
 
     # ----- Training --------------------------------------------------------------
-    from types import MethodType
-    old_forward = model.forward  # already bound -> no need to pass self
-    def wrapped_forward(self, *args, **kwargs):
-        outputs = old_forward(*args, **kwargs)
-        logits = outputs.logits
-        outputs.logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
-        return outputs
-    # bind to the model instance
-    model.forward = MethodType(wrapped_forward, model)
-
     trainer = dream.DreamTrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],
         eval_dataset=dataset["test"],
         args=training_args,
+        loss_weight_type=training_args.loss_weight_type,
         data_collator=dream.utils.DreamSFTCollator(
             tokenizer,
             pad_to_multiple_of=8,

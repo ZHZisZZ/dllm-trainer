@@ -55,7 +55,7 @@ Dream supports training with DDP or DeepSpeed ZeRO-{1,2,3}. For example, to SFT 
 accelerate launch --config_file scripts/accelerate_configs/deepspeed_zero2.yaml examples/dream/sft.py \
     --model_name_or_path "Dream-org/Dream-v0-Base-7B" \
     --dataset_args "allenai/tulu-3-sft-mixture" \
-    --output_dir "models/Dream-v0-SFT/tulu-3-sft-mixture" \
+    --output_dir "models/Dream-7B-SFT/tulu-3-sft-mixture" \
     --max_length 1024 \
     --num_train_epochs 4 \
     --learning_rate 2e-5
@@ -67,7 +67,7 @@ sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
     --script_path "examples/dream/sft.py" \
     --model_name_or_path "Dream-org/Dream-v0-Base-7B" \
     --dataset_args "allenai/tulu-3-sft-mixture" \
-    --output_dir "models/Dream-v0-SFT/tulu-3-sft-mixture" \
+    --output_dir "models/Dream-7B-SFT/tulu-3-sft-mixture" \
     --max_length 1024 \
     --num_train_epochs 4 \
     --learning_rate 2e-5
@@ -84,7 +84,7 @@ sbatch --nodes=32 --gres=gpu:8 scripts/train.slurm.sh \
     --script_path "examples/dream/pt.py" \
     --model_name_or_path "Dream-org/Dream-v0-Base-7B" \
     --dataset_args "mlfoundations/dclm-baseline-1.0" \
-    --output_dir "models/Dream-v0-Base/dclm-baseline-1.0" \
+    --output_dir "models/Dream-7B-PT/dclm-baseline-1.0" \
     --max_length 1024 \
     --max_steps 2000 \
     --learning_rate 3e-4
@@ -94,9 +94,9 @@ Finetune on [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai
 sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "deepspeed_zero2" \
     --script_path "examples/dream/sft.py" \
-    --model_name_or_path "models/Dream-v0-Base/dclm-baseline-1.0/checkpoint-final" \
+    --model_name_or_path "models/Dream-7B-PT/dclm-baseline-1.0/checkpoint-final" \
     --dataset_args "allenai/tulu-3-sft-mixture" \
-    --output_dir "models/Dream-v0-SFT/tulu-3-sft-mixture" \
+    --output_dir "models/Dream-7B-SFT/tulu-3-sft-mixture" \
     --max_length 1024 \
     --num_train_epochs 4 \
     --learning_rate 2e-5

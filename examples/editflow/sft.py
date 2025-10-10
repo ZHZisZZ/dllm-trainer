@@ -107,9 +107,7 @@ def train(
             )
             return {
                 "input_ids": prompt_response_tokens,
-                "prompt_len": len(
-                    prompt_tokens
-                ),  # ! Note: remove this to train on all "input_ids"
+                "prompt_len": len(prompt_tokens)
             }
         else:
             # When training on all tokens, prepend a BOS token (if missing)
@@ -144,7 +142,7 @@ def train(
         data_collator=editflow.utils.EditFlowCollator(
             tokenizer=tokenizer, x0_sampler=training_args.x0_sampler
         ),
-        scheduler=dllm.utils.schedulers.make_kappa_scheduler(
+        scheduler=dllm.core.schedulers.make_kappa_scheduler(
             training_args.scheduler_cls
         ),
         normalize_per_position=training_args.normalize_per_position,

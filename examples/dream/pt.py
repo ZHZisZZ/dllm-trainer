@@ -70,17 +70,9 @@ class TrainingArguments(dllm.utils.TrainingArguments):
             )
         },
     )
-    loss_reweight: str = (
-        field(
-            default="cart",
-            metadata={
-                "help": (
-                    "Loss reweighting strategy. Options: 'original' (uniform token weights), "
-                    "'cart' (Context-Adaptive noise Rescheduling at Token-level - weights tokens "
-                    "based on surrounding context)"
-                )
-            },
-        ),
+    loss_weight_type: str = field(
+        default="cart[geo_p:0.3]",
+        metadata={"help": "loss weight type"},
     )
 
 
@@ -99,7 +91,6 @@ def train():
     config = transformers.AutoConfig.from_pretrained(model_args.model_name_or_path)
     with dllm.utils.init_device_context_manager():
         model = transformers.AutoModel.from_config(config, torch_dtype=torch.bfloat16)
-        # model.apply(model._init_weights) # DreamModel doesn't have init_param(); using model._init_weights leads to deepspeed_zero3 error
 
     # ----- Tokenizer -----------------------------------------------------------
     tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
@@ -142,7 +133,7 @@ def train():
                 input_ids = input_ids[:, :random_len]
                 labels = labels[:, :random_len]
 
-            # --- Add BOS token to the beginning of each sequence ---
+            # --- Add BOS token to the beginning of input_ids ---
             bos = torch.full(
                 (bsz, 1),
                 self.tokenizer.bos_token_id,
@@ -150,10 +141,10 @@ def train():
                 device=input_ids.device,
             )
             input_ids = torch.cat([bos, input_ids], dim=1)
-            labels = torch.cat([bos, labels], dim=1)
 
-            # --- Mask the BOS position in labels ---
-            labels[:, 0] = self.label_pad_token_id
+            # --- Prepend zeros to labels instead of BOS ---
+            ignore_labels = self.label_pad_token_id * torch.ones((bsz, 1), dtype=labels.dtype, device=labels.device)
+            labels = torch.cat([ignore_labels, labels], dim=1)
 
             # --- Update and return ---
             outputs["input_ids"] = input_ids
@@ -161,28 +152,19 @@ def train():
             return outputs
 
     # ----- Trainer -------------------------------------------------------------
-    from types import MethodType
-    old_forward = model.forward  # already bound -> no need to pass self
-    def wrapped_forward(self, *args, **kwargs):
-        outputs = old_forward(*args, **kwargs)
-        logits = outputs.logits
-        outputs.logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
-        return outputs
-    # bind to the model instance
-    model.forward = MethodType(wrapped_forward, model)
-
     trainer = dream.DreamTrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],
         eval_dataset=dataset.get("test", None),
         args=training_args,
+        loss_weight_type=training_args.loss_weight_type,
         data_collator=DreamPTCollator(
             tokenizer,
             pad_to_multiple_of=8,
             return_tensors="pt",
             padding=True,
-            label_pad_token_id=tokenizer.pad_token_id,
+            label_pad_token_id=-100,
             random_length_ratio=training_args.random_length_ratio,
         ),
     )

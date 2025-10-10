@@ -11,7 +11,7 @@ import torch.nn.functional as F
 import transformers
 
 from dllm.utils.generation_utils import get_num_transfer_tokens
-from dllm.utils.schedulers import BaseAlphaScheduler, LinearAlphaScheduler
+from dllm.core.schedulers import BaseAlphaScheduler, LinearAlphaScheduler
 
 
 def add_gumbel_noise(logits: torch.Tensor, temperature: float) -> torch.Tensor:

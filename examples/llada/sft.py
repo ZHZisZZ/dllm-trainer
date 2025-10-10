@@ -27,7 +27,6 @@ Slurm users
 """
 
 import os
-import functools
 from dataclasses import dataclass, field
 
 import transformers
@@ -74,52 +73,48 @@ def train():
     model = dllm.utils.load_peft(model=model, training_args=training_args)
 
     # ----- Dataset ----------------------------------------------------------------
-    def sft_map_fn(
-        row,
-        tokenizer: transformers.PreTrainedTokenizer,
-        mask_prompt_loss: bool = True,
-        label_pad_token_id: int = -100,
-    ) -> dict:
+    def sft_map_fn(row) -> dict:
         prompt_response_tokens = tokenizer.apply_chat_template(
             row["messages"], tokenize=True, add_generation_prompt=False
         )
         labels = prompt_response_tokens.copy()
-        if mask_prompt_loss:
+        if training_args.mask_prompt_loss:
             prompt_tokens = tokenizer.apply_chat_template(
                 row["messages"][:-1], tokenize=True, add_generation_prompt=True
             )
-            labels[: len(prompt_tokens)] = [label_pad_token_id] * len(prompt_tokens)
+            # use -100 in labels to indicate positions where tokens should not be masked 
+            # and loss is ignored; all other positions match `input_ids`
+            labels[: len(prompt_tokens)] = [-100] * len(prompt_tokens)
+            # `prompt_len` to help `post_process_dataset` truncate long sequences properly
             return {
                 "input_ids": prompt_response_tokens,
-                "labels": labels,  # use -100 in labels to indicate positions where tokens should not be masked and loss is ignored; all other positions match `input_ids`
-                "prompt_len": len(
-                    prompt_tokens
-                ),  # `prompt_len` to help `post_process_dataset` truncate long sequences properly
+                "labels": labels,
+                "prompt_len": len(prompt_tokens)
             }
         return {"input_ids": prompt_response_tokens, "labels": labels}
 
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_sft_dataset(data_args.dataset_args)
-        dataset = dataset.map(
-            functools.partial(
-                sft_map_fn,
-                tokenizer=tokenizer,
-                mask_prompt_loss=training_args.mask_prompt_loss,
-            ),
-            num_proc=data_args.num_proc,
-        )
-        dataset = dllm.utils.post_process_dataset(
-            dataset, data_args
-        )  # truncate / filter long sequences if needed
+        dataset = dataset.map(sft_map_fn, num_proc=data_args.num_proc)
+        # truncate / filter long sequences if needed
+        dataset = dllm.utils.post_process_dataset(dataset, data_args)
 
     # ----- Training --------------------------------------------------------------
+    @dataclass
+    class LLaDASFTCollator(transformers.DataCollatorForSeq2Seq):
+        def __call__(self, features, return_tensors=None):
+            outputs = super().__call__(features, return_tensors)
+            # LLaDA is trained on padding <eos_token>
+            outputs.pop("attention_mask")
+            return outputs
+
     trainer = llada.LLaDATrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],
         eval_dataset=dataset["test"],
         args=training_args,
-        data_collator=transformers.DataCollatorForSeq2Seq(
+        data_collator=LLaDASFTCollator(
             tokenizer,
             pad_to_multiple_of=8,
             return_tensors="pt",

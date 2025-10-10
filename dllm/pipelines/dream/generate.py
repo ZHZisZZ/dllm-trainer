@@ -21,7 +21,7 @@ import transformers
 from transformers.utils import ModelOutput
 
 from dllm.utils.generation_utils import get_num_transfer_tokens
-from dllm.utils.schedulers import BaseAlphaScheduler, LinearAlphaScheduler
+from dllm.core.schedulers import BaseAlphaScheduler, LinearAlphaScheduler
 from dllm.pipelines.dream.utils import top_p_logits, top_k_logits
 
 

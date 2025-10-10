@@ -22,7 +22,7 @@ import tyro
 import torch
 from transformers import AutoModel, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
 
-from dllm.utils.schedulers import BaseKappaScheduler, LinearKappaScheduler
+from dllm.core.schedulers import BaseKappaScheduler, LinearKappaScheduler
 
 
 # ------------------------------- Small utilities --------------------------------

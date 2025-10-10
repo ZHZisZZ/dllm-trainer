@@ -138,7 +138,7 @@ def train(
         data_collator=editflow.utils.EditFlowCollator(
             tokenizer=tokenizer, x0_sampler=training_args.x0_sampler
         ),
-        scheduler=dllm.utils.schedulers.make_kappa_scheduler(
+        scheduler=dllm.core.schedulers.make_kappa_scheduler(
             training_args.scheduler_cls
         ),
         normalize_per_position=training_args.normalize_per_position,

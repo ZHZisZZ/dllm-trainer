@@ -96,7 +96,7 @@ sbatch --nodes=32 --gres=gpu:8 scripts/train.slurm.sh \
     --script_path "examples/llada/pt.py" \
     --model_name_or_path "GSAI-ML/LLaDA-8B-Base" \
     --dataset_args "mlfoundations/dclm-baseline-1.0" \
-    --output_dir "models/LLaDA-8B-Base/dclm-baseline-1.0" \
+    --output_dir "models/LLaDA-8B-PT/dclm-baseline-1.0" \
     --max_length 1024 \ 
     --max_steps 2000 \
     --learning_rate 3e-4
@@ -106,7 +106,7 @@ Finetune on [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai
 sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "deepspeed_zero2" \
     --script_path "examples/llada/sft.py" \
-    --model_name_or_path "models/LLaDA-8B-Base/dclm-baseline-1.0/checkpoint-final" \
+    --model_name_or_path "models/LLaDA-8B-PT/dclm-baseline-1.0/checkpoint-final" \
     --dataset_args "allenai/tulu-3-sft-mixture" \
     --output_dir "models/LLaDA-8B-SFT/tulu-3-sft-mixture" \
     --max_length 1024 \ 
