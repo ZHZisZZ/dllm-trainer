@@ -39,8 +39,20 @@ Training Diffusion Large Language Models Made Simple
 ## Features & Documentations
 
 1. [`examples/llada`](/examples/llada): Finetuning open-weight LLaDA [LLaDA / LLaDA-MoE](https://arxiv.org/abs/2502.09992), as well as reproducing LLaDA by training from scratch on public data (pretraining & finetuning).
-2. [`examples/dream`](/examples/dream): Finetuning open-weight Dream [Dream](https://arxiv.org/abs/2508.15487).
-3. [`examples/editflow`](/examples/editflow): Educational reference for training [Edit Flow](https://arxiv.org/abs/2506.09018) models, demonstrating how to extend existing DLLMs (e.g., LLaDA and Dream) with *edit operations*—insertion, deletion, and substitution—and how to pretrain or finetune EditFlow models from scratch on public data.
+2. [`examples/dream`](/examples/dream): Finetuning open-weight Dream [Dream](https://arxiv.org/abs/2508.15487), as well as reproducing Dream by training from scratch on public data (pretraining & finetuning).
+3. [`examples/editflow`](/examples/editflow): Educational reference for training [EditFlow](https://arxiv.org/abs/2506.09018) models, demonstrating how to extend existing DLLMs (e.g., LLaDA and Dream) with *edit operations*—insertion, deletion, and substitution—and how to pretrain or finetune EditFlow models from scratch on public data.
+
+   <details>
+   <summary>🎬 Click to show EditFlow Demo</summary>
+
+   <p align="center">
+     <img src="/examples/editflow/assets/all.gif" alt="EditFlow demo" width="100%">
+   </p>
+   <p align="center"><em>EditFlow performing insertion (blue), substitution from mask tokens (black), substitution from non-mask tokens (red), and deletion (strikethrough → removed) during generation.</em></p>
+
+   </details>
+
+
 4. More upcoming — see [Roadmap](#roadmap).
 
 
@@ -158,104 +170,11 @@ sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
 See [Features & Documentation](#features--documentations) for training/inference details and task-specific recipes.
 
 
-<!-- ## Quick Start
-
-<details>
-<summary>LLaDA / LLaDA-MoE: SFT and Sampling</summary>
-
-### `SFT`
-Basic usage of [`LLaDATrainer`](https://github.com/ZHZisZZ/dllm/blob/main/dllm/pipelines/llada/trainer.py#L12). See [`examples/llada/sft.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/llada/sft.py) for a complete example.
-```python
-import transformers
-
-import dllm
-
-model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-model = dllm.utils.get_model(model_args, training_args)
-tokenizer = dllm.utils.get_tokenizer(model_args, model)
-dataset = "..."
-
-# ----- Training --------------------------------------------------------------
-trainer = dllm.pipelines.llada.LLaDATrainer(
-    model=model,
-    tokenizer=tokenizer,
-    train_dataset=dataset["train"],
-    eval_dataset=dataset["test"],
-    args=training_args,
-    data_collator=transformers.DataCollatorForSeq2Seq(
-        tokenizer, 
-        pad_to_multiple_of=8, 
-        return_tensors="pt", 
-        padding=True,
-        label_pad_token_id=tokenizer.pad_token_id, # LLaDA is trained on padding <eos_token>
-    )
-)
-trainer.train()
-```
-
-> **Notes (LLaDA-MoE only):**  
-> For MoE checkpoints, overwrite `config.json` with the following `model_type` and `auto_map`:  
-> ```json
-> {
->   "model_type": "lladamoe",
->   "auto_map": {
->     "AutoConfig": "configuration_lladamoe.LLaDAMoEConfig",
->     "AutoModel": "modeling_lladamoe.LLaDAMoEModelLM",
->     "AutoModelForCausalLM": "modeling_lladamoe.LLaDAMoEModelLM",
->   }
-> }
-> ```
-
-
-### `Sampling`
-See [`examples/llada/generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/llada/generate.py) for a complete example of batch sampling (continuation and infilling).
-
-</details>
-
-<details>
-<summary>Dream: SFT and Sampling</summary>
-
-### `SFT`
-
-Basic usage of [`DreamTrainer`](https://github.com/ZHZisZZ/dllm/blob/main/dllm/pipelines/dream/trainer.py#L39). See [`examples/dream/sft.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/dream/sft.py) for a complete example.
-```python
-import transformers
-
-import dllm
-
-model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-model = dllm.utils.get_model(model_args, training_args)
-tokenizer = dllm.utils.get_tokenizer(model_args, model)
-dataset = "..."
-
-# ----- Training --------------------------------------------------------------
-trainer = dllm.pipelines.dream.DreamTrainer(
-    model=model,
-    tokenizer=tokenizer,
-    train_dataset=dataset["train"],
-    eval_dataset=dataset["test"],
-    args=training_args,
-    data_collator=transformers.DataCollatorForSeq2Seq(
-        tokenizer, 
-        pad_to_multiple_of=8, 
-        return_tensors="pt", 
-        padding=True,
-        label_pad_token_id=-100 # padding tokens do not count in loss
-    )
-)
-trainer.train()
-```
-
-
-### `Sampling`
-See [`examples/dream/generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/examples/dream/generate.py) for a complete example of batch sampling (continuation and infilling).
-
-</details> -->
-
-
 ## Roadmap
 
 - [ ] Support for additional diffusion LLMs.  
+
+- [ ] Support for evaluation.
 
 - [ ] Support for RL finetuning.
 
@@ -264,9 +183,9 @@ See [`examples/dream/generate.py`](https://github.com/ZHZisZZ/dllm/blob/main/exa
 ```
 @misc{dllm,
     author = {Zhanhui Zhou and Lingjie Chen},
-    title = {dLLM: Training Diffusion Large Language Models Made Easy},
+    title = {dLLM: Training Diffusion Large Language Models Made Simple},
     howpublished = {https://github.com/ZHZisZZ/dllm},
-    note = {Accessed: 2025-10-07},
+    note = {Accessed: 2025-10-10},
     year = {2025}
 }
 ```

@@ -61,12 +61,12 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     save_steps: float = 0.05
 
     # Dream-specific pretraining params: https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml
-    resp_cutoff_ratio: float = field(
-        default=0.1,
+    random_length_ratio: float = field(
+        default=0.01,
         metadata={
             "help": (
                 "The probability of randomly cut sequences during training. "
-                "See https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml."
+                "See https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md."
             )
         },
     )
@@ -128,20 +128,49 @@ def train():
     # ----- Data Collator -------------------------------------------------------
     @dataclass
     class DreamPTCollator(transformers.DataCollatorForSeq2Seq):
-        resp_cutoff_ratio: float = 0.01
+        random_length_ratio: float = 0.01
+        label_pad_token_id: int = -100
 
         def __call__(self, features, return_tensors=None):
-            outputs = super().__call__(features, return_tensors)
-            # Randomly truncate sequences for length robustness (Dream-style)
-            if torch.rand(1) < self.resp_cutoff_ratio:
-                random_length = torch.randint(
-                    1, outputs["input_ids"].shape[1] + 1, (1,)
-                )
-                outputs["input_ids"] = outputs["input_ids"][:, :random_length]
-                outputs["labels"] = outputs["labels"][:, :random_length]
+            outputs = super().__call__(features, return_tensors=return_tensors)
+            input_ids, labels = outputs["input_ids"], outputs["labels"]
+            bsz, seq_len = input_ids.shape
+
+            # --- Random truncation for robustness ---
+            if torch.rand(1).item() < self.random_length_ratio:
+                random_len = torch.randint(1, seq_len + 1, (1,)).item()
+                input_ids = input_ids[:, :random_len]
+                labels = labels[:, :random_len]
+
+            # --- Add BOS token to the beginning of each sequence ---
+            bos = torch.full(
+                (bsz, 1),
+                self.tokenizer.bos_token_id,
+                dtype=input_ids.dtype,
+                device=input_ids.device,
+            )
+            input_ids = torch.cat([bos, input_ids], dim=1)
+            labels = torch.cat([bos, labels], dim=1)
+
+            # --- Mask the BOS position in labels ---
+            labels[:, 0] = self.label_pad_token_id
+
+            # --- Update and return ---
+            outputs["input_ids"] = input_ids
+            outputs["labels"] = labels
             return outputs
 
     # ----- Trainer -------------------------------------------------------------
+    from types import MethodType
+    old_forward = model.forward  # already bound -> no need to pass self
+    def wrapped_forward(self, *args, **kwargs):
+        outputs = old_forward(*args, **kwargs)
+        logits = outputs.logits
+        outputs.logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
+        return outputs
+    # bind to the model instance
+    model.forward = MethodType(wrapped_forward, model)
+
     trainer = dream.DreamTrainer(
         model=model,
         tokenizer=tokenizer,
@@ -154,7 +183,7 @@ def train():
             return_tensors="pt",
             padding=True,
             label_pad_token_id=tokenizer.pad_token_id,
-            resp_cutoff_ratio=training_args.resp_cutoff_ratio,
+            random_length_ratio=training_args.random_length_ratio,
         ),
     )
 

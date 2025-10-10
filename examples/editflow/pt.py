@@ -15,14 +15,18 @@ class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = None  # overwrite this
     lm_head_key: str = field(
         default=None,
-        metadata={"help": (
-            "The key to the `lm_head` in the source model for initializing operation heads in the EditFlow model. "
-            "Overwrite this when `init_editflow_from_src` = True"
-        )},
+        metadata={
+            "help": (
+                "The key to the `lm_head` in the source model for initializing operation heads in the EditFlow model. "
+                "Overwrite this when `init_editflow_from_src` = True"
+            )
+        },
     )
     init_editflow_from_src: bool = field(
         default=True,
-        metadata={"help": "Whether to initialize EditFlow model from the source model."},
+        metadata={
+            "help": "Whether to initialize EditFlow model from the source model."
+        },
     )
 
 
@@ -30,22 +34,26 @@ class ModelArguments(dllm.utils.ModelArguments):
 class DataArguments(dllm.utils.DataArguments):
     dataset_args: str = "mlfoundations/dclm-baseline-1.0[train:10_000_000,test:10_000]"
     truncation: str = "right"
-    max_length: int = 2048
 
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = None  # overwrite this
     learning_rate: float = 3e-4
-    max_steps: int = 10_000
-    per_device_train_batch_size: int = 2
-    gradient_accumulation_steps: int = 2
+    max_steps: int = 2_000
+    per_device_train_batch_size: int = 4
+    gradient_accumulation_steps: int = 4
     eval_steps: float = 0.05
     save_steps: float = 0.05
     # others (editflow specific training params)
     scheduler_cls: str = field(
         default="LinearKappaScheduler",
-        metadata={"help": "The scheduler class to use."},
+        metadata={
+            "help": (
+                "The scheduler class controlling κ(t). "
+                "Available options: see `dllm/utils/schedulers/kappa.py`"
+            )
+        },
     )
     normalize_per_position: bool = field(
         default=True,
@@ -53,7 +61,12 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     )
     max_w: float = field(
         default=20.0,
-        metadata={"help": "The maximum weight (κ'(t) / (1 - κ(t))) for the loss."},
+        metadata={
+            "help": (
+                "Choose the x0 sampler. "
+                "Available options: see `dllm/pipelines/editflow/utils.py`"
+            )
+        },
     )
     x0_sampler: str = field(
         default="masks[length:128]",

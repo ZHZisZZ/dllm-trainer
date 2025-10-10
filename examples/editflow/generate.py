@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Minimal EditFlow τ-leap generator for EditBase-Dream with diffusion-style visualization.
 
@@ -12,11 +11,12 @@ What changed vs. your original:
     * KEEP tokens are black
     * If any deletions happened in the step, the title shows ⌫N (red)
 """
+
 # srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --time=03:00:000 python examples/editflow/generate.py --model_name_or_path "models/EditFlow-Dream-Instruct-7B/tulu-3-sft-mixture/checkpoint-final"  --tau 0.02 --mask_length 128 --seed 7070  --prompt "write a romantic story" --make_gif
 
 import math
 from dataclasses import dataclass
-from typing import Optional, List, Tuple, Annotated
+from typing import Annotated
 
 import tyro
 import torch
@@ -851,6 +851,8 @@ def main():
     print(final_text)
 
     if args.make_gif:
+        from examples.editflow.viz import render_consecutive_trace_gif
+
         out = args.gif_path or "decode_trace.gif"
         path = render_consecutive_trace_gif(
             trace,

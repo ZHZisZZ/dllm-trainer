@@ -47,11 +47,15 @@ class DreamTrainer(transformers.Trainer):
         self,
         *args,
         scheduler: BaseAlphaScheduler | None = None,  # CART isn't function of time
+        time_epsilon: float = 1e-3,
         geo_p: float = 0.3,
         loss_reweight: str = "cart",
         **kwargs,
     ):
         self.scheduler = scheduler or LinearAlphaScheduler()
+        if not (0.0 < time_epsilon < 1.0):
+            raise ValueError("eps must be in the open interval (0, 1).")
+        self.time_epsilon = time_epsilon
         self.geo_p = geo_p
         self.loss_reweight = loss_reweight
         super().__init__(*args, **kwargs)
@@ -66,28 +70,31 @@ class DreamTrainer(transformers.Trainer):
         assert self.processing_class.padding_side == "right"
         input_ids, labels, attention_mask = (
             inputs["input_ids"],
-            inputs["labels"],
+            inputs.get("labels", inputs["input_ids"]),
             inputs.get("attention_mask", None),
         )
         b, l = input_ids.shape
 
         # 1. sample timesteps
-        t = torch.rand(b, device=input_ids.device)  # (b,)
+        # affine transform: t ∈ [eps, 1)
+        t = self.time_epsilon + (1 - self.time_epsilon) * torch.rand(
+            b, device=input_ids.device
+        )
         p_mask = 1 - self.scheduler(t).unsqueeze(1).repeat(1, l)  # (b, l)
 
         # 2. apply masking
         masked_indices = torch.rand((b, l), device=input_ids.device) < p_mask
         masked_indices = masked_indices & (labels != -100)
         # Dream cannot unmask when the mask is the first token.
-        masked_indices[:, 0] = False
+        # masked_indices[:, 0] = False
         noised_input_ids = torch.where(
             masked_indices, self.processing_class.mask_token_id, input_ids
         )
 
         # 3. forward
-        outputs = model(noised_input_ids, attention_mask)
+        outputs = model(input_ids=noised_input_ids, attention_mask=attention_mask)
         logits = outputs.logits
-        logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
+        # logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
 
         if not masked_indices.any():
             # return a zero loss that retains graph/device/dtype
