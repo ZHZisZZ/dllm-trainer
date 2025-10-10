@@ -42,7 +42,8 @@ examples/dream
 └── sft.py                          # Supervised finetuning example
 
 ```
-
+> [!NOTE]
+>  We slightly modified [`modeling_dream.py`](/dllm/pipelines/dream/models/modeling_dream.py) so that the `model.forward()` supports 2-D attention masks.
 
 ## Training
 
