@@ -143,7 +143,9 @@ def train():
             input_ids = torch.cat([bos, input_ids], dim=1)
 
             # --- Prepend zeros to labels instead of BOS ---
-            ignore_labels = self.label_pad_token_id * torch.ones((bsz, 1), dtype=labels.dtype, device=labels.device)
+            ignore_labels = self.label_pad_token_id * torch.ones(
+                (bsz, 1), dtype=labels.dtype, device=labels.device
+            )
             labels = torch.cat([ignore_labels, labels], dim=1)
 
             # --- Update and return ---

@@ -107,7 +107,7 @@ def train(
             )
             return {
                 "input_ids": prompt_response_tokens,
-                "prompt_len": len(prompt_tokens)
+                "prompt_len": len(prompt_tokens),
             }
         else:
             # When training on all tokens, prepend a BOS token (if missing)

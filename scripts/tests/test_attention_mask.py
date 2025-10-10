@@ -49,16 +49,22 @@ def test_llada_attention_mask():
         out_E = model(input_ids=input_ids_E).logits
 
     # ----- Compare “real” token positions -----
-    assert torch.allclose(out_A, out_B[:, 1:], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD), \
-        "Mismatch between no-pad (A) and left-pad (B) outputs."
-    assert torch.allclose(out_A, out_C[:, :-1], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD), \
-        "Mismatch between no-pad (A) and right-pad (C) outputs."
-    assert torch.allclose(out_A, out_D, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD), \
-        "Mismatch between explicit mask (A) and implicit mask (D) outputs."
-    assert torch.allclose(out_A, out_E, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD), \
-        "Mismatch between explicit mask (A) and no-mask (E) outputs."
+    assert torch.allclose(
+        out_A, out_B[:, 1:], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    ), "Mismatch between no-pad (A) and left-pad (B) outputs."
+    assert torch.allclose(
+        out_A, out_C[:, :-1], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    ), "Mismatch between no-pad (A) and right-pad (C) outputs."
+    assert torch.allclose(
+        out_A, out_D, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    ), "Mismatch between explicit mask (A) and implicit mask (D) outputs."
+    assert torch.allclose(
+        out_A, out_E, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    ), "Mismatch between explicit mask (A) and no-mask (E) outputs."
 
-    print(f"✅ LLaDA attention mask test passed — all variants match within {ERROR_THRESHOLD} tolerance.")
+    print(
+        f"✅ LLaDA attention mask test passed — all variants match within {ERROR_THRESHOLD} tolerance."
+    )
 
 
 def test_llada_moe_attention_mask():
@@ -101,16 +107,22 @@ def test_llada_moe_attention_mask():
         out_E = model(input_ids=input_ids_E).logits
 
     # ----- Compare “real” token positions -----
-    assert torch.allclose(out_A, out_B[:, 1:], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD), \
-        "Mismatch between no-pad (A) and left-pad (B) outputs."
-    assert torch.allclose(out_A, out_C[:, :-1], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD), \
-        "Mismatch between no-pad (A) and right-pad (C) outputs."
-    assert torch.allclose(out_A, out_D, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD), \
-        "Mismatch between explicit mask (A) and implicit mask (D) outputs."
-    assert torch.allclose(out_A, out_E, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD), \
-        "Mismatch between explicit mask (A) and no-mask (E) outputs."
+    assert torch.allclose(
+        out_A, out_B[:, 1:], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    ), "Mismatch between no-pad (A) and left-pad (B) outputs."
+    assert torch.allclose(
+        out_A, out_C[:, :-1], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    ), "Mismatch between no-pad (A) and right-pad (C) outputs."
+    assert torch.allclose(
+        out_A, out_D, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    ), "Mismatch between explicit mask (A) and implicit mask (D) outputs."
+    assert torch.allclose(
+        out_A, out_E, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    ), "Mismatch between explicit mask (A) and no-mask (E) outputs."
 
-    print(f"✅ LLaDA MoE attention mask test passed — all variants match within {ERROR_THRESHOLD} tolerance.")
+    print(
+        f"✅ LLaDA MoE attention mask test passed — all variants match within {ERROR_THRESHOLD} tolerance."
+    )
 
 
 def test_dream_attention_mask():
@@ -153,14 +165,19 @@ def test_dream_attention_mask():
         out_E = model(input_ids=input_ids_E).logits
 
     # ----- Compare “real” token positions -----
-    assert torch.allclose(out_A, out_B[:, 1:], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD), \
-        "Mismatch between no-pad (A) and left-pad (B) outputs."
-    assert torch.allclose(out_A, out_C[:, :-1], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD), \
-        "Mismatch between no-pad (A) and right-pad (C) outputs."
-    assert torch.allclose(out_A, out_D, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD), \
-        "Mismatch between explicit mask (A) and implicit mask (D) outputs."
-    assert torch.allclose(out_A, out_E, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD), \
-        "Mismatch between explicit mask (A) and no-mask (E) outputs."
+    assert torch.allclose(
+        out_A, out_B[:, 1:], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    ), "Mismatch between no-pad (A) and left-pad (B) outputs."
+    assert torch.allclose(
+        out_A, out_C[:, :-1], atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    ), "Mismatch between no-pad (A) and right-pad (C) outputs."
+    assert torch.allclose(
+        out_A, out_D, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    ), "Mismatch between explicit mask (A) and implicit mask (D) outputs."
+    assert torch.allclose(
+        out_A, out_E, atol=ERROR_THRESHOLD, rtol=ERROR_THRESHOLD
+    ), "Mismatch between explicit mask (A) and no-mask (E) outputs."
 
-    print(f"✅ Dream attention mask test passed — all variants match within {ERROR_THRESHOLD} tolerance.")
-
+    print(
+        f"✅ Dream attention mask test passed — all variants match within {ERROR_THRESHOLD} tolerance."
+    )

@@ -15,15 +15,15 @@ def render_consecutive_trace_gif(
     font_size: int = 30,
     line_spacing: int = 12,
     frame_ms: int = 250,
-    final_ms: int = 5000,          # final clean frame duration (ms)
+    final_ms: int = 5000,  # final clean frame duration (ms)
     max_width: int = 1400,
     max_height: int = 3000,
     margin: int = 32,
     title_color=(80, 80, 80),
-    text_color=(0, 0, 0),          # base black
+    text_color=(0, 0, 0),  # base black
     mask_color=(150, 150, 150),
-    sub_nonmask_color=(200, 0, 0), # persistent red
-    ins_color=(0, 0, 200),         # persistent blue
+    sub_nonmask_color=(200, 0, 0),  # persistent red
+    ins_color=(0, 0, 200),  # persistent blue
     del_strike_color=(120, 120, 120),
     events_color=(30, 30, 30),
     box_color=(120, 120, 120),
@@ -41,7 +41,9 @@ def render_consecutive_trace_gif(
 
     # ---------- font ----------
     try:
-        font = ImageFont.truetype("assets/JetBrainsMono-VariableFont_wght.ttf", font_size)
+        font = ImageFont.truetype(
+            "assets/JetBrainsMono-VariableFont_wght.ttf", font_size
+        )
     except Exception:
         print(f"fail to load target font")
         font = ImageFont.load_default()
@@ -55,7 +57,9 @@ def render_consecutive_trace_gif(
         s = s.replace("\u00a0", " ").replace("\u2007", " ").replace("\u202f", " ")
         if "mdm_mask" in s.lower():
             # Replace any variant like <|mdm_mask|>, ▁<mdm_mask>, Ġ<mdm_mask>
-            s = re.sub(r"<[\|]?\s*mdm_mask\s*[\|]?>", vis_mask_token, s, flags=re.IGNORECASE)
+            s = re.sub(
+                r"<[\|]?\s*mdm_mask\s*[\|]?>", vis_mask_token, s, flags=re.IGNORECASE
+            )
             s = s.replace("mdm_mask", vis_mask_token)
         return s
 
@@ -66,8 +70,9 @@ def render_consecutive_trace_gif(
         except Exception:
             s = f"<{int(tok_id)}>"
         return s.replace("\n", "\\n")
-    
+
     TOKEN_RE = re.compile(r"\s+|\S+")
+
     def _wrap_text(draw: ImageDraw.ImageDraw, text: str, width_px: int) -> List[str]:
         if text == "":
             return [""]
@@ -83,7 +88,9 @@ def render_consecutive_trace_gif(
                     if cur:
                         lines.append(cur)
                         cur = tok
-                        while draw.textlength(cur, font=font) > width_px and len(cur) > 0:
+                        while (
+                            draw.textlength(cur, font=font) > width_px and len(cur) > 0
+                        ):
                             lo, hi, fit = 1, len(cur), 1
                             while lo <= hi:
                                 mid = (lo + hi) // 2
@@ -140,14 +147,18 @@ def render_consecutive_trace_gif(
                         cur_w += w
                         seg_rest = ""
                     else:
-                        lines.append(cur); cur, cur_w = [], 0
+                        lines.append(cur)
+                        cur, cur_w = [], 0
                 if j != len(parts) - 1:
-                    lines.append(cur); cur, cur_w = [], 0
+                    lines.append(cur)
+                    cur, cur_w = [], 0
         if cur:
             lines.append(cur)
         return lines
 
-    def _draw_dashed_rectangle(draw, xy, dash=8, gap=6, width=2, outline=(120, 120, 120)):
+    def _draw_dashed_rectangle(
+        draw, xy, dash=8, gap=6, width=2, outline=(120, 120, 120)
+    ):
         x0, y0, x1, y1 = xy
         x = x0
         while x < x1:
@@ -187,6 +198,7 @@ def render_consecutive_trace_gif(
 
     # ---- Instance-id machinery ----
     next_instance_id = 0
+
     def _new_inst():
         nonlocal next_instance_id
         val = next_instance_id
@@ -195,7 +207,7 @@ def render_consecutive_trace_gif(
 
     # Current sequence at the *start* (ids + instance_ids)
     curr_ids = list(trace["init"]["x_ids"])
-    curr_inst = [ _new_inst() for _ in curr_ids ]
+    curr_inst = [_new_inst() for _ in curr_ids]
 
     # Persistent color by instance_id: {"blue", "red"}
     color_by_inst = {}
@@ -235,7 +247,6 @@ def render_consecutive_trace_gif(
         ops_h = len(ops_lines) * (font_size + line_spacing) + font_size + 20
         required_h = margin + (font_size + line_spacing) + body_h + 20 + ops_h
 
-
         # compute height needed
         body_h = len(wrapped_lines) * (font_size + line_spacing)
         ops_h = len(ops_lines) * (font_size + line_spacing) + font_size + 20
@@ -255,14 +266,18 @@ def render_consecutive_trace_gif(
         )
 
     # Measure clean final frame (no events)
-    final_text_ids = trace["steps"][-1]["x_after_ids"] if trace["steps"] else trace["init"]["x_ids"]
+    final_text_ids = (
+        trace["steps"][-1]["x_after_ids"] if trace["steps"] else trace["init"]["x_ids"]
+    )
     final_tokens = tokenizer.convert_ids_to_tokens(final_text_ids)
     wrapped_clean = _wrap_tokens_with_index(final_tokens, [False] * len(final_tokens))
     clean_body_h = len(wrapped_clean) * (font_size + line_spacing)
     clean_required_h = margin + (font_size + line_spacing) + clean_body_h
 
     # Pick a single uniform canvas height
-    max_required_h = max([p["required_h"] for p in measurement_payload] + [clean_required_h]) + 20
+    max_required_h = (
+        max([p["required_h"] for p in measurement_payload] + [clean_required_h]) + 20
+    )
     H = min(max_required_h, max_height)
     W = max_width
 
@@ -287,7 +302,9 @@ def render_consecutive_trace_gif(
             choose_sub = list(st["choose_sub"])
             sub_samples = list(st["sub_samples"])
             ins_samples = list(st["ins_samples"])
-            assert len(x_before) == len(curr_ids) == len(curr_inst), "trace 'x_before' must match current sequence."
+            assert (
+                len(x_before) == len(curr_ids) == len(curr_inst)
+            ), "trace 'x_before' must match current sequence."
 
             # Build augmented (drawn) and next (state-after) in one pass
             aug_ids, aug_inst, aug_deleted = [], [], []
@@ -299,15 +316,20 @@ def render_consecutive_trace_gif(
 
                 if choose_del[i]:
                     # show deleted placeholder (strike-through)
-                    aug_ids.append(before_id); aug_inst.append(None); aug_deleted.append(True)
+                    aug_ids.append(before_id)
+                    aug_inst.append(None)
+                    aug_deleted.append(True)
                     # remove from next; also clear any persistent color
                     color_by_inst.pop(before_inst, None)
                 else:
                     if choose_sub[i]:
                         after_id = int(sub_samples[i])
                         # in augmented we show the *after* token at same instance
-                        aug_ids.append(after_id); aug_inst.append(before_inst); aug_deleted.append(False)
-                        next_ids.append(after_id); next_inst.append(before_inst)
+                        aug_ids.append(after_id)
+                        aug_inst.append(before_inst)
+                        aug_deleted.append(False)
+                        next_ids.append(after_id)
+                        next_inst.append(before_inst)
 
                         # update persistence by source type
                         if int(before_id) in MASK_IDS:
@@ -318,15 +340,21 @@ def render_consecutive_trace_gif(
                             color_by_inst[before_inst] = "red"
                     else:
                         # keep
-                        aug_ids.append(before_id); aug_inst.append(before_inst); aug_deleted.append(False)
-                        next_ids.append(before_id); next_inst.append(before_inst)
+                        aug_ids.append(before_id)
+                        aug_inst.append(before_inst)
+                        aug_deleted.append(False)
+                        next_ids.append(before_id)
+                        next_inst.append(before_inst)
 
                 # insertion AFTER position i
                 if ins_samples[i] is not None:
                     ins_id = int(ins_samples[i])
                     ins_inst = _new_inst()
-                    aug_ids.append(ins_id); aug_inst.append(ins_inst); aug_deleted.append(False)
-                    next_ids.append(ins_id); next_inst.append(ins_inst)
+                    aug_ids.append(ins_id)
+                    aug_inst.append(ins_inst)
+                    aug_deleted.append(False)
+                    next_ids.append(ins_id)
+                    next_inst.append(ins_inst)
                     # mark persistent BLUE for this *instance only*
                     color_by_inst[ins_inst] = "blue"
 
@@ -334,7 +362,6 @@ def render_consecutive_trace_gif(
             curr_ids, curr_inst = next_ids, next_inst
             ops_text = "  • " + "  • ".join(_ops_lines_for_step(st))
             ops_lines = _wrap_text(tmp_draw, ops_text, text_width_budget)
-
 
         # ----- render this frame -----
         tokens = tokenizer.convert_ids_to_tokens(aug_ids)
@@ -356,7 +383,11 @@ def render_consecutive_trace_gif(
 
                 if is_deleted:
                     # strike deleted — grey masks slightly different if desired
-                    strike_color = mask_color if _is_mask_token(tok_id, tok_str_exact) else del_strike_color
+                    strike_color = (
+                        mask_color
+                        if _is_mask_token(tok_id, tok_str_exact)
+                        else del_strike_color
+                    )
                     strike = "".join(ch + "\u0336" for ch in seg_text)
                     draw.text((x, y), strike, fill=strike_color, font=font)
                     x += tmp_draw.textlength(strike, font=font)
@@ -364,7 +395,11 @@ def render_consecutive_trace_gif(
                     # choose color by *instance*
                     color = text_color
                     if inst is not None and inst in color_by_inst:
-                        color = ins_color if color_by_inst[inst] == "blue" else sub_nonmask_color
+                        color = (
+                            ins_color
+                            if color_by_inst[inst] == "blue"
+                            else sub_nonmask_color
+                        )
                     elif _is_mask_token(tok_id, tok_str_exact):
                         color = mask_color
                     draw.text((x, y), seg_text, fill=color, font=font)
@@ -403,11 +438,15 @@ def render_consecutive_trace_gif(
                 while seg_rest:
                     w = tmp_draw.textlength(seg_rest, font=font)
                     if cur_w + w <= text_width_budget or not cur:
-                        cur.append((seg_rest, i)); cur_w += w; seg_rest = ""
+                        cur.append((seg_rest, i))
+                        cur_w += w
+                        seg_rest = ""
                     else:
-                        lines.append(cur); cur, cur_w = [], 0
+                        lines.append(cur)
+                        cur, cur_w = [], 0
                 if j != len(parts) - 1:
-                    lines.append(cur); cur, cur_w = [], 0
+                    lines.append(cur)
+                    cur, cur_w = [], 0
         if cur:
             lines.append(cur)
         return lines
@@ -426,7 +465,9 @@ def render_consecutive_trace_gif(
             inst = final_inst[tok_idx]
             color = text_color
             if inst in color_by_inst:
-                color = ins_color if color_by_inst[inst] == "blue" else sub_nonmask_color
+                color = (
+                    ins_color if color_by_inst[inst] == "blue" else sub_nonmask_color
+                )
             elif _is_mask_token(tok_id, tok_str_exact):
                 color = mask_color
             draw.text((x, y), seg_text, fill=color, font=font)

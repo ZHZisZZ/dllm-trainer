@@ -20,7 +20,7 @@ class MDLMTrainer(transformers.Trainer):
         *args,
         scheduler: BaseAlphaScheduler | None = None,
         time_epsilon: float = 1e-3,
-        loss_weight_type: str = "scheduler", # "ones"
+        loss_weight_type: str = "scheduler",  # "ones"
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -30,12 +30,17 @@ class MDLMTrainer(transformers.Trainer):
         self.time_epsilon = time_epsilon
         self.loss_weight_type = loss_weight_type
 
-    def _preprocess_inputs(self, inputs): pass
+    def _preprocess_inputs(self, inputs):
+        pass
 
-    def _postprocess_outputs(self, outputs): pass
+    def _postprocess_outputs(self, outputs):
+        pass
 
     def _compute_loss_weights(
-        self, t: torch.Tensor, inputs: dict[str, Any], masked_indices: torch.Tensor,
+        self,
+        t: torch.Tensor,
+        inputs: dict[str, Any],
+        masked_indices: torch.Tensor,
     ) -> torch.Tensor:
         """Compute loss weights given timestep t and mask positions."""
         b, l = inputs["input_ids"].shape
@@ -118,12 +123,16 @@ class MDLMTrainer(transformers.Trainer):
         # === 4. Handle degenerate cases (no tokens masked) ===
         # If no positions were masked, return a zero loss to keep gradients valid.
         if not masked_indices.any():
-            return (logits.sum() * 0.0, outputs) if return_outputs else logits.sum() * 0.0
+            return (
+                (logits.sum() * 0.0, outputs) if return_outputs else logits.sum() * 0.0
+            )
 
         # === 5. Compute per-token loss weights ===
         # Depending on the configuration, weights may depend on timestep t
         # (e.g., scheduler-based) or be uniform (ones).
-        loss_weights = self._compute_loss_weights(t=t, inputs=inputs, masked_indices=masked_indices)
+        loss_weights = self._compute_loss_weights(
+            t=t, inputs=inputs, masked_indices=masked_indices
+        )
 
         # === 6. Compute weighted cross-entropy ===
         # Only masked tokens contribute to the loss.

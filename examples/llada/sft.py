@@ -82,14 +82,14 @@ def train():
             prompt_tokens = tokenizer.apply_chat_template(
                 row["messages"][:-1], tokenize=True, add_generation_prompt=True
             )
-            # use -100 in labels to indicate positions where tokens should not be masked 
+            # use -100 in labels to indicate positions where tokens should not be masked
             # and loss is ignored; all other positions match `input_ids`
             labels[: len(prompt_tokens)] = [-100] * len(prompt_tokens)
             # `prompt_len` to help `post_process_dataset` truncate long sequences properly
             return {
                 "input_ids": prompt_response_tokens,
                 "labels": labels,
-                "prompt_len": len(prompt_tokens)
+                "prompt_len": len(prompt_tokens),
             }
         return {"input_ids": prompt_response_tokens, "labels": labels}
 
