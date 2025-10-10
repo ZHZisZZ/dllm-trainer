@@ -377,7 +377,7 @@ def render_consecutive_trace_gif(
 
     # ---------- font ----------
     try:
-        font = ImageFont.truetype("JetBrains_Mono/JetBrainsMono-VariableFont_wght.ttf", font_size)
+        font = ImageFont.truetype("assets/JetBrainsMono-VariableFont_wght.ttf", font_size)
     except Exception:
         print(f"fail to load target font")
         font = ImageFont.load_default()
