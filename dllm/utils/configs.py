@@ -22,7 +22,6 @@ class DataArguments:
     dataset_args: str = None  # overwrite this
     num_proc: int = 8
     max_length: int = 1024
-    truncation: str = "filter"  # "filter", "right"
     truncation: str = field(
         default="filter",
         metadata={
