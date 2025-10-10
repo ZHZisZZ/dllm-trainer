@@ -7,7 +7,7 @@ This directory provides an educational reference for training EditFlow models. I
 
 > [!NOTE]
 > - Examples are available for both LLaDA and Dream, but this README focuses on adapting open-weight LLaDA for edit operations ([`adapt_llada.py`](/examples/editflow/adapt_llada.py)) and reusing its architecture for training from scratch ([`pt_llada.py`](/examples/editflow/pt_llada.py) -> [`sft_llada.py`](/examples/editflow/sft_llada.py)).
-> - While `EditFlowCollator` supports custom `x0`, this README uses a fixed-length (128) masks as `x0`. The trained model generates text by replacing masks, deleting redundant ones, and inserting tokens as needed. To change the default `x0` distribution (e.g., empty sequences for insertion-only generation), pass `--x0_sampler "empty"`.
+> - While `EditFlowCollator` supports custom `x0`, this README uses a fixed-length (128) masks as `x0`. The trained model generates text by replacing masks, deleting redundant ones, and inserting tokens as needed. To change the default `x0` distribution (e.g., empty sequences for [OneFlow](https://arxiv.org/abs/2510.03506)-like insertion-only generation), pass `--x0_sampler "empty"`.
 
 
 ## Setup notes
@@ -63,12 +63,13 @@ accelerate launch --config_file scripts/accelerate_configs/deepspeed_zero2.yaml 
     --output_dir "models/EditFlow-LLaDA-8B-Instruct-Adapt/tulu-3-sft-mixture" \
     --x0_sampler "masks[length:128]" \
     --max_length 1024 \ 
-    --num_train_epochs 4
+    --num_train_epochs 4 \
+    --learning_rate 2e-5
 ```
 
-If you are using slurm and want to train across, for example, two nodes (16 GPUs total), run:
+If you are using slurm and want to train across, for example, four nodes (32 GPUs total), run:
 ```shell
-sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
+sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "deepspeed_zero2" \
     --script_path "examples/editflow/adapt_llada.py" \
     --model_name_or_path "GSAI-ML/LLaDA-8B-Instruct" \
@@ -78,7 +79,8 @@ sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
     --output_dir "models/EditFlow-LLaDA-8B-Instruct-Adapt/tulu-3-sft-mixture" \
     --x0_sampler "masks[length:128]" \
     --max_length 1024 \ 
-    --num_train_epochs 4
+    --num_train_epochs 4 \
+    --learning_rate 2e-5
 ```
 
 After training, you can use the generate scripts to provide a visualized decoding trace to see how the model performs *insertion* and *deletion* beyond regular mask *substitutions*.
@@ -98,7 +100,8 @@ sbatch --nodes=32 --gres=gpu:8 scripts/train.slurm.sh \
     --output_dir "models/EditFlow-LLaDA-8B-Base/dclm-baseline-1.0" \
     --x0_sampler "masks[length:128]" \
     --max_length 1024 \ 
-    --max_steps 10000
+    --max_steps 2000 \
+    --learning_rate 3e-4
 ```
 
 Finetune on a subset of [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture) using 8 GPUS and DeepSpeed ZeRO-2 for better instruction following:
@@ -113,7 +116,8 @@ sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
     --output_dir "models/EditFlow-LLaDA-8B-Base/dclm-baseline-1.0" \
     --x0_sampler "masks[length:128]" \
     --max_length 1024 \ 
-    --num_train_epochs 4
+    --num_train_epochs 4 \
+    --learning_rate 2e-5
 ```
 
 ## Acknowledgement
