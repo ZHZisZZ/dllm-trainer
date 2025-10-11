@@ -7,8 +7,24 @@ from dllm.utils.configs import ModelArguments, TrainingArguments
 
 
 def get_model(
-    model_args: ModelArguments,
+    model_args = None,
+    model_name_or_path: str | None = None,
+    torch_dtype: str | torch.dtype = "bfloat16",
+    load_in_4bit: bool | None = None,
 ) -> transformers.PreTrainedModel:
+    """
+    Load a model with flexible input sources.
+
+    Args:
+        model_args: An optional dataclass or namespace containing model parameters.
+        model_name_or_path: Optional direct model path or name (overrides model_args.model_name_or_path).
+        torch_dtype: Dtype (string or torch.dtype).
+        load_in_4bit: Whether to load using 4-bit quantization (can override model_args.load_in_4bit).
+
+    Returns:
+        transformers.PreTrainedModel
+    """
+
     # Map string dtype to torch dtype
     dtype_map = {
         "bf16": torch.bfloat16,
@@ -21,43 +37,79 @@ def get_model(
         "float": torch.float32,
     }
 
-    torch_dtype = getattr(model_args, "torch_dtype", "bfloat16")
-    torch_dtype = dtype_map.get(str(torch_dtype).lower())
+    # Prefer argument > model_args
+    torch_dtype = dtype_map.get(str(torch_dtype).lower(), torch.bfloat16)
+
+    if model_args is not None:
+        model_name_or_path = model_name_or_path or getattr(model_args, "model_name_or_path", None)
+        load_in_4bit = load_in_4bit or getattr(model_args, "load_in_4bit", None)
+
+    if not model_name_or_path:
+        raise ValueError("`model_name_or_path` must be provided, either directly or via model_args.")
+
+    # Device map: skip when ZeRO-3
+    device_map = (
+        {"": accelerate.PartialState().local_process_index}
+        if not transformers.modeling_utils.is_deepspeed_zero3_enabled()
+        else None
+    )
+
+    quant_config = None
+    if load_in_4bit and transformers.utils.is_bitsandbytes_available():
+        quant_config = transformers.BitsAndBytesConfig(load_in_4bit=True)
 
     model = transformers.AutoModel.from_pretrained(
-        model_args.model_name_or_path,
+        model_name_or_path,
         torch_dtype=torch_dtype,
-        **(
-            {"device_map": {"": accelerate.PartialState().local_process_index}}
-            if not transformers.modeling_utils.is_deepspeed_zero3_enabled()
-            else {}
-        ),
-        quantization_config=(
-            transformers.BitsAndBytesConfig(load_in_4bit=True)
-            if getattr(model_args, "load_in_4bit", None)
-            and transformers.utils.is_bitsandbytes_available()
-            else None
-        ),
+        device_map=device_map,
+        quantization_config=quant_config,
     )
     return model
 
 
 def get_tokenizer(
-    model_args: ModelArguments, model: transformers.PreTrainedModel | None = None
+    model_args = None,
+    model_name_or_path: str | None = None,
+    model: transformers.PreTrainedModel | None = None,
 ) -> transformers.PreTrainedTokenizer:
+    """
+    Load a tokenizer with flexible input sources.
+
+    Args:
+        model_args: Optional dataclass or namespace containing model parameters.
+        model: Optional model instance to configure tokenizer behavior.
+        model_name_or_path: Optional direct model name or path (overrides model_args.model_name_or_path).
+
+    Returns:
+        transformers.PreTrainedTokenizer
+    """
+    # Lazy imports to avoid circular dependencies
     from dllm.pipelines.llada.models.modeling_llada import LLaDAModelLM
     from dllm.pipelines.llada.models.modeling_lladamoe import LLaDAMoEModelLM
     from dllm.pipelines.dream.models.modeling_dream import DreamModel
     from dllm.pipelines.rnd.models.modeling_rnd import RND1LM
 
+    # Prefer direct argument > model_args
+    if model_args is not None:
+        model_name_or_path = model_name_or_path or getattr(model_args, "model_name_or_path", None)
+
+    if not model_name_or_path:
+        raise ValueError("`model_name_or_path` must be provided, either directly or via model_args.")
+
+    # ---------------- Tokenizer loading ----------------
     tokenizer = transformers.AutoTokenizer.from_pretrained(
-        model_args.model_name_or_path,
+        model_name_or_path,
         padding_side="right",
     )
+
     if not tokenizer.pad_token:
         tokenizer.pad_token = tokenizer.eos_token
+
+    # If model is not provided, return as-is
     if not model:
         return tokenizer
+
+    # ---------------- Model-specific customization ----------------
 
     if isinstance(model, (LLaDAModelLM)):
         tokenizer.mask_token = "<|mdm_mask|>"

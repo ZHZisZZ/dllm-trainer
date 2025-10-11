@@ -124,7 +124,7 @@ import dllm
 
 model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 # ----- Model ------------------------------------------------------------------
-model = dllm.utils.get_model(model_args)
+model = dllm.utils.get_model(model_args=model_args)
 # ----- Tokenizer --------------------------------------------------------------
 tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
 # ----- Dataset ----------------------------------------------------------------
