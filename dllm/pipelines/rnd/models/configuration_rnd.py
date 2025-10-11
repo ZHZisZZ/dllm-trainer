@@ -121,3 +121,8 @@ class RND1Config(PretrainedConfig):
             },
         )
         return data
+
+
+from transformers import AutoConfig
+# Register the model so that it is available for transformer pipelines, auto-loading, etc.
+AutoConfig.register("rnd1", RND1Config)
