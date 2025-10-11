@@ -18,7 +18,7 @@ def test_llada_attention_mask():
         "GSAI-ML/LLaDA-8B-Base", "BASE_MODELS_DIR"
     )
     model = transformers.AutoModel.from_pretrained(
-        model_name_or_path, torch_dtype=torch.float32, device_map="auto"
+        model_name_or_path, dtype=torch.float32, device_map="auto"
     ).eval()
 
     # ----- Case A: no padding -----
@@ -76,7 +76,7 @@ def test_llada_moe_attention_mask():
         "inclusionAI/LLaDA-MoE-7B-A1B-Base", "BASE_MODELS_DIR"
     )
     model = transformers.AutoModel.from_pretrained(
-        model_name_or_path, torch_dtype=torch.float32, device_map="auto"
+        model_name_or_path, dtype=torch.float32, device_map="auto"
     ).eval()
 
     # ----- Case A: no padding -----
@@ -134,7 +134,7 @@ def test_dream_attention_mask():
         "Dream-org/Dream-v0-Base-7B", "BASE_MODELS_DIR"
     )
     model = transformers.AutoModel.from_pretrained(
-        model_name_or_path, torch_dtype=torch.float32, device_map="auto"
+        model_name_or_path, dtype=torch.float32, device_map="auto"
     ).eval()
 
     # ----- Case A: no padding -----

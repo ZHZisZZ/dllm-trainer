@@ -90,7 +90,7 @@ def train():
     # Initialize from config (Dream pretraining = from scratch)
     config = transformers.AutoConfig.from_pretrained(model_args.model_name_or_path)
     with dllm.utils.init_device_context_manager():
-        model = transformers.AutoModel.from_config(config, torch_dtype=torch.bfloat16)
+        model = transformers.AutoModel.from_config(config, dtype=torch.bfloat16)
 
     # ----- Tokenizer -----------------------------------------------------------
     tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
