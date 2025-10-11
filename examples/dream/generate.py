@@ -40,8 +40,8 @@ script_args = tyro.cli(ScriptArguments)
 transformers.set_seed(script_args.seed)
 
 # Load model & tokenizer
-model = dllm.utils.get_model(script_args).eval()
-tokenizer = dllm.utils.get_tokenizer(script_args, model)
+model = dllm.utils.get_model(model_args=script_args).eval()
+tokenizer = dllm.utils.get_tokenizer(model_args=script_args, model=model)
 tokenizer.padding_side = "left"
 
 # --- Example 1: Batch generation ---

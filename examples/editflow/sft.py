@@ -72,7 +72,7 @@ def train(
 
     # # ----- Load EditFlow Model --------------------------------------------------
     if not model:
-        model = dllm.utils.get_model(model_args)
+        model = dllm.utils.get_model(model_args=model_args)
 
     def _no_flops(*args, **kwargs):
         return 0.0

@@ -66,7 +66,7 @@ def train():
     dllm.utils.initial_training_setup(training_args)
 
     # ----- Model ------------------------------------------------------------------
-    model = dllm.utils.get_model(model_args)
+    model = dllm.utils.get_model(model_args=model_args)
     # ----- Tokenizer --------------------------------------------------------------
     tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
     # ----- Optional PEFT: LoRA ----------------------------------------------------

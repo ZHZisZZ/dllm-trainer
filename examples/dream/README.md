@@ -42,12 +42,17 @@ examples/dream
 └── sft.py                          # Supervised finetuning example
 
 ```
-
+> [!NOTE]
+>  We slightly modified [`modeling_dream.py`](/dllm/pipelines/dream/models/modeling_dream.py) so that the `model.forward()` supports 2-D attention masks. We recommend loading models with `dllm.utils.get_tokenizer`; otherwise `import dllm` before calling `AutoModel.from_pretrained` to ensure the correct models from `dllm` are used. 
+> 
+> We fixed bugs in `chat_template` and standardize `mask_token` through `dllm.utils.get_tokenizer`. If you use `AutoTokenizer`, keep in mind to set `chat_template` and `mask_token` appropriately yourselves.
 
 ## Training
 
 > [!NOTE]
-> Use `--dataset_args "allenai/tulu-3-sft-mixture[train:10000,test:1000]"` to train/evaluate only on a subset; Use `--dataset_args "allenai/tulu-3-sft-mixture | OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"` to concatenate datasets.
+> Use `--dataset_args "allenai/tulu-3-sft-mixture[train:10000,test:1000]"` to train/evaluate only on a subset; 
+>
+> Use `--dataset_args "allenai/tulu-3-sft-mixture | OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"` to concatenate datasets.
 
 ### Finetuning [Dream-v0-Base-7B](https://huggingface.co/Dream-org/Dream-v0-Base-7B)
 Dream supports training with DDP or DeepSpeed ZeRO-{1,2,3}. For example, to SFT [Dream-v0-Base-7B](https://huggingface.co/Dream-org/Dream-v0-Base-7B) on [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture) using DeepSpeed ZeRO-2 on 8 GPUs:

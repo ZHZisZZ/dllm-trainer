@@ -41,7 +41,7 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = None  # overwrite this
     learning_rate: float = 3e-4
     max_steps: int = 2_000
-    per_device_train_batch_size: int = 4
+    per_device_train_batch_size: int = 3
     gradient_accumulation_steps: int = 4
     eval_steps: float = 0.05
     save_steps: float = 0.05
@@ -96,7 +96,7 @@ def train(
         model = transformers.AutoModel.from_config(ef_cfg, torch_dtype=torch.bfloat16)
     if model_args.init_editflow_from_src:
         # Load src model config & weights (bf16 on CUDA) for intializing EditFlow model
-        src_model = dllm.utils.get_model(model_args)
+        src_model = dllm.utils.get_model(model_args=model_args)
         # Initialize EditFlow model from the src model: copies backbone & clones lm_head
         editflow.utils.init_editflow_from_src(
             model, src_model, lm_head_key=model_args.lm_head_key

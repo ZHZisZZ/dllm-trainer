@@ -20,7 +20,6 @@ from transformers.modeling_outputs import (
 from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
 from transformers.modeling_utils import PreTrainedModel
 from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
-from transformers.models.auto import AutoModel
 from transformers.utils import (
     add_start_docstrings,
     add_start_docstrings_to_model_forward,
@@ -1323,5 +1322,6 @@ class LLaDAMoEModelLM(LLaDAMoEPreTrainedModel):
         )
 
 
+from transformers import AutoModel
 # Register the model so that it is available for transformer pipelines, auto-loading, etc.
 AutoModel.register(LLaDAMoEConfig, LLaDAMoEModelLM)

@@ -70,7 +70,7 @@ if __name__ == "__main__":
         model = transformers.AutoModel.from_config(ef_cfg, torch_dtype=torch.bfloat16)
     # Initialize EditFlow model from the src model: copies backbone & clones lm_head
     if model_args.init_editflow_from_src:
-        src_model = dllm.utils.get_model(model_args)
+        src_model = dllm.utils.get_model(model_args=model_args)
         dllm.pipelines.editflow.utils.init_editflow_from_src(
             model, src_model, lm_head_key=model_args.lm_head_key
         )

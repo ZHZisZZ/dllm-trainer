@@ -54,10 +54,13 @@ def render_consecutive_trace_gif(
         s = s.replace("\t", "    ")
         s = s.replace("\u00a0", " ").replace("\u2007", " ").replace("\u202f", " ")
 
-        # replace mdm_mask variants
+        # replace mask variants
         if "mdm_mask" in s.lower():
             s = re.sub(r"<[\|]?\s*mdm_mask\s*[\|]?>", "[m]", s, flags=re.IGNORECASE)
             s = s.replace("mdm_mask", "[m]")
+        if "mask" in s.lower():
+            s = re.sub(r"<[\|]?\s*mask\s*[\|]?>", "[m]", s, flags=re.IGNORECASE)
+            s = s.replace("mask", "[m]")
 
         # replace <|...|> format tokens with bracketed form
         s = re.sub(r"<\|\s*(.*?)\s*\|>", r"[\1]", s)
@@ -238,7 +241,7 @@ def render_consecutive_trace_gif(
         # compute height needed
         body_h = len(wrapped_lines) * (font_size + line_spacing)
         ops_h = len(ops_lines) * (font_size + line_spacing) + font_size # + 20
-        required_h = margin + (font_size + line_spacing) + body_h  #+ 20  + ops_h
+        required_h = margin + (font_size + line_spacing) + body_h  + 20
 
         measurement_payload.append(
             {
