@@ -12,3 +12,5 @@ omegaconf
 tqdm
 matplotlib
 pytest
+# sglang==0.4.6.post5
+# flashinfer-python==0.2.5

@@ -65,8 +65,8 @@ conda create -n dllm python=3.10 -y
 conda activate dllm
 
 # install pytorch with CUDA 11.8 (other pytorch/cuda versions should also work)
-pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
-    --index-url https://download.pytorch.org/whl/cu118
+pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
+    --index-url https://download.pytorch.org/whl/cu124
 
 # install requirements
 pip install -r requirements.txt
