@@ -38,7 +38,9 @@ from dllm.pipelines import llada
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
-    model_name_or_path: str = "GSAI-ML/LLaDA-8B-Base"
+    model_name_or_path: str = (
+        "GSAI-ML/LLaDA-8B-Base"  # "inclusionAI/LLaDA-MoE-7B-A1B-Base"
+    )
 
 
 @dataclass
@@ -49,7 +51,7 @@ class DataArguments(dllm.utils.DataArguments):
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = "models/LLaDA-8B-SFT/tulu-3-sft-mixture[train:10000,test:1000]"
-    # llada specific
+    # LLaDA SFT specific args
     mask_prompt_loss: bool = field(
         default=True,
         metadata={"help": "Whether to mask the loss on the prompt tokens"},
@@ -82,10 +84,10 @@ def train():
             prompt_tokens = tokenizer.apply_chat_template(
                 row["messages"][:-1], tokenize=True, add_generation_prompt=True
             )
-            # use -100 in labels to indicate positions where tokens should not be masked
-            # and loss is ignored; all other positions match `input_ids`
+            # -100s in labels indicate positions where tokens should not be masked 
+            # and loss should be ignored; all other positions match `input_ids`
             labels[: len(prompt_tokens)] = [-100] * len(prompt_tokens)
-            # `prompt_len` to help `post_process_dataset` truncate long sequences properly
+            # `prompt_len` helps `post_process_dataset` truncate long sequences properly
             return {
                 "input_ids": prompt_response_tokens,
                 "labels": labels,
@@ -102,9 +104,12 @@ def train():
     # ----- Training --------------------------------------------------------------
     @dataclass
     class LLaDASFTCollator(transformers.DataCollatorForSeq2Seq):
+        # Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md#sft
+        # 
+        # LLaDA is finetuned on all tokens, including padding (<eos_token>).
+        # Therefore, the attention_mask — which normally ignores padding tokens — should be disabled.
         def __call__(self, features, return_tensors=None):
             outputs = super().__call__(features, return_tensors)
-            # LLaDA is trained on padding <eos_token>
             outputs.pop("attention_mask")
             return outputs
 
@@ -112,14 +117,14 @@ def train():
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],
-        eval_dataset=dataset["test"],
+        eval_dataset=dataset.get("test", None),
         args=training_args,
         data_collator=LLaDASFTCollator(
             tokenizer,
             pad_to_multiple_of=8,
             return_tensors="pt",
             padding=True,
-            label_pad_token_id=tokenizer.pad_token_id,  # LLaDA is trained on padding <eos_token>
+            label_pad_token_id=tokenizer.pad_token_id,  # LLaDA should be finetuned on padding <eos_token>
         ),
     )
     trainer.train()

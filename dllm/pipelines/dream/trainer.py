@@ -39,10 +39,7 @@ def cart_weight(
 
 class DreamTrainer(MDLMTrainer):
     """
-    DreamTrainer: specialization of MDLMTrainer for Dream pretraining.
-
-    - Uses CART-style geometric loss reweighting by default.
-    - Supports label padding with configurable token id.
+    DreamTrainer: specialization of MDLMTrainer for Dream training.
     """
 
     def __init__(
@@ -66,16 +63,16 @@ class DreamTrainer(MDLMTrainer):
         t: torch.Tensor,
         inputs: dict[str, Any],
         masked_indices: torch.Tensor,
+        *args, **kwargs,
     ) -> torch.Tensor:
         if self.loss_weight_type.startswith("cart"):
             # parse geo_p
             import re
-
             match = re.search(r"geo_p:(0\.\d+)", self.loss_weight_type)
             geo_p = float(match.group(1)) if match else 0.3
             loss_weights = cart_weight(masked_indices, t, p=geo_p)
         else:
             loss_weights = super()._compute_loss_weights(
-                t=t, inputs=inputs, masked_indices=masked_indices
+                t=t, inputs=inputs, masked_indices=masked_indices, *args, **kwargs,
             )
         return loss_weights

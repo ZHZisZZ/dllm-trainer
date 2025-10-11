@@ -36,9 +36,6 @@ import dllm
 from dllm.pipelines import dream
 
 
-# ---------------------------- Arguments -------------------------------- #
-
-
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = "Dream-org/Dream-v0-Base-7B"
@@ -46,7 +43,6 @@ class ModelArguments(dllm.utils.ModelArguments):
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
-    # Default dataset example (can be replaced)
     dataset_args: str = "mlfoundations/dclm-baseline-1.0[train:10_000_000,test:10_000]"
 
 
@@ -59,8 +55,9 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     gradient_accumulation_steps: int = 4
     eval_steps: float = 0.05
     save_steps: float = 0.05
-
-    # Dream-specific pretraining params: https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml
+    # Dream PT specific args
+    # Note: Since Dream’s pretraining recipe is not public, 
+    # this is only a reference implementation following LLaDA’s data processing approach.
     random_length_ratio: float = field(
         default=0.01,
         metadata={
@@ -72,7 +69,12 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     )
     loss_weight_type: str = field(
         default="cart[geo_p:0.3]",
-        metadata={"help": "loss weight type"},
+        metadata={
+            "help": (
+                "The loss weight type. "
+                "See https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml."
+            )
+        },
     )
 
 

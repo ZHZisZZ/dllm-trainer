@@ -62,13 +62,13 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     gradient_accumulation_steps: int = 4
     eval_steps: float = 0.05
     save_steps: float = 0.05
-    # llada specific
+    # LLaDA PT specific args
     random_length_ratio: float = field(
         default=0.01,
         metadata={
             "help": (
                 "The probability of randomly cut sequences during training. "
-                "See https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md."
+                "See https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md#pre-training for reference."
             )
         },
     )
@@ -80,9 +80,8 @@ def train():
         (ModelArguments, DataArguments, TrainingArguments)
     )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    training_args.accelerator_config.dispatch_batches = (
-        False  # necessary for streaming dataset
-    )
+    # necessary for streaming dataset
+    training_args.accelerator_config.dispatch_batches = False
     dllm.utils.print_args_main(model_args, data_args, training_args)
     dllm.utils.initial_training_setup(training_args)
 
@@ -122,7 +121,8 @@ def train():
     # ----- Training --------------------------------------------------------------
     @dataclass
     class LLaDAPTCollator(transformers.DataCollatorForSeq2Seq):
-        # Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md
+        # Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md#pre-training
+        # By default, 1% of the pre-training data are truncated to a random length
         random_length_ratio: float = 0.01
 
         def __call__(self, features, return_tensors=None):
@@ -133,7 +133,6 @@ def train():
                 )
                 outputs["input_ids"] = outputs["input_ids"][:, :random_length]
                 outputs["labels"] = outputs["labels"][:, :random_length]
-            # LLaDA is trained on padding <eos_token>
             outputs.pop("attention_mask")
             return outputs
 
@@ -145,10 +144,8 @@ def train():
         args=training_args,
         data_collator=LLaDAPTCollator(
             tokenizer,
-            pad_to_multiple_of=8,
             return_tensors="pt",
             padding=True,
-            label_pad_token_id=tokenizer.pad_token_id,  # LLaDA is trained on padding <eos_token>
             random_length_ratio=training_args.random_length_ratio,
         ),
     )
