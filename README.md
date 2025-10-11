@@ -64,7 +64,7 @@ Training Diffusion Large Language Models Made Simple
 conda create -n dllm python=3.10 -y
 conda activate dllm
 
-# install pytorch with CUDA 11.8 (other pytorch/cuda versions should also work)
+# install pytorch with CUDA 12.4 (other pytorch/cuda versions should also work)
 pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
     --index-url https://download.pytorch.org/whl/cu124
 

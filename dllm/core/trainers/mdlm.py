@@ -59,25 +59,25 @@ class MDLMTrainer(transformers.Trainer):
     #     logits = outputs.logits if hasattr(outputs, "logits") else outputs
     #     labels = inputs.get("labels")
     #     return (loss, logits, labels)
-    @torch.no_grad()
-    def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None):
-        # Use your custom loss logic (one forward pass only)
-        loss, outputs = self.compute_loss(model, inputs, return_outputs=True)
+    # @torch.no_grad()
+    # def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None):
+    #     # Use your custom loss logic (one forward pass only)
+    #     loss, outputs = self.compute_loss(model, inputs, return_outputs=True)
 
-        # If only the loss is needed, don't return logits/labels (saves tons of memory)
-        if prediction_loss_only:
-            return (loss.detach().cpu(), None, None)
+    #     # If only the loss is needed, don't return logits/labels (saves tons of memory)
+    #     if prediction_loss_only:
+    #         return (loss.detach().cpu(), None, None)
 
-        # Extract logits robustly
-        logits = getattr(outputs, "logits", outputs)
-        if isinstance(logits, torch.Tensor):
-            logits = logits.detach().cpu()
+    #     # Extract logits robustly
+    #     logits = getattr(outputs, "logits", outputs)
+    #     if isinstance(logits, torch.Tensor):
+    #         logits = logits.detach().cpu()
 
-        labels = inputs.get("labels")
-        if isinstance(labels, torch.Tensor):
-            labels = labels.detach().cpu()
+    #     labels = inputs.get("labels")
+    #     if isinstance(labels, torch.Tensor):
+    #         labels = labels.detach().cpu()
 
-        return (loss.detach().cpu(), logits, labels)
+    #     return (loss.detach().cpu(), logits, labels)
 
     def compute_loss(
         self,
