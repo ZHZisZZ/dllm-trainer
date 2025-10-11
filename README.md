@@ -40,7 +40,8 @@ Training Diffusion Large Language Models Made Simple
 
 1. [`examples/llada`](/examples/llada): Finetuning open-weight LLaDA [LLaDA / LLaDA-MoE](https://arxiv.org/abs/2502.09992), as well as reproducing LLaDA by training from scratch on public data (pretraining & finetuning).
 2. [`examples/dream`](/examples/dream): Finetuning open-weight Dream [Dream](https://arxiv.org/abs/2508.15487), as well as reproducing Dream by training from scratch on public data (pretraining & finetuning).
-3. [`examples/editflow`](/examples/editflow): Educational reference for training [EditFlow](https://arxiv.org/abs/2506.09018) models, demonstrating how to extend existing DLLMs (e.g., LLaDA and Dream) with *edit operations*—insertion, deletion, and substitution—and how to pretrain or finetune EditFlow models from scratch on public data.
+3. [`examples/rnd`](/examples/rnd): Finetuning open-weight RND1 [RND1-Base](https://www.radicalnumerics.ai/assets/rnd1_report.pdf).
+4. [`examples/editflow`](/examples/editflow): Educational reference for training [EditFlow](https://arxiv.org/abs/2506.09018) models, demonstrating how to extend existing DLLMs (e.g., LLaDA and Dream) with *edit operations*—insertion, deletion, and substitution—and how to pretrain or finetune EditFlow models from scratch on public data.
 
    <details>
    <summary>🎬 Click to show EditFlow Demo</summary>

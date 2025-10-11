@@ -61,7 +61,9 @@ examples/llada
 ## Training
 
 > [!NOTE]
-> Use `--dataset_args "allenai/tulu-3-sft-mixture[train:10000,test:1000]"` to train / eval only on a subset; Use `--dataset_args "allenai/tulu-3-sft-mixture | OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"` to concatenate datasets.
+> Use `--dataset_args "allenai/tulu-3-sft-mixture[train:10000,test:1000]"` to train / eval only on a subset; 
+> 
+> Use `--dataset_args "allenai/tulu-3-sft-mixture | OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"` to concatenate datasets.
 
 ### Finetuning [LLaDA-8B-Base](https://huggingface.co/GSAI-ML/LLaDA-8B-Base)
 We support training models with either DDP or DeepSpeed ZeRO-{1,2,3}. For example, to SFT [LLaDA-8B-Base](https://huggingface.co/GSAI-ML/LLaDA-8B-Base) for instruction following on [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture) using DeepSpeed ZeRO-2 on 8 GPUs, run:
