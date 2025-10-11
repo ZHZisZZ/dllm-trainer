@@ -93,7 +93,7 @@ def train(
     # Create EditFlow model (bf16 init on CUDA)
     ef_cfg = ef_config_cls.from_pretrained(model_args.model_name_or_path)
     with dllm.utils.init_device_context_manager():
-        model = transformers.AutoModel.from_config(ef_cfg, torch_dtype=torch.bfloat16)
+        model = transformers.AutoModel.from_config(ef_cfg, dtype=torch.bfloat16)
     if model_args.init_editflow_from_src:
         # Load src model config & weights (bf16 on CUDA) for intializing EditFlow model
         src_model = dllm.utils.get_model(model_args=model_args)

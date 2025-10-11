@@ -67,7 +67,7 @@ if __name__ == "__main__":
         model_args.model_name_or_path
     )
     with dllm.utils.init_device_context_manager():
-        model = transformers.AutoModel.from_config(ef_cfg, torch_dtype=torch.bfloat16)
+        model = transformers.AutoModel.from_config(ef_cfg, dtype=torch.bfloat16)
     # Initialize EditFlow model from the src model: copies backbone & clones lm_head
     if model_args.init_editflow_from_src:
         src_model = dllm.utils.get_model(model_args=model_args)

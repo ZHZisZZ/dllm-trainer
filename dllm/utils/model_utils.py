@@ -9,7 +9,7 @@ from dllm.utils.configs import ModelArguments, TrainingArguments
 def get_model(
     model_args = None,
     model_name_or_path: str | None = None,
-    torch_dtype: str | torch.dtype = "bfloat16",
+    dtype: str | torch.dtype = "bfloat16",
     load_in_4bit: bool | None = None,
 ) -> transformers.PreTrainedModel:
     """
@@ -18,7 +18,7 @@ def get_model(
     Args:
         model_args: An optional dataclass or namespace containing model parameters.
         model_name_or_path: Optional direct model path or name (overrides model_args.model_name_or_path).
-        torch_dtype: Dtype (string or torch.dtype).
+        dtype: Dtype (string or torch.dtype).
         load_in_4bit: Whether to load using 4-bit quantization (can override model_args.load_in_4bit).
 
     Returns:
@@ -38,7 +38,7 @@ def get_model(
     }
 
     # Prefer argument > model_args
-    torch_dtype = dtype_map.get(str(torch_dtype).lower(), torch.bfloat16)
+    dtype = dtype_map.get(str(dtype).lower(), torch.bfloat16)
 
     if model_args is not None:
         model_name_or_path = model_name_or_path or getattr(model_args, "model_name_or_path", None)
@@ -60,7 +60,7 @@ def get_model(
 
     model = transformers.AutoModel.from_pretrained(
         model_name_or_path,
-        torch_dtype=torch_dtype,
+        dtype=dtype,
         device_map=device_map,
         quantization_config=quant_config,
     )

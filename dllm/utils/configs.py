@@ -9,7 +9,7 @@ from dllm.utils.utils import resolve_with_base_env
 class ModelArguments:
     model_name_or_path: str = None  # overwrite this
     load_in_4bit: bool = False
-    torch_dtype: str = "bfloat16"
+    dtype: str = "bfloat16"
 
     def __post_init__(self):
         self.model_name_or_path = resolve_with_base_env(

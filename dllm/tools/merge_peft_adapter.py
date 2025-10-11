@@ -60,7 +60,7 @@ def main():
 
     # Load base model and tokenizer
     model = AutoModel.from_pretrained(
-        base_id, return_dict=True, torch_dtype=DTYPE_MAP[args.dtype]
+        base_id, return_dict=True, dtype=DTYPE_MAP[args.dtype]
     )
     tokenizer = AutoTokenizer.from_pretrained(base_id)
 

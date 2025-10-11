@@ -42,7 +42,7 @@ CONFIG_DEFAULTS = {
     "router_aux_loss_coef": 0.001,
     "sliding_window": False,
     "tie_word_embeddings": False,
-    "torch_dtype": "bfloat16",
+    "dtype": "bfloat16",
     "use_cache": False,
     "use_sliding_window": False,
     "vocab_size": 151936,
