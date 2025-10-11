@@ -5,14 +5,14 @@
 #     accelerate launch \
 #         --config_file scripts/accelerate_configs/single_gpu.yaml \
 #         examples/rnd/sft.py
-    
+
 # - 8 GPUs (DeepSpeed ZeRO-2):
 #     accelerate launch \
 #         --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
 #         examples/rnd/sft.py
 
 # Slurm users
-# # Note: run `mkdir logs` before running sbatch; and adjust 
+# # Note: run `mkdir logs` before running sbatch; and adjust
 # #       `partition` and `quotatype` in `scripts/train.slurm.sh` for your cluster.
 # ------------
 # - 1 GPU:

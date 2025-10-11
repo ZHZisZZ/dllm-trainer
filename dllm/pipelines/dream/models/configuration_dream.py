@@ -85,5 +85,6 @@ class DreamConfig(PretrainedConfig):
 
 
 from transformers import AutoConfig
+
 # Register the config class so that it is available for transformer pipelines, auto-loading etc.
 AutoConfig.register("Dream", DreamConfig)

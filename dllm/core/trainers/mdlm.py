@@ -37,7 +37,8 @@ class MDLMTrainer(transformers.Trainer):
         self,
         t: torch.Tensor,
         inputs: dict[str, Any],
-        *args, **kwargs,
+        *args,
+        **kwargs,
     ) -> torch.Tensor:
         """Compute loss weights given timestep t and other arguments."""
         b, l = inputs["input_ids"].shape

@@ -1,0 +1,7 @@
+[tool.black]
+line-length = 88
+exclude = '''
+(
+  /dllm/pipelines/rnd/models/
+)
+'''

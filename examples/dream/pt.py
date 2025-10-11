@@ -56,7 +56,7 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     eval_steps: float = 0.05
     save_steps: float = 0.05
     # Dream PT specific args
-    # Note: Since Dream’s pretraining recipe is not public, 
+    # Note: Since Dream’s pretraining recipe is not public,
     # this is only a reference implementation following LLaDA’s data processing approach.
     random_length_ratio: float = field(
         default=0.01,

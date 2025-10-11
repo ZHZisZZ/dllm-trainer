@@ -84,7 +84,7 @@ def train():
             prompt_tokens = tokenizer.apply_chat_template(
                 row["messages"][:-1], tokenize=True, add_generation_prompt=True
             )
-            # -100s in labels indicate positions where tokens should not be masked 
+            # -100s in labels indicate positions where tokens should not be masked
             # and loss should be ignored; all other positions match `input_ids`
             labels[: len(prompt_tokens)] = [-100] * len(prompt_tokens)
             # `prompt_len` helps `post_process_dataset` truncate long sequences properly
@@ -105,7 +105,7 @@ def train():
     @dataclass
     class LLaDASFTCollator(transformers.DataCollatorForSeq2Seq):
         # Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md#sft
-        # 
+        #
         # LLaDA is finetuned on all tokens, including padding (<eos_token>).
         # Therefore, the attention_mask — which normally ignores padding tokens — should be disabled.
         def __call__(self, features, return_tensors=None):

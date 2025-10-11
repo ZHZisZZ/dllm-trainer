@@ -7,7 +7,7 @@ from dllm.utils.configs import ModelArguments, TrainingArguments
 
 
 def get_model(
-    model_args = None,
+    model_args=None,
     model_name_or_path: str | None = None,
     dtype: str | torch.dtype = "bfloat16",
     load_in_4bit: bool | None = None,
@@ -41,11 +41,15 @@ def get_model(
     dtype = dtype_map.get(str(dtype).lower(), torch.bfloat16)
 
     if model_args is not None:
-        model_name_or_path = model_name_or_path or getattr(model_args, "model_name_or_path", None)
+        model_name_or_path = model_name_or_path or getattr(
+            model_args, "model_name_or_path", None
+        )
         load_in_4bit = load_in_4bit or getattr(model_args, "load_in_4bit", None)
 
     if not model_name_or_path:
-        raise ValueError("`model_name_or_path` must be provided, either directly or via model_args.")
+        raise ValueError(
+            "`model_name_or_path` must be provided, either directly or via model_args."
+        )
 
     # Device map: skip when ZeRO-3
     device_map = (
@@ -68,7 +72,7 @@ def get_model(
 
 
 def get_tokenizer(
-    model_args = None,
+    model_args=None,
     model_name_or_path: str | None = None,
     model: transformers.PreTrainedModel | None = None,
 ) -> transformers.PreTrainedTokenizer:
@@ -91,10 +95,14 @@ def get_tokenizer(
 
     # Prefer direct argument > model_args
     if model_args is not None:
-        model_name_or_path = model_name_or_path or getattr(model_args, "model_name_or_path", None)
+        model_name_or_path = model_name_or_path or getattr(
+            model_args, "model_name_or_path", None
+        )
 
     if not model_name_or_path:
-        raise ValueError("`model_name_or_path` must be provided, either directly or via model_args.")
+        raise ValueError(
+            "`model_name_or_path` must be provided, either directly or via model_args."
+        )
 
     # ---------------- Tokenizer loading ----------------
     tokenizer = transformers.AutoTokenizer.from_pretrained(

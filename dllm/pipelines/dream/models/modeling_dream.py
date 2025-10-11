@@ -963,5 +963,6 @@ class DreamModel(DreamGenerationMixin, DreamPreTrainedModel):
 
 
 from transformers import AutoModel
+
 # Register the model so that it is available for transformer pipelines, auto-loading, etc.
 AutoModel.register(DreamConfig, DreamModel)
