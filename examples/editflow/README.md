@@ -55,7 +55,9 @@ The original LLaDA model generated text by iteratively substituting the given `<
 However, LLaDA supports only substitution. This example shows how to adapt it so that, during decoding, the model can not only replace fixed-length masks (e.g., 128 tokens) with real text but also insert new tokens and delete unnecessary masks adaptively:
 
 ```shell
-accelerate launch --config_file scripts/accelerate_configs/deepspeed_zero2.yaml examples/editflow/adapt_llada.py \
+accelerate launch \
+    --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
+    examples/editflow/adapt_llada.py \
     --model_name_or_path "GSAI-ML/LLaDA-8B-Instruct" \
     --lm_head_key "model.transformer.ff_out" \
     --init_editflow_from_src True \

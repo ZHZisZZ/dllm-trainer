@@ -57,7 +57,9 @@ examples/dream
 ### Finetuning [Dream-v0-Base-7B](https://huggingface.co/Dream-org/Dream-v0-Base-7B)
 Dream supports training with DDP or DeepSpeed ZeRO-{1,2,3}. For example, to SFT [Dream-v0-Base-7B](https://huggingface.co/Dream-org/Dream-v0-Base-7B) on [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture) using DeepSpeed ZeRO-2 on 8 GPUs:
 ```shell
-accelerate launch --config_file scripts/accelerate_configs/deepspeed_zero2.yaml examples/dream/sft.py \
+accelerate launch \
+    --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
+    examples/dream/sft.py \
     --model_name_or_path "Dream-org/Dream-v0-Base-7B" \
     --dataset_args "allenai/tulu-3-sft-mixture" \
     --output_dir "models/Dream-7B-SFT/tulu-3-sft-mixture" \

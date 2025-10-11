@@ -14,7 +14,7 @@ Training Diffusion Large Language Models Made Simple
 ## Overview
 **dLLM** is an educational library offering unified implementations for training **diffusion language models**. It brings transparency to the entire training and deployment process, making **reproduction and finetuning** of open-weight diffusion language models much easier. Below are some of the key features that make dLLM special:
 
-- dLLM provides reproduction and finetuning recipes for a variety of open-weight models (e.g., [LLaDA / LLaDA-MoE](https://arxiv.org/abs/2502.09992) and [Dream](https://arxiv.org/abs/2508.15487)), and provides educational reference implementation of training algorithms (e.g., [Edit Flows](https://arxiv.org/abs/2506.09018)).
+- dLLM provides reproduction and finetuning recipes for a variety of open-weight models (e.g., [LLaDA / LLaDA-MoE](https://arxiv.org/abs/2502.09992) and [Dream](https://arxiv.org/abs/2508.15487)), and provides reference implementation of various training algorithms (e.g., [Edit Flows](https://arxiv.org/abs/2506.09018)).
 
 - dLLM, built on top of [🤗 Transformers](https://github.com/huggingface/transformers), scales seamlessly—from edge devices with [LoRA](https://github.com/huggingface/peft) to multi-node clusters with [DeepSpeed](https://github.com/deepspeedai/DeepSpeed) and beyond.
 
@@ -150,7 +150,7 @@ trainer.train()
 ```
 
 ## Training
-You can launch the training job locally with `accelerate`, or submit it to a [Slurm](https://slurm.schedmd.com/) cluster using `sbatch`.
+You can launch training job locally with `accelerate`, or submit it to a [Slurm](https://slurm.schedmd.com/) cluster using `sbatch`.
 ```shell
 # Run locally (DeepSpeed ZeRO-2 with 8 GPUs)
 accelerate launch \
@@ -188,7 +188,7 @@ See [Features & Documentation](#features--documentations) for training/inference
     author = {Zhanhui Zhou and Lingjie Chen},
     title = {dLLM: Training Diffusion Large Language Models Made Simple},
     howpublished = {https://github.com/ZHZisZZ/dllm},
-    note = {Accessed: 2025-10-10},
+    note = {Accessed: 2025-10-12},
     year = {2025}
 }
 ```
