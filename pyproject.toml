@@ -2,6 +2,8 @@
 line-length = 88
 exclude = '''
 (
+  /dllm/pipelines/llada/models/
+  /dllm/pipelines/dream/models/
   /dllm/pipelines/rnd/models/
 )
 '''

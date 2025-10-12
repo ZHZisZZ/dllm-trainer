@@ -1,3 +1,4 @@
+# coding=utf-8
 # Copyright 2024 The Dream team, HKUNLP Group and The HuggingFace Inc. team. All rights reserved.
 #
 # This code is based on Qwen's implementations in this library.
@@ -39,7 +40,7 @@ MAX_MODEL_INPUT_SIZES = {"dream/dream-tokenizer": 32768}
 PRETOKENIZE_REGEX = r"""(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"""
 
 
-@lru_cache
+@lru_cache()
 # Copied from transformers.models.gpt2.tokenization_gpt2.bytes_to_unicode
 def bytes_to_unicode():
     """
@@ -52,9 +53,7 @@ def bytes_to_unicode():
     tables between utf-8 bytes and unicode strings.
     """
     bs = (
-        list(range(ord("!"), ord("~") + 1))
-        + list(range(ord("¡"), ord("¬") + 1))
-        + list(range(ord("®"), ord("ÿ") + 1))
+        list(range(ord("!"), ord("~") + 1)) + list(range(ord("¡"), ord("¬") + 1)) + list(range(ord("®"), ord("ÿ") + 1))
     )
     cs = bs[:]
     n = 0
@@ -151,30 +150,22 @@ class DreamTokenizer(PreTrainedTokenizer):
     ):
         # Dream vocab does not contain control tokens; added tokens need to be special
         bos_token = (
-            AddedToken(
-                bos_token, lstrip=False, rstrip=False, special=True, normalized=False
-            )
+            AddedToken(bos_token, lstrip=False, rstrip=False, special=True, normalized=False)
             if isinstance(bos_token, str)
             else bos_token
         )
         eos_token = (
-            AddedToken(
-                eos_token, lstrip=False, rstrip=False, special=True, normalized=False
-            )
+            AddedToken(eos_token, lstrip=False, rstrip=False, special=True, normalized=False)
             if isinstance(eos_token, str)
             else eos_token
         )
         unk_token = (
-            AddedToken(
-                unk_token, lstrip=False, rstrip=False, special=True, normalized=False
-            )
+            AddedToken(unk_token, lstrip=False, rstrip=False, special=True, normalized=False)
             if isinstance(unk_token, str)
             else unk_token
         )
         pad_token = (
-            AddedToken(
-                pad_token, lstrip=False, rstrip=False, special=True, normalized=False
-            )
+            AddedToken(pad_token, lstrip=False, rstrip=False, special=True, normalized=False)
             if isinstance(pad_token, str)
             else pad_token
         )
@@ -293,16 +284,14 @@ class DreamTokenizer(PreTrainedTokenizer):
     def convert_tokens_to_string(self, tokens):
         """Converts a sequence of tokens (string) in a single string."""
         text = "".join(tokens)
-        text = bytearray([self.byte_decoder[c] for c in text]).decode(
-            "utf-8", errors=self.errors
-        )
+        text = bytearray([self.byte_decoder[c] for c in text]).decode("utf-8", errors=self.errors)
         return text
 
     def decode(
         self,
         token_ids,
         skip_special_tokens: bool = False,
-        clean_up_tokenization_spaces: bool | None = False,
+        clean_up_tokenization_spaces: Optional[bool] = False,
         spaces_between_special_tokens: bool = False,
         **kwargs,
     ) -> str:
@@ -317,35 +306,24 @@ class DreamTokenizer(PreTrainedTokenizer):
         )
 
     # Copied from transformers.models.gpt2.tokenization_gpt2.GPT2Tokenizer.save_vocabulary
-    def save_vocabulary(
-        self, save_directory: str, filename_prefix: str | None = None
-    ) -> tuple[str]:
+    def save_vocabulary(self, save_directory: str, filename_prefix: Optional[str] = None) -> Tuple[str]:
         if not os.path.isdir(save_directory):
             logger.error(f"Vocabulary path ({save_directory}) should be a directory")
             return
         vocab_file = os.path.join(
-            save_directory,
-            (filename_prefix + "-" if filename_prefix else "")
-            + VOCAB_FILES_NAMES["vocab_file"],
+            save_directory, (filename_prefix + "-" if filename_prefix else "") + VOCAB_FILES_NAMES["vocab_file"]
         )
         merge_file = os.path.join(
-            save_directory,
-            (filename_prefix + "-" if filename_prefix else "")
-            + VOCAB_FILES_NAMES["merges_file"],
+            save_directory, (filename_prefix + "-" if filename_prefix else "") + VOCAB_FILES_NAMES["merges_file"]
         )
 
         with open(vocab_file, "w", encoding="utf-8") as f:
-            f.write(
-                json.dumps(self.encoder, indent=2, sort_keys=True, ensure_ascii=False)
-                + "\n"
-            )
+            f.write(json.dumps(self.encoder, indent=2, sort_keys=True, ensure_ascii=False) + "\n")
 
         index = 0
         with open(merge_file, "w", encoding="utf-8") as writer:
             writer.write("#version: 0.2\n")
-            for bpe_tokens, token_index in sorted(
-                self.bpe_ranks.items(), key=lambda kv: kv[1]
-            ):
+            for bpe_tokens, token_index in sorted(self.bpe_ranks.items(), key=lambda kv: kv[1]):
                 if index != token_index:
                     logger.warning(
                         f"Saving vocabulary to {merge_file}: BPE merge indices are not consecutive."

@@ -1,7 +1,6 @@
 """
 LLaDA MoE configuration
 """
-
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_rope_utils import rope_config_validation
 
@@ -39,7 +38,7 @@ class LLaDAMoEConfig(PretrainedConfig):
         num_experts=-1,
         output_router_logits=False,
         router_aux_loss_coef=0.01,
-        norm_topk_prob=None,
+        norm_topk_prob=None,        
         qk_layernorm=None,
         moe_layer_freq=[],
         moe_router_enable_expert_bias=None,
