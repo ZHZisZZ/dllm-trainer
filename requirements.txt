@@ -1,0 +1,16 @@
+transformers==4.57.0
+accelerate==1.10.1
+deepspeed==0.16.3
+peft==0.17.1
+bitsandbytes==0.42.0
+datasets==3.2.0
+sentencepiece==0.2.0
+trl==0.23.1
+tyro
+wandb
+omegaconf
+tqdm
+matplotlib
+pytest
+# sglang==0.4.6.post5
+# flashinfer-python==0.2.5
