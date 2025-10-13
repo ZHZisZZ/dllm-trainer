@@ -1,8 +1,7 @@
 """
 LLaDA configuration
 """
-
-from transformers import AutoConfig, PretrainedConfig
+from transformers import PretrainedConfig
 
 from enum import Enum
 from os import PathLike
@@ -13,6 +12,7 @@ from pathlib import Path
 from typing import (
     Any,
     Dict,
+    Iterable,
     List,
     Optional,
     Tuple,
@@ -21,7 +21,6 @@ from typing import (
     Union,
     cast,
 )
-from collections.abc import Iterable
 
 
 __all__ = [
@@ -128,7 +127,7 @@ class InitFnType(StrEnum):
 
 
 @dataclass
-class ModelConfig:
+class ModelConfig():
     """
     LLaDA (model) configuration.
     """
@@ -145,7 +144,7 @@ class ModelConfig:
     The number of self-attention heads.
     """
 
-    n_kv_heads: int | None = None
+    n_kv_heads: Optional[int] = None
     """
     The number of heads to use for keys and values. Defaults to `n_heads`.
     Set this to ``None`` or ``n_heads`` for normal multi-head attention.
@@ -164,7 +163,7 @@ class ModelConfig:
     This is only used when ``mlp_hidden_size`` is not set.
     """
 
-    mlp_hidden_size: int | None = None
+    mlp_hidden_size: Optional[int] = None
     """
     Set the exact hidden size for the MLP. Otherwise the inner MLP hidden size will be set to `mlp_ratio * d_model`.
     """
@@ -217,7 +216,7 @@ class ModelConfig:
     The dropout probability within the attention modules.
     """
 
-    multi_query_attention: bool | None = None
+    multi_query_attention: Optional[bool] = None
     """
     Use the Multi-Query formulation of attention used in PaLM. This reduces the number of parameters
     and is more efficient during inference.
@@ -277,7 +276,7 @@ class ModelConfig:
     The rope base param.
     """
 
-    include_qkv_bias: bool | None = False
+    include_qkv_bias: Optional[bool] = False
     """
     Whether or not to include bias parameters in qkv linear layers.
     """
@@ -289,7 +288,7 @@ class ModelConfig:
     models tend to have near 0 bias terms anyway.
     """
 
-    bias_for_layer_norm: bool | None = None
+    bias_for_layer_norm: Optional[bool] = None
     """
     Whether or not to include bias parameters in layer norm.
     This is separate from the include_bias parameter, because of a ROCm crash when biases are disabled in
@@ -307,7 +306,7 @@ class ModelConfig:
     Vocabulary size of the model.
     """
 
-    embedding_size: int | None = 50304
+    embedding_size: Optional[int] = 50304
     """
     The number of embeddings, i.e. the number of tokens. If set to ``None`` it will default
     to ``vocab_size``. If ``vocab_size`` is not a multiple of 128, setting this to the
@@ -330,12 +329,12 @@ class ModelConfig:
     The ID of the token to use for padding. Defaults to the ID of the EOS token.
     """
 
-    mask_token_id: int | None = 50256
+    mask_token_id: Optional[int] = 50256
     """
     The ID of the token to use for mask token. Defaults to the ID of the EOS token.
     """
 
-    init_device: str | None = None
+    init_device: Optional[str] = None
     """
     The torch device to use when initializing the model parameters, e.g. "cpu", "cuda:0", "meta".
     """
@@ -351,13 +350,13 @@ class ModelConfig:
     as "normal".
     """
 
-    init_cutoff_factor: float | None = None
+    init_cutoff_factor: Optional[float] = None
     """
     A positive factor used to scale the cutoff values when initializing weights with a "fixed distribution" ``init_fn``, such
     as "normal". Setting this to None means values are not cutoff.
     """
 
-    precision: str | None = None
+    precision: Optional[str] = None
     """
     Precision used to train/evaluate with. You shouldn't set this directly.
     See :data:`TrainConfig.precision` instead.
@@ -384,7 +383,6 @@ class ModelConfig:
                     "You can't set `multi_query_attention` and `n_kv_heads` at the same time."
                 )
 
-
 class ActivationCheckpointingStrategy(StrEnum):
     whole_layer = "whole_layer"
     """
@@ -405,7 +403,7 @@ class ActivationCheckpointingStrategy(StrEnum):
     """
     Checkpoint one in four transformer layers.
     """
-
+    
     two_in_three = "two_in_three"
     """
     Checkpoint two out of every three transformer layers.
@@ -442,7 +440,9 @@ class LLaDAConfig(PretrainedConfig):
         all_kwargs.update(kwargs)
         all_kwargs.update({"use_cache": use_cache})
         all_kwargs.update(
-            {"architectures": all_kwargs.get("architectures", ["LLaDAModelLM"])}
+            {
+                "architectures": all_kwargs.get("architectures", ["LLaDAModelLM"])
+            }
         )
         super().__init__(**all_kwargs)
 
@@ -458,6 +458,8 @@ class LLaDAConfig(PretrainedConfig):
     def hidden_size(self):
         return self.d_model
 
+
+from transformers import AutoConfig
 
 # Register the config class so that it is available for transformer pipelines, auto-loading etc.
 AutoConfig.register("llada", LLaDAConfig)

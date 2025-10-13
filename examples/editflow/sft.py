@@ -24,7 +24,11 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = None  # overwrite this
     gradient_accumulation_steps: int = 2
     learning_rate: float = 5e-5
-    # editflow specific
+    # EditFlow specific args
+    mask_prompt_loss: bool = field(
+        default=True,
+        metadata={"help": "Whether to mask the loss on the prompt tokens"},
+    )
     scheduler_cls: str = field(
         default="LinearKappaScheduler",
         metadata={
@@ -50,10 +54,6 @@ class TrainingArguments(dllm.utils.TrainingArguments):
                 "Available options: see `dllm/pipelines/editflow/utils.py`"
             )
         },
-    )
-    mask_prompt_loss: bool = field(
-        default=True,
-        metadata={"help": "Whether to mask the loss on the prompt tokens"},
     )
 
 
@@ -85,21 +85,16 @@ def train(
     model = dllm.utils.load_peft(model=model, training_args=training_args)
 
     # ----- Dataset ----------------------------------------------------------------
-    # Build emulated pretraining samples from SFT chats:
     # - `input_ids`` = prompt + response
     # - `prompt_len` marks the prompt span to EXCLUDE from loss.
     #   (Remove prompt_len to train on all tokens—if so, ensure a BOS is prepended.)
-    def sft_map_fn(
-        row,
-        tokenizer: transformers.PreTrainedTokenizer,
-        mask_prompt_loss: bool = True,
-    ) -> dict:
+    def sft_map_fn(row) -> dict:
         prompt_response_tokens = tokenizer.apply_chat_template(
             row["messages"],
             tokenize=True,
             add_generation_prompt=False,
         )
-        if mask_prompt_loss:
+        if training_args.mask_prompt_loss:
             prompt_tokens = tokenizer.apply_chat_template(
                 row["messages"][:-1],
                 tokenize=True,
@@ -120,24 +115,16 @@ def train(
 
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_sft_dataset(data_args.dataset_args)
-        dataset = dataset.map(
-            functools.partial(
-                sft_map_fn,
-                tokenizer=tokenizer,
-                mask_prompt_loss=training_args.mask_prompt_loss,
-            ),
-            num_proc=data_args.num_proc,
-        )
-        dataset = dllm.utils.post_process_dataset(
-            dataset, data_args
-        )  # truncate / filter long sequences if needed
+        dataset = dataset.map(sft_map_fn, num_proc=data_args.num_proc)
+        # truncate / filter long sequences if needed
+        dataset = dllm.utils.post_process_dataset(dataset, data_args)
 
     # ----- Training --------------------------------------------------------------
     trainer = editflow.EditFlowTrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],
-        eval_dataset=dataset["test"],
+        eval_dataset=dataset.get("test", None),
         args=training_args,
         data_collator=editflow.utils.EditFlowCollator(
             tokenizer=tokenizer, x0_sampler=training_args.x0_sampler

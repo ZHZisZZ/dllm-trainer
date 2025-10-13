@@ -49,14 +49,17 @@ class DataArguments(dllm.utils.DataArguments):
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = "models/Dream-7B-SFT"
-    mask_prompt_loss: bool = True
-    # Dream-specific
+    # Dream SFT specific args
+    mask_prompt_loss: bool = field(
+        default=True,
+        metadata={"help": "Whether to mask the loss on the prompt tokens"},
+    )
     perbatch_cutoff: bool = field(
         default=True,
         metadata={
             "help": (
-                "Randomly pick a response length from batch (`kept_len`) "
-                "and trim other responses."
+                "Randomly pick a response length from batch and trim other responses. "
+                "See https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml."
             )
         },
     )
@@ -71,7 +74,12 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     )
     loss_weight_type: str = field(
         default="cart[geo_p:0.3]",
-        metadata={"help": ("loss weight type")},
+        metadata={
+            "help": (
+                "The loss weight type. "
+                "See https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml."
+            )
+        },
     )
 
 
@@ -81,9 +89,8 @@ def train():
         (ModelArguments, DataArguments, TrainingArguments)
     )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    training_args.remove_unused_columns = (
-        False  # necessary when batch contains customized fields
-    )
+    # necessary when batch contains customized fields
+    training_args.remove_unused_columns = False
     dllm.utils.print_args_main(model_args, data_args, training_args)
     dllm.utils.initial_training_setup(training_args)
 
@@ -114,6 +121,7 @@ def train():
                 prompt_tokens = bos + prompt_tokens
                 labels = bos + labels
             labels[0] = -100  # ignore loss on the BOS token
+        # `prompt_len` helps `post_process_dataset` truncate long sequences properly
         return {
             "input_ids": prompt_response_tokens,
             "labels": labels,
@@ -132,7 +140,7 @@ def train():
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],
-        eval_dataset=dataset["test"],
+        eval_dataset=dataset.get("test", None),
         args=training_args,
         loss_weight_type=training_args.loss_weight_type,
         data_collator=dream.utils.DreamSFTCollator(

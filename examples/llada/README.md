@@ -68,7 +68,9 @@ examples/llada
 ### Finetuning [LLaDA-8B-Base](https://huggingface.co/GSAI-ML/LLaDA-8B-Base)
 We support training models with either DDP or DeepSpeed ZeRO-{1,2,3}. For example, to SFT [LLaDA-8B-Base](https://huggingface.co/GSAI-ML/LLaDA-8B-Base) for instruction following on [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture) using DeepSpeed ZeRO-2 on 8 GPUs, run:
 ```shell
-accelerate launch --config_file scripts/accelerate_configs/deepspeed_zero2.yaml examples/llada/sft.py \
+accelerate launch \
+    --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
+    examples/llada/sft.py \
     --model_name_or_path "GSAI-ML/LLaDA-8B-Base" \
     --dataset_args "allenai/tulu-3-sft-mixture" \
     --output_dir "models/LLaDA-8B-SFT/tulu-3-sft-mixture" \

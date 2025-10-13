@@ -45,7 +45,7 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     gradient_accumulation_steps: int = 4
     eval_steps: float = 0.05
     save_steps: float = 0.05
-    # others (editflow specific training params)
+    # EditFlow specific args
     scheduler_cls: str = field(
         default="LinearKappaScheduler",
         metadata={
@@ -133,7 +133,7 @@ def train(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],
-        eval_dataset=dataset["test"],
+        eval_dataset=dataset.get("test", None),
         args=training_args,
         data_collator=editflow.utils.EditFlowCollator(
             tokenizer=tokenizer, x0_sampler=training_args.x0_sampler

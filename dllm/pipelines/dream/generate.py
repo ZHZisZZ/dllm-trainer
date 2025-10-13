@@ -1,14 +1,5 @@
 """
 reference: https://huggingface.co/Dream-org/Dream-v0-Base-7B/blob/main/generation_utils.py
-
-Local (1 GPU):
-    python dllm_trainer/pipelines/dream/generate.py
-
-Slurm (1 GPU):
-    # Note: update PARTITION and QUOTATYPE in your ~/.*rc to fit your cluster setup
-    srun -p $PARTITION --quotatype=$QUOTATYPE \
-        --gres=gpu:1 --cpus-per-task=16 --time=3-00:00:00 \
-        python dllm_trainer/pipelines/dream/generate.py
 """
 
 from dataclasses import dataclass

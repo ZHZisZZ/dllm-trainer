@@ -1,3 +1,4 @@
+# coding=utf-8
 # Copyright 2024 The Dream team, HKUNLP Group and the HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -75,7 +76,7 @@ class DreamConfig(PretrainedConfig):
         if self.rope_scaling is not None and "type" in self.rope_scaling:
             self.rope_scaling["rope_type"] = self.rope_scaling["type"]
         rope_config_validation(self)
-
+        
         super().__init__(
             tie_word_embeddings=tie_word_embeddings,
             **kwargs,
@@ -85,5 +86,6 @@ class DreamConfig(PretrainedConfig):
 
 
 from transformers import AutoConfig
+
 # Register the config class so that it is available for transformer pipelines, auto-loading etc.
 AutoConfig.register("Dream", DreamConfig)

@@ -10,9 +10,6 @@ from dllm.core.schedulers import BaseAlphaScheduler, LinearAlphaScheduler
 class MDLMTrainer(transformers.Trainer):
     """
     Masked Diffusion Language Model Trainer.
-
-    Supports randomized timesteps, geometric weighting,
-    and CART-style loss reweighting for diffusion-based LM training.
     """
 
     def __init__(
@@ -40,9 +37,10 @@ class MDLMTrainer(transformers.Trainer):
         self,
         t: torch.Tensor,
         inputs: dict[str, Any],
-        masked_indices: torch.Tensor,
+        *args,
+        **kwargs,
     ) -> torch.Tensor:
-        """Compute loss weights given timestep t and mask positions."""
+        """Compute loss weights given timestep t and other arguments."""
         b, l = inputs["input_ids"].shape
         if self.loss_weight_type == "scheduler":
             loss_weights = -self.scheduler.weight(t).unsqueeze(1).repeat(1, l)  # b, 1
@@ -52,32 +50,21 @@ class MDLMTrainer(transformers.Trainer):
             raise NotImplementedError
         return loss_weights
 
-    # @torch.no_grad()
-    # def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None):
-    #     # Always use your custom loss logic
-    #     loss, outputs = self.compute_loss(model, inputs, return_outputs=True)
-    #     logits = outputs.logits if hasattr(outputs, "logits") else outputs
-    #     labels = inputs.get("labels")
-    #     return (loss, logits, labels)
     @torch.no_grad()
     def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None):
-        # Use your custom loss logic (one forward pass only)
         loss, outputs = self.compute_loss(model, inputs, return_outputs=True)
-
-        # If only the loss is needed, don't return logits/labels (saves tons of memory)
         if prediction_loss_only:
-            return (loss.detach().cpu(), None, None)
+            return (loss.detach(), None, None)
 
-        # Extract logits robustly
         logits = getattr(outputs, "logits", outputs)
         if isinstance(logits, torch.Tensor):
-            logits = logits.detach().cpu()
+            logits = logits.detach().contiguous()
 
         labels = inputs.get("labels")
         if isinstance(labels, torch.Tensor):
-            labels = labels.detach().cpu()
+            labels = labels.detach().contiguous()
 
-        return (loss.detach().cpu(), logits, labels)
+        return (loss.detach(), logits, labels)
 
     def compute_loss(
         self,
@@ -122,6 +109,7 @@ class MDLMTrainer(transformers.Trainer):
 
         # === 4. Handle degenerate cases (no tokens masked) ===
         # If no positions were masked, return a zero loss to keep gradients valid.
+        # This step is necessary for Deepspeed Zero-{2,3}
         if not masked_indices.any():
             return (
                 (logits.sum() * 0.0, outputs) if return_outputs else logits.sum() * 0.0
