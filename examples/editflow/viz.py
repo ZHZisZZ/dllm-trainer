@@ -487,4 +487,3 @@ def render_consecutive_trace_gif(
         optimize=True,
     )
     return out_path
-

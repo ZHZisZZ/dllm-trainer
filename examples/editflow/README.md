@@ -9,8 +9,16 @@ This directory provides an educational reference for training EditFlow models. I
 > - Examples are available for both LLaDA and Dream, but this README focuses on adapting open-weight LLaDA for edit operations ([`adapt_llada.py`](/examples/editflow/adapt_llada.py)) and reusing its architecture for training from scratch ([`pt_llada.py`](/examples/editflow/pt_llada.py) -> [`sft_llada.py`](/examples/editflow/sft_llada.py)).
 > - While `EditFlowCollator` supports custom `x0`, this README uses a fixed-length (128) masks as `x0`. The trained model generates text by replacing masks, deleting redundant ones, and inserting tokens as needed. To change the default `x0` distribution (e.g., empty sequences for [OneFlow](https://arxiv.org/abs/2510.03506)-like insertion-only generation), pass `--x0_sampler "empty"`.
 
+## Table of Contents
+- [Setup](#setup)
+- [Files overview](#files-overview)
+- [Training](#training)
+    - [Adapting LLaDA-8B-Instruct to support insertion and deletion](#adapting-llada-8b-instruct-to-support-insertion-and-deletion)
+    - [Pretraining & Finetuning from scratch](#pretraining--finetuning-from-scratch)
+- [Sampling](#sampling)
+- [Acknowledgement](#acknowledgement)
 
-## Setup notes
+## Setup
 > [!IMPORTANT]  
 > **Slurm users:** Update `scripts/train.slurm.sh` and `mkdir logps`: see [(optional) Slurm setup](/README.md/#optional-slurm-setup) for details.
 
@@ -40,7 +48,14 @@ examples/editflow
 └── sft.py                      # Supervised finetuning function
 ```
 
-## Adapting [LLaDA-8B-Instruct](https://huggingface.co/GSAI-ML/LLaDA-8B-Instruct) to support *insertion* and *deletion*
+## Training
+
+> [!NOTE]
+> Use `--dataset_args "allenai/tulu-3-sft-mixture[train:10000,test:1000]"` to train / eval only on a subset; 
+> 
+> Use `--dataset_args "allenai/tulu-3-sft-mixture | OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"` to concatenate datasets.
+
+### Adapting [LLaDA-8B-Instruct](https://huggingface.co/GSAI-ML/LLaDA-8B-Instruct) to support *insertion* and *deletion*
 
 The original LLaDA model generated text by iteratively substituting the given `<mask>` tokens to real tokens. 
 
@@ -88,7 +103,7 @@ sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
 After training, you can use the [generate.py](/examples/editflow/generate.py) scripts to provide a visualized decoding trace to see how the model performs *insertion* and *deletion* beyond regular mask *substitutions*. See [Sampling](#sampling) for details.
 
 
-## Pretraining & Finetuning from scratch
+### Pretraining & Finetuning from scratch
 You can also train an EditFlow model from scratch (pretrain → SFT) without adapting an existing DLLM.
 
 Pretrain on a subset of [mlfoundations/dclm-baseline-1.0](https://huggingface.co/datasets/mlfoundations/dclm-baseline-1.0) using 256 GPUs (32x8) and DeepSpeed ZeRO-2:

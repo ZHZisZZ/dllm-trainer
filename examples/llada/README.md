@@ -7,7 +7,7 @@
 This directory provides examples for finetuning open-weight LLaDA models, reproducing LLaDA by training from scratch on public data (pretraining & finetuning), and batch sampling for generation tasks.
 
 ## Table of Contents
-- [Setup notes](#setup)
+- [Setup](#setup)
 - [Files overview](#files-overview)
 - [Training](#training)
     - [Finetuning LLaDA-8B-Base](#finetuning-llada-8b-base)
