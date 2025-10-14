@@ -1,3 +1,4 @@
+
 # Copyright 2025 Radical Numerics Inc.
 #
 # This source code is licensed under the Apache License, Version 2.0, found in the
@@ -17,7 +18,6 @@ from transformers.configuration_utils import PretrainedConfig
 CONFIG_DEFAULTS = {
     "attention_bias": False,
     "attention_dropout": 0.0,
-    "bos_token_id": 151643,
     "decoder_sparse_step": 1,
     "eos_token_id": 151645,
     "head_dim": 128,
@@ -36,13 +36,14 @@ CONFIG_DEFAULTS = {
     "num_hidden_layers": 48,
     "num_key_value_heads": 4,
     "output_router_logits": False,
+    "pad_token_id": 151643,
     "rms_norm_eps": 1e-06,
     "rope_scaling": False,
     "rope_theta": 1000000.0,
     "router_aux_loss_coef": 0.001,
     "sliding_window": False,
     "tie_word_embeddings": False,
-    "dtype": "bfloat16",
+    "torch_dtype": "bfloat16",
     "use_cache": False,
     "use_sliding_window": False,
     "vocab_size": 151936,
@@ -57,7 +58,7 @@ class RND1Config(PretrainedConfig):
     specific to the RND1 (Radical Numerics Diffusion v1) architecture.
 
     Args:
-        moe_backend: Backend for MoE computation ("hf", "flashinfer", or "sglang")
+        moe_backend: Backend for MoE computation ("hf", "vllm", "sglang" or "flashinfer")
         num_diffusion_steps: Default number of diffusion steps for generation
         mask_token_id: Token ID used for masking (default: 151669 for Qwen)
         **kwargs: Additional arguments passed to Qwen3MoeConfig
@@ -121,8 +122,3 @@ class RND1Config(PretrainedConfig):
             },
         )
         return data
-
-
-from transformers import AutoConfig
-# Register the model so that it is available for transformer pipelines, auto-loading, etc.
-AutoConfig.register("rnd1", RND1Config)

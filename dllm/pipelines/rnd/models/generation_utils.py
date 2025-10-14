@@ -106,12 +106,6 @@ class RND1GenerationMixin(HFGenerationMixin):
         greedy = getattr(gen_config, "greedy",
                         not bool(gen_config.do_sample) if hasattr(gen_config, "do_sample") else True)
 
-        generator = model_kwargs.get("generator", None)
-        if generator is None:
-            seed = getattr(gen_config, 'seed', None)
-            if seed is not None:
-                generator = torch.Generator(device=device)
-                generator.manual_seed(seed)
 
         with torch.inference_mode():
             sequences = diffusion_sample(
@@ -130,7 +124,6 @@ class RND1GenerationMixin(HFGenerationMixin):
                 pad_token_id=pad_token_id,
                 bos_token_id=bos_token_id,
                 device=device,
-                generator=generator,
                 visualizer=model_kwargs.get("visualizer", None),  # Optional visualizer from kwargs
             )
 
@@ -147,7 +140,6 @@ class RND1GenerationMixin(HFGenerationMixin):
         generation_config: Optional[GenerationConfig] = None,
         suffix_ids: Optional[torch.LongTensor] = None,
         infill_length: Optional[int] = None,
-        generator: Optional[torch.Generator] = None,
         **kwargs,
     ) -> torch.LongTensor:
         """
@@ -162,7 +154,6 @@ class RND1GenerationMixin(HFGenerationMixin):
             generation_config: Generation configuration object
             suffix_ids: Optional suffix token IDs
             infill_length: Length of infill region
-            generator: Random generator for reproducibility
             **kwargs: Additional arguments for backward compatibility
 
         Returns:
@@ -176,7 +167,6 @@ class RND1GenerationMixin(HFGenerationMixin):
             generation_config=generation_config,
             suffix_ids=suffix_ids,
             infill_length=infill_length,
-            generator=generator,
             visualizer=visualizer,
             return_dict_in_generate=False,
             **kwargs,

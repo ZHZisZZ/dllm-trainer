@@ -1,4 +1,3 @@
-
 # Copyright 2025 Radical Numerics Inc.
 #
 # This source code is licensed under the Apache License, Version 2.0, found in the
@@ -9,7 +8,7 @@ RND1 model implementation.
 
 This module implements the RND1 architecture with bidirectional attention for
 diffusion-based language modeling. Includes support for Mixture of Experts (MoE)
-with multiple backend options (HF, FlashInfer, SGLang).
+with multiple backend options (HF, vLLM, SGLang, FlashInfer).
 
 Based on the Qwen3Moe architecture:
 https://github.com/huggingface/transformers/blob/v4.57.0/src/transformers/models/qwen3_moe/modeling_qwen3_moe.py
@@ -35,29 +34,43 @@ from transformers.generation import GenerationConfig
 
 from .configuration_rnd import RND1Config
 from .generation_utils import RND1GenerationMixin
-from .generation_config import RND1GenerationConfig
 
 from transformers.models.qwen3_moe.modeling_qwen3_moe import (
-    Qwen3MoeConfig,
     Qwen3MoeRMSNorm,
     Qwen3MoeRotaryEmbedding,
-    Qwen3MoeSparseMoeBlock,
     Qwen3MoeMLP,
     apply_rotary_pos_emb
 )
 import torch.nn.functional as F
 
+
 try:
-    import flashinfer.fused_moe as fused_moe
+    from vllm.model_executor.layers.fused_moe.fused_moe import fused_experts as fused_experts_vllm, fused_topk as fused_topk_vllm
+    from vllm.model_executor.layers.layernorm import RMSNorm as VLLMRMSNorm
 except Exception:
-    fused_moe = None
+    fused_experts_vllm = None
+    fused_topk_vllm = None
 
 try:
     from sglang.srt.layers.moe.fused_moe_triton.fused_moe import fused_moe as sglang_fused_moe
+    # from sglang.srt.layers.layernorm import RMSNorm as SGLangRMSNorm # TODO: buggy atm
     from sglang.srt.layers.moe.topk import StandardTopKOutput
 except Exception:
     sglang_fused_moe = None
     StandardTopKOutput = None
+
+
+try:
+    import flashinfer.fused_moe as fused_moe
+    ## TODO: below needs flashinfer>=0.4.0, but has some bug atm
+    # from flashinfer.norm import rmsnorm as flashinfer_rmsnorm
+    # class FlashInferRMSNorm(Qwen3MoeRMSNorm):
+    #     """Wrapper around FlashInfer RMSNorm to match Qwen3MoeRMSNorm interface"""
+    #     def forward(self, hidden_states):
+    #         return flashinfer_rmsnorm(hidden_states, self.weight, self.variance_epsilon)
+            
+except Exception:
+    fused_moe = None
 
 logger = logging.get_logger(__name__)
 
@@ -95,8 +108,12 @@ class RND1Attention(nn.Module):
         self.v_proj = nn.Linear(config.hidden_size, self.num_key_value_heads * self.head_dim, bias=config.attention_bias)
         self.o_proj = nn.Linear(self.num_heads * self.head_dim, config.hidden_size, bias=config.attention_bias)
 
-        self.q_norm = Qwen3MoeRMSNorm(self.head_dim, eps=config.rms_norm_eps)
-        self.k_norm = Qwen3MoeRMSNorm(self.head_dim, eps=config.rms_norm_eps)
+        if config.moe_backend == "vllm":
+            RMSNormClass = VLLMRMSNorm
+        else:
+            RMSNormClass = Qwen3MoeRMSNorm
+        self.q_norm = RMSNormClass(self.head_dim, eps=config.rms_norm_eps)
+        self.k_norm = RMSNormClass(self.head_dim, eps=config.rms_norm_eps)
 
         self.sliding_window = getattr(config, "sliding_window", None)
 
@@ -170,8 +187,12 @@ class RND1DecoderLayer(nn.Module):
         super().__init__()
         self.self_attn = RND1Attention(config, layer_idx)
         self.mlp = RND1SparseMoeBlock(config)
-        self.input_layernorm = Qwen3MoeRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.post_attention_layernorm = Qwen3MoeRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        if config.moe_backend == "vllm":
+            RMSNormClass = VLLMRMSNorm
+        else:
+            RMSNormClass = Qwen3MoeRMSNorm
+        self.input_layernorm = RMSNormClass(config.hidden_size, eps=config.rms_norm_eps)
+        self.post_attention_layernorm = RMSNormClass(config.hidden_size, eps=config.rms_norm_eps)
 
     def forward(
         self,
@@ -205,7 +226,7 @@ class RND1DecoderLayer(nn.Module):
 
 
 class RND1SparseMoeBlock(nn.Module):
-    """RND1 Sparse MoE block with multiple backend support (HF, FlashInfer, SGLang)."""
+    """RND1 Sparse MoE block with multiple backend support (HF, vLLM, SGLang, FlashInfer)."""
 
     def __init__(self, config: RND1Config):
         super().__init__()
@@ -223,49 +244,56 @@ class RND1SparseMoeBlock(nn.Module):
         )
 
         # Cached weight tensors for optimized backends
-        self._flashinfer_fc1_weights = None
-        self._flashinfer_fc2_weights = None
-        self._sglang_w1 = None
-        self._sglang_w2 = None
+        self._w1 = None
+        self._w2 = None
         if self.backend == "sglang":
             if sglang_fused_moe is None or StandardTopKOutput is None:
                 raise RuntimeError("sglang is not available, cannot use sglang backend")
         elif self.backend == "flashinfer":
             if fused_moe is None:
                 raise RuntimeError("flashinfer is not available, cannot use flashinfer backend")
+        elif self.backend == "vllm":
+            if fused_experts_vllm is None or fused_topk_vllm is None:
+                raise RuntimeError("vllm is not available, cannot use vllm backend")
 
-    def _initialize_flashinfer_weights(self):
-        """Initialize FlashInfer-compatible weight format."""
-        fc1_list = []
-        fc2_list = []
+    @torch.no_grad()
+    def _initialize_weights(
+        self,
+        free_experts: bool = True,
+        mode: str = "vllm",
+        ) -> None:
+        logger.info(f"Initializing weights for {mode} backend")
+        # Stack directly on device where weights already reside (loaded by HF)
+        gate_list: List[torch.Tensor] = []
+        up_list: List[torch.Tensor] = []
+        down_list: List[torch.Tensor] = []
 
+        # Collect weight references without any device moves
         for expert in self.experts:
-            gate_w = expert.gate_proj.weight  # [I, H]
-            up_w = expert.up_proj.weight      # [I, H]
-            down_w = expert.down_proj.weight  # [H, I]
-            # FlashInfer expects [up; gate] ordering
-            fc1_list.append(torch.cat([up_w, gate_w], dim=0))  # [2I, H]
-            fc2_list.append(down_w)  # [H, I]
+            gate_list.append(expert.gate_proj.weight.data)
+            up_list.append(expert.up_proj.weight.data)
+            down_list.append(expert.down_proj.weight.data)
 
-        self._flashinfer_fc1_weights = torch.stack(fc1_list, dim=0).contiguous()
-        self._flashinfer_fc2_weights = torch.stack(fc2_list, dim=0).contiguous()
+        gate_w_stacked = torch.stack(gate_list, dim=0).contiguous()
+        up_w_stacked = torch.stack(up_list, dim=0).contiguous()
+        down_w_stacked = torch.stack(down_list, dim=0).contiguous()
 
-    def _initialize_sglang_weights(self):
-        """Initialize SGLang-compatible weight format."""
-        w1_list = []
-        w2_list = []
+        if mode == "flashinfer":
+            w1 = torch.cat([up_w_stacked, gate_w_stacked], dim=1) # FlashInfer expects [up; gate] ordering
+        else:
+            w1 = torch.cat([gate_w_stacked, up_w_stacked], dim=1)
+        w2 = down_w_stacked
+        self._w1 = w1
+        self._w2 = w2
 
-        for expert in self.experts:
-            gate_w = expert.gate_proj.weight  # [I, H]
-            up_w = expert.up_proj.weight      # [I, H]
-            down_w = expert.down_proj.weight  # [H, I]
-            w1 = torch.cat([gate_w, up_w], dim=0)  # [2I, H]
-            w1_list.append(w1)
-            w2_list.append(down_w)
 
-        self._sglang_w1 = torch.stack(w1_list, dim=0).contiguous()
-        self._sglang_w2 = torch.stack(w2_list, dim=0).contiguous()
-
+        if free_experts:
+            # Free per-expert modules to reclaim memory
+            logger.info(f"Freeing experts for {mode} backend")
+            del self.experts
+            self.experts = None
+        
+            
     def forward(self, hidden_states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass with expert routing and computation."""
         batch_size, sequence_length, hidden_dim = hidden_states.shape
@@ -274,9 +302,19 @@ class RND1SparseMoeBlock(nn.Module):
         # Expert routing
         router_logits = self.gate(x)
         routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
-        routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
-        if self.norm_topk_prob:
-            routing_weights = routing_weights / routing_weights.sum(dim=-1, keepdim=True)
+        
+        if self.backend == "vllm":
+            routing_weights, selected_experts, _ = fused_topk_vllm(
+                hidden_states=x,
+                gating_output=router_logits,
+                topk=self.top_k,
+                renormalize=self.norm_topk_prob,
+            )
+        else:
+            routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
+            if self.norm_topk_prob:
+                routing_weights = routing_weights / routing_weights.sum(dim=-1, keepdim=True)
+
 
         if self.backend == "hf":
             final_hidden_states = torch.zeros(
@@ -296,15 +334,17 @@ class RND1SparseMoeBlock(nn.Module):
             return out, router_logits.view(batch_size, sequence_length, -1)
 
         elif self.backend == "flashinfer":
-            if self._flashinfer_fc1_weights is None or self._flashinfer_fc2_weights is None:
-                self._initialize_flashinfer_weights()
+            # if self._flashinfer_fc1_weights is None or self._flashinfer_fc2_weights is None:
+            #     self._initialize_flashinfer_weights()
+            if self._w1 is None or self._w2 is None:
+                self._initialize_weights(mode="flashinfer")
 
             result = fused_moe.cutlass_fused_moe(
                 input=x,
                 token_selected_experts=selected_experts.to(torch.int),
                 token_final_scales=routing_weights.to(torch.float32),
-                fc1_expert_weights=self._flashinfer_fc1_weights,
-                fc2_expert_weights=self._flashinfer_fc2_weights,
+                fc1_expert_weights=self._w1,
+                fc2_expert_weights=self._w2,
                 output_dtype=x.dtype,
                 quant_scales=None,
             )
@@ -316,8 +356,8 @@ class RND1SparseMoeBlock(nn.Module):
             return out, router_logits.view(batch_size, sequence_length, -1)
 
         elif self.backend == "sglang":
-            if self._sglang_w1 is None or self._sglang_w2 is None:
-                self._initialize_sglang_weights()
+            if self._w1 is None or self._w2 is None:
+                self._initialize_weights(mode="sglang")
 
             topk_output = StandardTopKOutput(
                 topk_weights=routing_weights,
@@ -327,9 +367,23 @@ class RND1SparseMoeBlock(nn.Module):
 
             out_flat = sglang_fused_moe(
                 hidden_states=x,
-                w1=self._sglang_w1,
-                w2=self._sglang_w2,
+                w1=self._w1,
+                w2=self._w2,
                 topk_output=topk_output,
+            )
+            out = out_flat.view(batch_size, sequence_length, hidden_dim)
+            return out, router_logits.view(batch_size, sequence_length, -1)
+
+        elif self.backend == "vllm":
+            if self._w1 is None or self._w2 is None:
+                self._initialize_weights()
+
+            out_flat = fused_experts_vllm(
+                x,
+                self._w1,
+                self._w2,
+                routing_weights,
+                selected_experts,
             )
             out = out_flat.view(batch_size, sequence_length, hidden_dim)
             return out, router_logits.view(batch_size, sequence_length, -1)
@@ -414,7 +468,26 @@ class RND1PreTrainedModel(PreTrainedModel):
             _from_auto=from_auto_class,
             _from_pipeline=from_pipeline,
         )
-            
+
+        # If configured to use a fused backend, pack fused tensors once after load
+        try:
+            cfg = getattr(_model, "config", None)
+            backend = getattr(cfg, "moe_backend", "hf") if cfg is not None else "hf"
+            if backend in ("sglang", "vllm"):
+                # Walk decoder layers and initialize fused weights
+                model_core = getattr(_model, "model", _model)
+                layers = getattr(model_core, "layers", None)
+                if isinstance(layers, nn.ModuleList):
+                    for layer in layers:
+                        mlp = getattr(layer, "mlp", None)
+                        if hasattr(mlp, "_initialize_weights"):
+                            mlp._initialize_weights(
+                                free_experts=True,
+                                mode=backend,
+                            )
+        except Exception as _e:
+            logger.warning(f"Backend {backend} weight processing skipped: {_e}")
+
         return _model
 
 
@@ -429,7 +502,11 @@ class RND1Model(RND1PreTrainedModel):
 
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
         self.layers = nn.ModuleList([RND1DecoderLayer(config, i) for i in range(config.num_hidden_layers)])
-        self.norm = Qwen3MoeRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        if config.moe_backend == "vllm":
+            RMSNormClass = VLLMRMSNorm
+        else:
+            RMSNormClass = Qwen3MoeRMSNorm
+        self.norm = RMSNormClass(config.hidden_size, eps=config.rms_norm_eps)
         
         self.rotary_emb = Qwen3MoeRotaryEmbedding(config=config)
 
@@ -533,8 +610,3 @@ class RND1LM(RND1PreTrainedModel, RND1GenerationMixin):
             loss=loss,
             logits=logits,
         )
-
-
-from transformers import AutoModel
-# Register the model so that it is available for transformer pipelines, auto-loading, etc.
-AutoModel.register(RND1Config, RND1LM)
