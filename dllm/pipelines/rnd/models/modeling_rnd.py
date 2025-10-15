@@ -304,7 +304,7 @@ class RND1SparseMoeBlock(nn.Module):
         routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
         
         if self.backend == "vllm":
-            routing_weights, selected_experts, _ = fused_topk_vllm(
+            routing_weights, selected_experts, *_ = fused_topk_vllm(
                 hidden_states=x,
                 gating_output=router_logits,
                 topk=self.top_k,
