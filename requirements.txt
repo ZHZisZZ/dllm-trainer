@@ -12,3 +12,4 @@ tqdm
 matplotlib
 pytest
 # vllm==0.8.5.post1
+# flash-attn==2.8.3

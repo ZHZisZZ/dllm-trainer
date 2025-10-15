@@ -39,8 +39,8 @@ from dllm.pipelines import rnd
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = "radicalnumerics/RND1-Base-0910"
-    moe_backend: str = "hf" # "hf", "vllm"
-
+    moe_backend: str = "hf"
+    attn_implementation: str = "sdpa"
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
@@ -67,8 +67,11 @@ def train():
     dllm.utils.initial_training_setup(training_args)
 
     # ----- Model ------------------------------------------------------------------
-    config = transformers.AutoConfig.from_pretrained(model_args.model_name_or_path)
-    config.moe_backend = model_args.moe_backend
+    config = transformers.AutoConfig.from_pretrained(
+        model_args.model_name_or_path,
+        moe_backend=model_args.moe_backend,
+        attn_implementation=model_args.attn_implementation,
+    )
     model = dllm.utils.get_model(model_args=model_args, config=config)
     # ----- Tokenizer --------------------------------------------------------------
     tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
@@ -77,24 +80,33 @@ def train():
 
     # ----- Dataset ----------------------------------------------------------------
     def sft_map_fn(row) -> dict:
+        prompt_tokens = tokenizer.apply_chat_template(
+            row["messages"][:-1], tokenize=True, add_generation_prompt=True, enable_thinking=False
+        )
         prompt_response_tokens = tokenizer.apply_chat_template(
             row["messages"], tokenize=True, add_generation_prompt=False
         )
         labels = prompt_response_tokens.copy()
         if training_args.mask_prompt_loss:
-            prompt_tokens = tokenizer.apply_chat_template(
-                row["messages"][:-1], tokenize=True, add_generation_prompt=True, enable_thinking=False
-            )
             # use -100 in labels to indicate positions where tokens should not be masked
             # and loss is ignored; all other positions match `input_ids`
             labels[: len(prompt_tokens)] = [-100] * len(prompt_tokens)
-            # `prompt_len` to help `post_process_dataset` truncate long sequences properly
-            return {
-                "input_ids": prompt_response_tokens,
-                "labels": labels,
-                "prompt_len": len(prompt_tokens),
-            }
-        return {"input_ids": prompt_response_tokens, "labels": labels}
+        else:
+            # When training on all tokens, prepend a BOS token (if missing)
+            # so the model can make predictions for the first mask token.
+            if prompt_response_tokens[0] != tokenizer.bos_token_id:
+                bos = [tokenizer.bos_token_id]
+                prompt_response_tokens = bos + prompt_response_tokens
+                prompt_tokens = bos + prompt_tokens
+                labels = bos + labels
+            labels[0] = -100  # ignore loss on the BOS token
+        # `prompt_len` helps `post_process_dataset` truncate long sequences properly
+        return {
+            "input_ids": prompt_response_tokens,
+            "labels": labels,
+            # "attention_mask": [1.0] * len(prompt_response_tokens),
+            "prompt_len": len(prompt_tokens),
+        }
 
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_sft_dataset(data_args.dataset_args)
