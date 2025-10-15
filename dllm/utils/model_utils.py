@@ -11,6 +11,7 @@ def get_model(
     model_name_or_path: str | None = None,
     dtype: str | torch.dtype = "bfloat16",
     load_in_4bit: bool | None = None,
+    config: transformers.PretrainedConfig | None = None,
 ) -> transformers.PreTrainedModel:
     """
     Load a model with flexible input sources.
@@ -67,6 +68,7 @@ def get_model(
         dtype=dtype,
         device_map=device_map,
         quantization_config=quant_config,
+        config=config,
     )
     return model
 
@@ -118,7 +120,6 @@ def get_tokenizer(
         return tokenizer
 
     # ---------------- Model-specific customization ----------------
-
     if isinstance(model, (LLaDAModelLM)):
         tokenizer.mask_token = "<|mdm_mask|>"
         tokenizer.mask_token_id = tokenizer.convert_tokens_to_ids("<|mdm_mask|>")
@@ -142,6 +143,6 @@ def get_tokenizer(
     elif isinstance(model, (DreamModel)):
         tokenizer.chat_template = """{%- if tools %}\n {{- '<|im_start|>system\\n' }}\n {%- if messages[0]['role'] == 'system' %}\n {{- messages[0]['content'] }}\n {%- else %}\n {{- 'You are a helpful assistant.' }}\n {%- endif %}\n {{- \"\\n\\n# Tools\\n\\nYou may call one or more functions to assist with the user query.\\n\\nYou are provided with function signatures within <tools></tools> XML tags:\\n<tools>\" }}\n {%- for tool in tools %}\n {{- \"\\n\" }}\n {{- tool | tojson }}\n {%- endfor %}\n {{- \"\\n</tools>\\n\\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\\n<tool_call>\\n{\\\"name\\\": <function-name>, \\\"arguments\\\": <args-json-object>}\\n</tool_call><|im_end|>\\n\" }}\n{%- else %}\n {%- if messages[0]['role'] == 'system' %}\n {{- '<|im_start|>system\\n' + messages[0]['content'] + '<|im_end|>\\n' }}\n {%- else %}\n {{- '<|im_start|>system\\nYou are a helpful assistant.<|im_end|>\\n' }}\n {%- endif %}\n{%- endif %}\n{%- for message in messages %}\n {%- if (message.role == \"user\") or (message.role == \"system\" and not loop.first) or (message.role == \"assistant\" and not message.tool_calls) %}\n {{- '<|im_start|>' + message.role + '\\n' + message.content + '<|im_end|>' + '\\n' }}\n {%- elif message.role == \"assistant\" %}\n {{- '<|im_start|>' + message.role }}\n {%- if message.content %}\n {{- '\\n' + message.content }}\n {%- endif %}\n {%- for tool_call in message.tool_calls %}\n {%- if tool_call.function is defined %}\n {%- set tool_call = tool_call.function %}\n {%- endif %}\n {{- '\\n<tool_call>\\n{\"name\": \"' }}\n {{- tool_call.name }}\n {{- '\", \"arguments\": ' }}\n {{- tool_call.arguments | tojson }}\n {{- '}\\n</tool_call>' }}\n {%- endfor %}\n {{- '<|im_end|>\\n' }}\n {%- elif message.role == \"tool\" %}\n {%- if (loop.index0 == 0) or (messages[loop.index0 - 1].role != \"tool\") %}\n {{- '<|im_start|>user' }}\n {%- endif %}\n {{- '\\n<tool_response>\\n' }}\n {{- message.content }}\n {{- '\\n</tool_response>' }}\n {%- if loop.last or (messages[loop.index0 + 1].role != \"tool\") %}\n {{- '<|im_end|>\\n' }}\n {%- endif %}\n {%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n {{- '<|im_start|>assistant\\n' }}\n{%- else %}\n{{ '<|endoftext|>' }}\n{%- endif %}\n""".lstrip()
     elif isinstance(model, (RND1LM)):
-        tokenizer.mask_token = "<|mask|>"
+        tokenizer.add_special_tokens({"mask_token": "<|mask|>"})
         tokenizer.mask_token_id = 151669
     return tokenizer

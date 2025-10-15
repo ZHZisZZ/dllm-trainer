@@ -46,7 +46,7 @@ try:
     from transformers import AutoConfig, AutoModel, AutoModelForMaskedLM
 
     AutoConfig.register("rnd1", RND1Config)
-    AutoModel.register(RND1Config, RND1Model)
+    AutoModel.register(RND1Config, RND1LM)
     AutoModelForMaskedLM.register(RND1Config, RND1LM)
 except ImportError:
     # transformers not available or Auto classes not imported

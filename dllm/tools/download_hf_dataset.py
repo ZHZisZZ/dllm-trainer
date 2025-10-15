@@ -15,7 +15,7 @@ script_args = tyro.cli(ScriptArguments)
 dataset_id = script_args.dataset_id
 
 # Replace with your desired local directory
-local_dir = f"/mnt/lustrenew/mllm_aligned/datasets/huggingface/{dataset_id}"
+local_dir = f"/mnt/lustrenew/mllm_aligned/shared/datasets/huggingface/{dataset_id}"
 
 # Download the dataset snapshot
 snapshot_download(
