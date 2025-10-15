@@ -10,11 +10,13 @@ from pathlib import Path
 import random
 import numpy as np
 import torch.nn.functional as F
+from typing import List, Optional, Tuple, Type, TypeVar, Union
 from datasets import Dataset
 import lm_eval
 from lm_eval.__main__ import cli_evaluate
 from lm_eval.api.instance import Instance
 from lm_eval.api.model import LM
+from lm_eval.models.utils import get_dtype
 from lm_eval.api.registry import register_model
 from tqdm import tqdm
 
@@ -22,20 +24,12 @@ from transformers import AutoTokenizer, AutoModel
 from dllm.pipelines.llada import generate
 
 
-def set_seed(seed):
-    torch.manual_seed(seed)
-    random.seed(seed)
-    np.random.seed(seed)
-
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-
 @register_model("llada_dist")
 class LLaDAEvalHarness(LM):
     def __init__(
         self,
-        model_path='',
+        pretrained='',
+        dtype: Optional[Union[str, torch.dtype]] = "auto",
         mask_id=126336,
         max_length=4096,
         batch_size=32,
@@ -51,7 +45,7 @@ class LLaDAEvalHarness(LM):
     ):
         '''
         Args:
-            model_path: LLaDA-8B-Base model path.
+            pretrained: LLaDA-8B-Base model path.
             mask_id: The token id of [MASK] is 126336.
             max_length: the max sequence length.
             batch_size: mini batch size.
@@ -79,8 +73,8 @@ class LLaDAEvalHarness(LM):
 
         # Use accelerator for device placement
         self.model = dllm.utils.get_model(
-            model_name_or_path=model_path,
-            dtype=torch.bfloat16
+            model_name_or_path=pretrained,
+            dtype=get_dtype(dtype)
         )
         self.model.eval()
 
@@ -96,7 +90,8 @@ class LLaDAEvalHarness(LM):
             self.accelerator = None
 
         self.mask_id = mask_id
-        self.tokenizer = dllm.utils.get_tokenizer(model_name_or_path=model_path, model=self.model)
+        assert self.mask_id == 126336, f"The mask token id should be {126336} for llada model."
+        self.tokenizer = dllm.utils.get_tokenizer(model_name_or_path=pretrained, model=self.model)
         # Because when we use distributed process, model_types are  <class 'torch.nn.parallel.distributed.DistributedDataParallel'>
         self.tokenizer.mask_token = "<|mdm_mask|>"
         self.tokenizer.mask_token_id = self.tokenizer.convert_tokens_to_ids("<|mdm_mask|>")
@@ -303,6 +298,5 @@ class LLaDAEvalHarness(LM):
 
 
 if __name__ == "__main__":
-    set_seed(1234)
     cli_evaluate()
     
