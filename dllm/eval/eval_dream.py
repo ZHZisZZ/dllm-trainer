@@ -11,6 +11,7 @@ from packaging import version
 from tqdm import tqdm
 
 import dllm
+from dllm.pipelines.dream import generate
 from lm_eval import utils
 from lm_eval.api.instance import Instance
 from lm_eval.api.model import LM
@@ -37,7 +38,7 @@ class Dream(LM):
         mc_num: Optional[int] = 128,
         classifier_free_guidance: Optional[float] = 1.0,
         sampling_eps: Optional[float] = 1e-3,
-        diffusion_steps: Optional[int] = 128,
+        steps: Optional[int] = 128,
         trust_remote_code: Optional[bool] = True,
         parallelize: Optional[bool] = False,
         autogptq: Optional[Union[bool, str]] = False,
@@ -93,7 +94,7 @@ class Dream(LM):
         # generation params
         self.batch_size = int(batch_size)
         self.max_new_tokens = max_new_tokens
-        self.diffusion_steps = diffusion_steps
+        self.steps = steps
         self.temperature = temperature
         self.top_p = top_p
         self.top_k = top_k
@@ -143,44 +144,8 @@ class Dream(LM):
         return self.tokenizer.name_or_path.replace("/", "__")
 
 
-    def _generate_batch(self, prompts: List[str]) -> List[str]:
-        if self.add_bos_token:
-            prompts = [self.tokenizer.bos_token + p for p in prompts]
-        # tokenize
-        prompt_ids = self.tokenizer(prompts, return_tensors="pt", padding=True, padding_side="left").input_ids
-        if len(prompt_ids) > self.max_length-self.max_new_tokens:
-            eval_logger.warning(f"Prompt length {len(prompt_ids)} is larger than {self.max_length-self.max_new_tokens}, cutoff on the left side")
-            prompt_ids = prompt_ids[-(self.max_length-self.max_new_tokens):]
-
-        attn_mask = prompt_ids.ne(self.tokenizer.pad_token_id)
-        prompt_ids = prompt_ids.to(device=self.device)
-        attn_mask = attn_mask.to(device=self.device)
-
-        generation_ids = self.model.diffusion_generate(
-            prompt_ids,
-            attention_mask=attn_mask,
-            max_new_tokens=self.max_new_tokens,
-            output_history=False,
-            return_dict_in_generate=True,
-            steps=self.diffusion_steps,
-            temperature=self.temperature,
-            top_p=self.top_p,
-            top_k=self.top_k,
-            alg=self.alg,
-            alg_temp=self.alg_temp,
-        )
-
-        # decode
-        responses = [
-            self.tokenizer.decode(g[len(p) :].tolist()).split(self.tokenizer.eos_token)[0]
-            for p, g in zip(prompt_ids, generation_ids.sequences)
-        ]
-
-        return responses
-
     def generate_until(self, requests: List[Instance], disable_tqdm: bool = False):
         res = []
-
         pbar = tqdm(
             total=len(requests),
             disable=(disable_tqdm or (self.rank != 0)),
@@ -190,15 +155,56 @@ class Dream(LM):
         for batch_idx in range(0, len(requests), self.batch_size):
             batch_requests = requests[batch_idx : batch_idx + self.batch_size]
             contexts, gen_args = zip(*[req.arguments for req in batch_requests])
-            responses = self._generate_batch(contexts)
+
+            # ====== BEGIN merged _generate_batch logic ======
+            prompts = list(contexts)
+            if self.add_bos_token:
+                prompts = [self.tokenizer.bos_token + p for p in prompts]
+
+            # tokenize
+            prompt_ids = [self.tokenizer(p, return_tensors="pt", padding=False).input_ids.squeeze() for p in prompts]
+            prompt_lens = [len(p_id) for p_id in prompt_ids]
+
+            if max(prompt_lens) > self.max_length - self.max_new_tokens:
+                eval_logger.warning(
+                    f"Prompt length {max(prompt_lens)} exceeds {self.max_length - self.max_new_tokens}, cutoff on the left side"
+                )
+                prompt_ids = [p_id[: self.max_length - self.max_new_tokens] for p_id in prompt_ids]
+
+            # generation
+            breakpoint()
+            generation_ids = generate(
+                model=self.model,
+                tokenizer=self.tokenizer,
+                max_new_tokens=self.max_new_tokens,
+                prompts=prompt_ids,
+                steps=self.steps,
+                temperature=self.temperature,
+                top_p=self.top_p,
+                top_k=self.top_k,
+                alg=self.alg,
+                alg_temp=self.alg_temp,
+                output_history=False,
+                return_dict_in_generate=False,
+            )
+            breakpoint()
+            # decode and cleanup
+            cleaned_generation_ids = [
+                seq[seq.ne(self.tokenizer.eos_token_id).float().argmax().long():] if (seq != self.tokenizer.eos_token_id).any() else seq[-1:]
+                for seq in generation_ids
+            ]
+            responses = [
+                g.lstrip("<|endoftext|>").split(self.tokenizer.eos_token, 1)[0]
+                for g in self.tokenizer.batch_decode(cleaned_generation_ids)
+            ]
+            # ====== END merged _generate_batch logic ======
+
+            # handle "until" truncation
             if not self.escape_until:
                 for i, r in enumerate(responses):
                     for s in gen_args[0]['until']:
                         r = r.split(s)[0]
                     responses[i] = r
-
-            # if self.rank == 0:
-            #     print(f"Context:\n{contexts[0]}\nResponse:\n{responses[0]}\n")
 
             res.extend(responses)
             pbar.update(len(contexts))
@@ -377,7 +383,7 @@ class Dream(LM):
                 "prefix": prefix,
                 "target": target,
             }
-
+        breakpoint()
         ds = []
         ds = [{"prefix": req.args[0], "target": req.args[1]} for req in requests]
         ds = Dataset.from_list(ds)
