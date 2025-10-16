@@ -76,6 +76,7 @@ class RND1GenerationMixin(HFGenerationMixin):
             suffix_ids = suffix_ids.to(device)
 
         eos_token_id = gen_config.eos_token_id or getattr(self.config, "eos_token_id", 151645)
+        eos_token_id = None if eos_token_id == -1 else eos_token_id
         pad_token_id = gen_config.pad_token_id or getattr(self.config, "pad_token_id", None)
         bos_token_id = gen_config.bos_token_id or getattr(self.config, "bos_token_id", None)
         mask_token_id = getattr(gen_config, "mask_token_id", getattr(self.config, "mask_token_id", 151669))
