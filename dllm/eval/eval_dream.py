@@ -125,6 +125,11 @@ class Dream(LM):
             text, return_tensors="pt", add_special_tokens=add_special_tokens
         ).input_ids
     
+    def chat_template(self, apply_chat_template):
+        if not apply_chat_template:
+            return None
+        return getattr(self.tokenizer, "chat_template", "")
+
     def apply_chat_template(
         self, chat_history, add_generation_prompt: bool = True
     ) -> str:
@@ -387,7 +392,6 @@ class Dream(LM):
         ds = []
         ds = [{"prefix": req.args[0], "target": req.args[1]} for req in requests]
         ds = Dataset.from_list(ds)
-        print(ds[0])
         ds = ds.map(_tokenize)
         ds = ds.with_format("torch")
 
