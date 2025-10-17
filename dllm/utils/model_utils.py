@@ -1,6 +1,7 @@
 import torch
 import accelerate
 import transformers
+from peft import prepare_model_for_kbit_training
 
 from dllm.utils.utils import disable_caching_allocator_warmup
 from dllm.utils.configs import ModelArguments, TrainingArguments
@@ -61,7 +62,12 @@ def get_model(
 
     quant_config = None
     if load_in_4bit and transformers.utils.is_bitsandbytes_available():
-        quant_config = transformers.BitsAndBytesConfig(load_in_4bit=True)
+        quant_config = transformers.BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=dtype,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+        )
 
     model = transformers.AutoModel.from_pretrained(
         model_name_or_path,
@@ -70,6 +76,11 @@ def get_model(
         quantization_config=quant_config,
         config=config,
     )
+
+    # --- if quantized, prepare for LoRA / QLoRA training ---
+    if load_in_4bit and quant_config is not None:
+        model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
+
     return model
 
 

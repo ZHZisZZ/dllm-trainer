@@ -1347,7 +1347,7 @@ class LLaDAModelLM(PreTrainedModel):
 
     config_class = LLaDAConfig
     base_model_prefix = "model"
-    _no_split_modules = ["LLaDABlock", "LLaDASequentialBlock", "LLaDALlamaBlock"]
+    _no_split_modules = ["LLaDALlamaBlock"]
 
     def __init__(self, config: LLaDAConfig, model: Optional[LLaDAModel] = None, init_params: bool = False):
         super().__init__(config)
