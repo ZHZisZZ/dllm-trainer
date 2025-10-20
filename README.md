@@ -34,7 +34,9 @@ pip install wandb
 ```
 ## codes/experiments location
 examples/llada 이 폴더에 dllm 넣어서 사용중. 
+```bash
 accelerate launch --config_file scripts/accelerate_configs/deepspeed_zero2.yaml examples/llada/sft.py
+```
 이때 gpu 개수만큼 deepspeed_zero2.yaml에서 num_processes: 숫자 고쳐줘야됨
 
 ## Overview
