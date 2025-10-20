@@ -2,7 +2,7 @@
 #SBATCH --job-name=dream-eval
 #SBATCH --partition=mllm_safety
 #SBATCH --quotatype=spot
-#SBATCH --nodes=2
+#SBATCH --nodes=1
 #SBATCH --ntasks-per-node=8
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-task=8
@@ -16,8 +16,7 @@
 NUM_NODES=${SLURM_NNODES}
 GPUS_PER_NODE=8
 WORLD_SIZE=$((NUM_NODES * GPUS_PER_NODE))
-MASTER_PORT=$((20000 + 
-SLURM_JOB_ID % 10000))
+MASTER_PORT=$((20000 + SLURM_JOB_ID % 10000))
 
 # ===== Node information =====
 NODELIST=($(scontrol show hostnames "${SLURM_JOB_NODELIST}"))
@@ -48,31 +47,40 @@ export NCCL_DEBUG=warn
 export TORCH_DISTRIBUTED_DEBUG=DETAIL
 export PYTHONPATH=.:$PYTHONPATH
 export BASE_DATASETS_DIR="/mnt/lustrenew/mllm_aligned/datasets/huggingface"
-export BASE_MODELS_DIR="/mnt/lustrenew/mllm_aligned/shared/models/huggingface/"
+export BASE_MODELS_DIR="/mnt/lustrenew/mllm_aligned/shared/models/huggingface"
 export HF_DATASETS_CACHE="/mnt/lustrenew/mllm_safety-shared/datasets/huggingface"
 export MASTER_ADDR MASTER_PORT WORLD_SIZE
 
 # ===== Optional arguments =====
 TASKS="gsm8k"   # Separated by commas
 NUM_FEWSHOT=8
-BATCH_SIZE=32
+BATCH_SIZE=1
 SEED=1234
-MC_NUM=128
+MC_NUM=1
 MAX_NEW_TOKENS=256
 MAX_LENGTH=4096
 STEPS=256
-BLOCK_LENGTH=256
-TEMPERATURE=0.2
-TOP_P=0.95
-LIMIT=None
+TEMPERATURE=0.0
+TOP_P=1.0
+LIMIT=64
+USE_CHAT_TEMPLATE=True
 MODEL_NAME="Dream-org/Dream-v0-Instruct-7B"
 MODEL_PATH="${BASE_MODELS_DIR}/${MODEL_NAME}" 
 # For Debugging
 # SAMPLES="{\"gsm8k\": [$(echo {0..128} | sed 's/ /,/g')]}"
 
+# ===== Conditional argument =====
+if [[ "${USE_CHAT_TEMPLATE}" == "True" ]]; then
+  APPLY_CHAT_TEMPLATE_ARG="--apply_chat_template True --fewshot_as_multiturn"
+else
+  APPLY_CHAT_TEMPLATE_ARG=""
+fi
+
 # ===== Launch =====
 echo "Launching accelerate on ${NUM_NODES} node(s) (${WORLD_SIZE} GPUs total)..."
 echo "Testing ${MODEL_PATH} on ${TASKS}"
+echo "Apply chat template: ${USE_CHAT_TEMPLATE}"
+echo "============================"
 
 if [[ "${NUM_NODES}" -eq 1 ]]; then
   echo "Running single-node setup..."
@@ -89,9 +97,11 @@ if [[ "${NUM_NODES}" -eq 1 ]]; then
     --model_args "pretrained=${MODEL_PATH},mc_num=${MC_NUM},max_new_tokens=${MAX_NEW_TOKENS},max_length=${MAX_LENGTH},steps=${STEPS},temperature=${TEMPERATURE},top_p=${TOP_P},add_bos_token=true,escape_until=true" \
     --tasks ${TASKS} \
     --seed ${SEED} \
-    --apply_chat_template True \
     --log_samples \
-    --output_path ./logs/gsm8k_${SLURM_JOB_ID}_samples.json
+    --output_path ./logs/gsm8k_${SLURM_JOB_ID}_samples.json \
+    --limit ${LIMIT} \
+    ${APPLY_CHAT_TEMPLATE_ARG}
+    # --apply_chat_template True \
     # --limit ${LIMIT} 
     # --samples "${SAMPLES}"
 else
@@ -111,9 +121,11 @@ else
       --model_args "pretrained=${MODEL_PATH},mc_num=${MC_NUM},max_new_tokens=${MAX_NEW_TOKENS},max_length=${MAX_LENGTH},steps=${STEPS},temperature=${TEMPERATURE},top_p=${TOP_P},add_bos_token=true,escape_until=true" \
       --tasks ${TASKS} \
       --seed ${SEED} \
-      --apply_chat_template True \
       --log_samples \
-      --output_path ./logs/gsm8k_${SLURM_JOB_ID}_samples.json
+      --output_path ./logs/gsm8k_${SLURM_JOB_ID}_samples.json \
+      --limit ${LIMIT} \
+      ${APPLY_CHAT_TEMPLATE_ARG}
+      # --apply_chat_template True \
       # --limit ${LIMIT} 
       # --samples "${SAMPLES}"
 fi

@@ -125,10 +125,10 @@ class Dream(LM):
             text, return_tensors="pt", add_special_tokens=add_special_tokens
         ).input_ids
     
-    def chat_template(self, apply_chat_template):
-        if not apply_chat_template:
-            return None
-        return getattr(self.tokenizer, "chat_template", "")
+    # def chat_template(self, apply_chat_template):
+    #     if not apply_chat_template:
+    #         return None
+    #     return getattr(self.tokenizer, "chat_template", "")
 
     def apply_chat_template(
         self, chat_history, add_generation_prompt: bool = True
@@ -171,13 +171,14 @@ class Dream(LM):
             prompt_lens = [len(p_id) for p_id in prompt_ids]
 
             if max(prompt_lens) > self.max_length - self.max_new_tokens:
+                cutoff_len = self.max_length - self.max_new_tokens
                 eval_logger.warning(
-                    f"Prompt length {max(prompt_lens)} exceeds {self.max_length - self.max_new_tokens}, cutoff on the left side"
+                    f"Prompt length {max(prompt_lens)} exceeds {cutoff_len}, cutoff on the left side"
                 )
-                prompt_ids = [p_id[: self.max_length - self.max_new_tokens] for p_id in prompt_ids]
+                # ✅ Correct: trim from the left side (keep the last cutoff_len tokens)
+                prompt_ids = [p_id[-cutoff_len:] for p_id in prompt_ids]
 
             # generation
-            breakpoint()
             generation_ids = generate(
                 model=self.model,
                 tokenizer=self.tokenizer,
@@ -192,16 +193,19 @@ class Dream(LM):
                 output_history=False,
                 return_dict_in_generate=False,
             )
-            breakpoint()
             # decode and cleanup
             cleaned_generation_ids = [
                 seq[seq.ne(self.tokenizer.eos_token_id).float().argmax().long():] if (seq != self.tokenizer.eos_token_id).any() else seq[-1:]
                 for seq in generation_ids
             ]
+            truncated_generation_ids = [
+                seq[prompt_lens[i]:] for i, seq in enumerate(cleaned_generation_ids)
+            ]
             responses = [
                 g.lstrip("<|endoftext|>").split(self.tokenizer.eos_token, 1)[0]
-                for g in self.tokenizer.batch_decode(cleaned_generation_ids)
+                for g in self.tokenizer.batch_decode(truncated_generation_ids)
             ]
+            breakpoint()
             # ====== END merged _generate_batch logic ======
 
             # handle "until" truncation
