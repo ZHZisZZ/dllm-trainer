@@ -32,12 +32,17 @@ pip install timm
 pip install wandb
 여기에 플러스로 한두개 있었던것 같은데 이건 코드 돌리면서 깔면 됨
 ```
-## codes/experiments location
+### codes/experiments location
 examples/llada 이 폴더에 dllm 넣어서 사용중. 
 ```bash
 accelerate launch --config_file scripts/accelerate_configs/deepspeed_zero2.yaml examples/llada/sft.py
 ```
 이때 gpu 개수만큼 deepspeed_zero2.yaml에서 num_processes: 숫자 고쳐줘야됨
+
+### dataset
+example/llada/dataset 에 관련 파일들 정리해둠
+
+dataset의 구조는 notion에서 진행상황(민해)/DLLM/dataset 구성에 정리해둠
 
 ## Overview
 **dLLM** is an educational library offering unified implementations for training **diffusion language models**. It brings transparency to the entire training and deployment process, making **reproduction and finetuning** of open-weight diffusion language models much easier. Below are some of the key features that make dLLM special:
