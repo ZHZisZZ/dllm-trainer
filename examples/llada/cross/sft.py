@@ -45,13 +45,13 @@ class ModelArguments(dllm.utils.ModelArguments):
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
-    # dataset_args: str = "allenai/tulu-3-sft-mixture[train:10000,test:1000]" 
-    dataset_args: str = "gsm8k_q_qllm" # Use our local GSM8K dataset
+    dataset_args: str = "allenai/tulu-3-sft-mixture[train:10000,test:1000]" 
+    # dataset_args: str = "gsm8k" # Use our local GSM8K dataset
 
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = "models/LLaDA-8B-SFT/gsm8k-sft-111"
+    output_dir: str = "models/LLaDA-8B-SFT/tulu-3-sft-mixture[train:10000,test:1000]"
     # Enable LoRA for efficient fine-tuning
     lora: bool = field(
         default=True,
