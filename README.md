@@ -13,13 +13,13 @@ Training Diffusion Large Language Models Made Simple
 ## minhae
 ### env setting
 ```bash
-conda create -n dlm python=3.12 //
-conda activate dlm //
-conda install nvidia/label/cuda-12.8.1::cuda-toolkit //
-pip install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 —index-url https://download.pytorch.org/whl/cu128 //
-pip install packaging //
-pip install ray //
-pip install omegaconf //
+conda create -n dlm python=3.12 
+conda activate dlm 
+conda install nvidia/label/cuda-12.8.1::cuda-toolkit 
+pip install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 —index-url https://download.pytorch.org/whl/cu128 
+pip install packaging 
+pip install ray 
+pip install omegaconf 
 pip install transformers
 pip install hydra-core —upgrade
 pip install datasets
