@@ -10,6 +10,31 @@ Training Diffusion Large Language Models Made Simple
   alt="dLLM logo">
 </p>
 
+## minhae
+### env setting
+conda create -n dlm python=3.12
+conda activate dlm
+conda install nvidia/label/cuda-12.8.1::cuda-toolkit
+pip install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 —index-url https://download.pytorch.org/whl/cu128
+pip install packaging
+pip install ray
+pip install omegaconf
+pip install transformers
+pip install hydra-core —upgrade
+pip install datasets
+MAX_JOBS=8 pip install flash-attn —no-build-isolation
+MAX_JOBS=8 pip install causal-conv1d --no-build-isolation
+MAX_JOBS=8 pip install mamba-ssm --no-build-isolation
+pip install lightning
+pip install rich
+pip install timm
+pip install wandb
+여기에 플러스로 한두개 있었던것 같은데 이건 코드 돌리면서 깔면 됨
+
+## codes/experiments location
+examples/llada 이 폴더에 dllm 넣어서 사용중. 
+accelerate launch --config_file scripts/accelerate_configs/deepspeed_zero2.yaml examples/llada/sft.py
+이때 gpu 개수만큼 deepspeed_zero2.yaml에서 num_processes: 숫자 고쳐줘야됨
 
 ## Overview
 **dLLM** is an educational library offering unified implementations for training **diffusion language models**. It brings transparency to the entire training and deployment process, making **reproduction and finetuning** of open-weight diffusion language models much easier. Below are some of the key features that make dLLM special:

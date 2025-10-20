@@ -137,7 +137,7 @@ cache/
 package/
 output*/
 tmp/
-dataset/
+# dataset/
 wandb/
 logs/
 /models*/
@@ -145,3 +145,6 @@ logs/
 models/
 output/
 *.safetensors
+# dataset 폴더 안의 모든 것을 무시하되 Python 파일만 포함
+examples/llada/dataset/*/
+!examples/llada/dataset/*.py
