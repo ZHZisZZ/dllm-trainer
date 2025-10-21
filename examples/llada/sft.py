@@ -35,6 +35,7 @@ import accelerate
 import dllm
 from dllm.pipelines import llada
 
+data_name = "gsm8k_filter_1_1_1"
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
@@ -46,12 +47,12 @@ class ModelArguments(dllm.utils.ModelArguments):
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
     # dataset_args: str = "allenai/tulu-3-sft-mixture[train:10000,test:1000]" 
-    dataset_args: str = "gsm8k_q_qllm" # Use our local GSM8K dataset
+    dataset_args: str = data_name # Use our local GSM8K dataset
 
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = "models/LLaDA-8B-SFT/gsm8k-sft-111"
+    output_dir: str = "models/LLaDA-8B-SFT/" + data_name
     # Enable LoRA for efficient fine-tuning
     lora: bool = field(
         default=True,
@@ -62,6 +63,7 @@ class TrainingArguments(dllm.utils.TrainingArguments):
         default=True,
         metadata={"help": "Whether to mask the loss on the prompt tokens"},
     )
+    run_name: str = data_name
 
 
 def train():

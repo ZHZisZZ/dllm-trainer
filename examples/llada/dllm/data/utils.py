@@ -163,12 +163,11 @@ def load_sft_dataset(dataset_args: str):
             dataset_name_or_path, "BASE_DATASETS_DIR"
         )
 
-        if dataset_name_or_path == "gsm8k":
-            # Load local GSM8K dataset
-            ds = load_from_disk("/home/minhae/diffusion/dllm/examples/llada/dataset/gsm8k_dataset")
-        elif dataset_name_or_path == "gsm8k_q_qllm":
-            # Load local GSM8K dataset
-            ds = load_from_disk("/home/minhae/diffusion/dllm/examples/llada/dataset/gsm8k_dataset_q_qllm")
+        if "gsm8k" in dataset_name_or_path:
+            data_dir = "/home/minhae/diffusion/dllm/examples/llada/dataset"
+            data_dir += "/" + dataset_name_or_path
+            ds = load_from_disk(data_dir)
+  
         elif _match(dataset_name_or_path, "tatsu-lab/alpaca"):
             ds = load_dataset_alpaca(dataset_name_or_path)
         elif _match(dataset_name_or_path, "allenai/tulu-3-sft-mixture"):
