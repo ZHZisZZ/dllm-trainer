@@ -49,9 +49,22 @@ print("TEST: llada.generate()".center(80))
 print("=" * 80)
 
 messages = [
-    [{"role": "user", "content": "Lily runs 12 km/h for 4 hours. How far in 8 hours?"}],
-    [{"role": "user", "content": "Please write an educational python function."}],
+    [{"role": "user", "content": "Lily runs 12 km/h for 4 hours. How far in 8 hours?"},
+{"role": "user", "content": "Please write an educational python function."}],
 ]
+
+
+
+input_ids_list0 = [
+    tokenizer.apply_chat_template(
+        m,
+        add_generation_prompt=True,
+        tokenize=False,
+        return_tensors="pt",
+    )
+    for m in messages
+]
+print(input_ids_list0)
 
 input_ids_list = [
     tokenizer.apply_chat_template(
@@ -62,7 +75,6 @@ input_ids_list = [
     )[0].to(model.device)
     for m in messages
 ]
-
 out = llada.generate(
     model,
     tokenizer,
@@ -83,54 +95,54 @@ for i, o in enumerate(generations):
 
 print("\n" + "=" * 80 + "\n")
 
-# --- Example 2: Batch fill-in-the-blanks ---
-print("\n" + "=" * 80)
-print("TEST: llada.infilling()".center(80))
-print("=" * 80)
+# # --- Example 2: Batch fill-in-the-blanks ---
+# print("\n" + "=" * 80)
+# print("TEST: llada.infilling()".center(80))
+# print("=" * 80)
 
-masked_inputs = [
-    [
-        {"role": "user", "content": tokenizer.mask_token * 20},
-        {
-            "role": "assistant",
-            "content": "Sorry, I do not have answer to this question.",
-        },
-    ],
-    [
-        {"role": "user", "content": "Please write an educational python function."},
-        {
-            "role": "assistant",
-            "content": "def hello_" + tokenizer.mask_token * 20 + " return",
-        },
-    ],
-]
+# masked_inputs = [
+#     [
+#         {"role": "user", "content": tokenizer.mask_token * 20},
+#         {
+#             "role": "assistant",
+#             "content": "Sorry, I do not have answer to this question.",
+#         },
+#     ],
+#     [
+#         {"role": "user", "content": "Please write an educational python function."},
+#         {
+#             "role": "assistant",
+#             "content": "def hello_" + tokenizer.mask_token * 20 + " return",
+#         },
+#     ],
+# ]
 
-fib_input_ids_list = [
-    tokenizer.apply_chat_template(
-        m,
-        add_generation_prompt=False,
-        tokenize=True,
-        return_tensors="pt",
-    )[0].to(model.device)
-    for m in masked_inputs
-]
+# fib_input_ids_list = [
+#     tokenizer.apply_chat_template(
+#         m,
+#         add_generation_prompt=False,
+#         tokenize=True,
+#         return_tensors="pt",
+#     )[0].to(model.device)
+#     for m in masked_inputs
+# ]
 
-out = llada.infilling(
-    model,
-    tokenizer,
-    fib_input_ids_list,
-    steps=script_args.steps,
-    temperature=script_args.temperature,
-    remasking=script_args.remasking,
-)
+# out = llada.infilling(
+#     model,
+#     tokenizer,
+#     fib_input_ids_list,
+#     steps=script_args.steps,
+#     temperature=script_args.temperature,
+#     remasking=script_args.remasking,
+# )
 
-filled = tokenizer.batch_decode(out)
+# filled = tokenizer.batch_decode(out)
 
-for i, (ids, f) in enumerate(zip(fib_input_ids_list, filled)):
-    print("\n" + "-" * 80)
-    print(f"[Case {i}]")
-    print("-" * 80)
-    print("[Masked]:\n" + tokenizer.decode(ids))
-    print("\n[Filled]:\n" + (f.strip() if f.strip() else "<empty>"))
+# for i, (ids, f) in enumerate(zip(fib_input_ids_list, filled)):
+#     print("\n" + "-" * 80)
+#     print(f"[Case {i}]")
+#     print("-" * 80)
+#     print("[Masked]:\n" + tokenizer.decode(ids))
+#     print("\n[Filled]:\n" + (f.strip() if f.strip() else "<empty>"))
 
-print("\n" + "=" * 80 + "\n")
+# print("\n" + "=" * 80 + "\n")

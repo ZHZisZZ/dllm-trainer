@@ -27,6 +27,7 @@ Slurm users
 """
 
 import os
+import sys
 from dataclasses import dataclass, field
 
 import transformers
@@ -35,7 +36,12 @@ import accelerate
 import dllm
 from dllm.pipelines import llada
 
-data_name = "gsm8k_filter_unique_1_0_1"
+@dataclass
+class DataArguments(dllm.utils.DataArguments):
+    data_name: str = field(
+        default="gsm8k_filter_1_1_1",
+        metadata={"help": "Name of the dataset to use"}
+    )
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
@@ -47,12 +53,12 @@ class ModelArguments(dllm.utils.ModelArguments):
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
     # dataset_args: str = "allenai/tulu-3-sft-mixture[train:10000,test:1000]" 
-    dataset_args: str = data_name # Use our local GSM8K dataset
+    dataset_args: str = None # Will be set from data_name
 
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = "models/LLaDA-8B-SFT/" + data_name
+    output_dir: str = None # Will be set from data_name
     # Enable LoRA for efficient fine-tuning
     lora: bool = field(
         default=True,
@@ -63,7 +69,7 @@ class TrainingArguments(dllm.utils.TrainingArguments):
         default=True,
         metadata={"help": "Whether to mask the loss on the prompt tokens"},
     )
-    run_name: str = data_name
+    run_name: str = None # Will be set from data_name
 
 
 def train():
@@ -72,6 +78,12 @@ def train():
         (ModelArguments, DataArguments, TrainingArguments)
     )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    
+    # Set values from data_name
+    data_args.dataset_args = data_args.data_name
+    training_args.output_dir = f"models/LLaDA-8B-SFT/{data_args.data_name}"
+    training_args.run_name = data_args.data_name
+    
     dllm.utils.print_args_main(model_args, data_args, training_args)
     dllm.utils.initial_training_setup(training_args)
 
