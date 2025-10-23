@@ -17,18 +17,19 @@ class ModelArguments(dllm.utils.ModelArguments):
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
     dataset_args: str = "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    mask_prompt_loss: bool = field(
+        default=True,
+        metadata={"help": "Whether to mask the loss on the prompt tokens"},
+    )
 
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = None  # overwrite this
+    per_device_train_batch_size: int = 3
     gradient_accumulation_steps: int = 2
     learning_rate: float = 5e-5
     # EditFlow specific args
-    mask_prompt_loss: bool = field(
-        default=True,
-        metadata={"help": "Whether to mask the loss on the prompt tokens"},
-    )
     scheduler_cls: str = field(
         default="LinearKappaScheduler",
         metadata={
@@ -68,7 +69,7 @@ def train(
     # necessary when batch contains customized fields
     training_args.remove_unused_columns = False
     dllm.utils.print_args_main(model_args, data_args, training_args)
-    dllm.utils.initial_training_setup(training_args)
+    dllm.utils.initial_training_setup(model_args, data_args, training_args)
 
     # # ----- Load EditFlow Model --------------------------------------------------
     if not model:
@@ -94,7 +95,7 @@ def train(
             tokenize=True,
             add_generation_prompt=False,
         )
-        if training_args.mask_prompt_loss:
+        if data_args.mask_prompt_loss:
             prompt_tokens = tokenizer.apply_chat_template(
                 row["messages"][:-1],
                 tokenize=True,

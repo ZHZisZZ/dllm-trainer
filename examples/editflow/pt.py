@@ -87,7 +87,7 @@ def train(
     # necessary for streaming dataset
     training_args.accelerator_config.dispatch_batches = False
     dllm.utils.print_args_main(model_args, data_args, training_args)
-    dllm.utils.initial_training_setup(training_args)
+    dllm.utils.initial_training_setup(model_args, data_args, training_args)
 
     # ----- Load base Model and initialize EditFlow Model ---------------------------
     # Create EditFlow model (bf16 init on CUDA)

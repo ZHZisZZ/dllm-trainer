@@ -1,6 +1,6 @@
-from dllm.pipelines.dream import generate, trainer, utils
-from dllm.pipelines.dream.models.modeling_dream import DreamModel
-from dllm.pipelines.dream.models.configuration_dream import DreamConfig
-from dllm.pipelines.dream.models.tokenization_dream import DreamTokenizer
-from dllm.pipelines.dream.generate import generate, infilling
-from dllm.pipelines.dream.trainer import DreamTrainer
+from . import models, generate, trainer, utils
+from .models.modeling_dream import DreamModel
+from .models.configuration_dream import DreamConfig
+from .models.tokenization_dream import DreamTokenizer
+from .generate import generate, infilling
+from .trainer import DreamTrainer

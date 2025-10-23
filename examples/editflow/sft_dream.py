@@ -3,12 +3,12 @@ Local users
 ------------
 - 1 GPU:
     accelerate launch \
-        --config_file scripts/accelerate_configs/single_gpu.yaml \
+        --config_file scripts/accelerate_configs/ddp.yaml --num_processes 1 \
         examples/editflow/sft_dream.py
     
 - 8 GPUs (DeepSpeed ZeRO-2):
     accelerate launch \
-        --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
+        --config_file scripts/accelerate_configs/zero2.yaml \
         examples/editflow/sft_dream.py
 
 Slurm users
@@ -22,12 +22,12 @@ Slurm users
 
 - 8 GPUs (DeepSpeed ZeRO-2):
     sbatch --gres=gpu:8 scripts/train.slurm.sh \
-        --accelerate_config "deepspeed_zero2" \
+        --accelerate_config "zero2" \
         --script_path "examples/editflow/sft_dream.py"
 
 - 2 Nodes, 16 GPUs (DeepSpeed ZeRO-2):
     sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
-        --accelerate_config "deepspeed_zero2" \
+        --accelerate_config "zero2" \
         --script_path "examples/editflow/sft_dream.py"
 """
 
@@ -35,7 +35,7 @@ from dataclasses import dataclass
 
 import transformers
 
-import examples.editflow.sft as editflow_sft
+import sft as editflow_sft
 
 
 @dataclass

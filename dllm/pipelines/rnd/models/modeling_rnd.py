@@ -168,6 +168,7 @@ class RND1Attention(nn.Module):
         attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) * self.scaling
 
         if attention_mask is not None:
+            # TODO: modify this to boolean masks
             attn_weights = attn_weights + attention_mask[:, :, :, : key_states.shape[-2]]
 
         attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
@@ -316,20 +317,55 @@ class RND1SparseMoeBlock(nn.Module):
                 routing_weights = routing_weights / routing_weights.sum(dim=-1, keepdim=True)
 
 
+        # if self.backend == "hf":
+        #     final_hidden_states = torch.zeros(
+        #         (batch_size * sequence_length, hidden_dim), dtype=hidden_states.dtype, device=hidden_states.device
+        #     )
+
+        #     expert_mask = torch.nn.functional.one_hot(selected_experts, num_classes=self.num_experts).permute(2, 1, 0)
+        #     expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+
+        #     for expert_idx in expert_hit:
+        #         expert_layer = self.experts[expert_idx]
+        #         idx, top_x = torch.where(expert_mask[expert_idx].squeeze(0))
+        #         current_state = x[top_x]
+        #         current_hidden_states = expert_layer(current_state) * routing_weights[top_x, idx, None]
+        #         final_hidden_states.index_add_(0, top_x, current_hidden_states.to(hidden_states.dtype))
+        #     out = final_hidden_states.reshape(batch_size, sequence_length, hidden_dim)
+        #     return out, router_logits.view(batch_size, sequence_length, -1)
         if self.backend == "hf":
+            # Accumulate buffer: [B*S, H]
             final_hidden_states = torch.zeros(
-                (batch_size * sequence_length, hidden_dim), dtype=hidden_states.dtype, device=hidden_states.device
+                (batch_size * sequence_length, hidden_dim),
+                dtype=hidden_states.dtype,
+                device=hidden_states.device,
             )
 
-            expert_mask = torch.nn.functional.one_hot(selected_experts, num_classes=self.num_experts).permute(2, 1, 0)
-            expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+            # expert_mask: [E, top_k, tokens]
+            expert_mask = torch.nn.functional.one_hot(
+                selected_experts, num_classes=self.num_experts
+            ).permute(2, 1, 0).contiguous()
 
-            for expert_idx in expert_hit:
-                expert_layer = self.experts[expert_idx]
-                idx, top_x = torch.where(expert_mask[expert_idx].squeeze(0))
-                current_state = x[top_x]
-                current_hidden_states = expert_layer(current_state) * routing_weights[top_x, idx, None]
-                final_hidden_states.index_add_(0, top_x, current_hidden_states.to(hidden_states.dtype))
+            # 顺序遍历所有 experts；即使本 rank 没命中也要进入 forward，避免 ZeRO-3 控制流分歧
+            for e in range(self.num_experts):
+                expert_layer = self.experts[int(e)]
+
+                # 取出该 expert 命中的 token 索引
+                idx, top_x = torch.where(expert_mask[e])        # idx∈[0, top_k), shapes: [n_tok_e]
+                current_state = x[top_x]                         # [n_tok_e, H]，n_tok_e 可能为 0
+                # if top_x.numel() == 0:
+                #     print("0")
+
+                # 空批照样前向；大多数 Linear/MLP 对 0 行输入是 no-op，但会对齐 ZeRO-3 的参数路径
+                expert_out = expert_layer(current_state)         # [n_tok_e, H]
+
+                # 路由权重并加权
+                w = routing_weights[top_x, idx]                  # [n_tok_e]
+                expert_out = expert_out * w.unsqueeze(-1)        # [n_tok_e, H]
+
+                # 累加回全局缓冲；当 n_tok_e=0 时这是合法的空操作
+                final_hidden_states.index_add_(0, top_x, expert_out.to(hidden_states.dtype))
+
             out = final_hidden_states.reshape(batch_size, sequence_length, hidden_dim)
             return out, router_logits.view(batch_size, sequence_length, -1)
 
@@ -531,6 +567,11 @@ class RND1Model(RND1PreTrainedModel):
 
         if position_ids is None:
             position_ids = torch.arange(inputs_embeds.shape[1], device=inputs_embeds.device).unsqueeze(0)
+
+        if isinstance(attention_mask, torch.Tensor):
+            # shape: (batch_size, 1, 1, seq_len)
+            attention_mask = attention_mask.to(dtype=torch.float)[:, None, None, :]
+            attention_mask = (1.0 - attention_mask) * torch.finfo(attention_mask.dtype).min
 
         position_embeddings = self.rotary_emb(inputs_embeds, position_ids)
 

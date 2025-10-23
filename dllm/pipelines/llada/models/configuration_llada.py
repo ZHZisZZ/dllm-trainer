@@ -457,9 +457,3 @@ class LLaDAConfig(PretrainedConfig):
     @property
     def hidden_size(self):
         return self.d_model
-
-
-from transformers import AutoConfig
-
-# Register the config class so that it is available for transformer pipelines, auto-loading etc.
-AutoConfig.register("llada", LLaDAConfig)

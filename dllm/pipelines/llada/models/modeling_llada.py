@@ -1347,7 +1347,7 @@ class LLaDAModelLM(PreTrainedModel):
 
     config_class = LLaDAConfig
     base_model_prefix = "model"
-    _no_split_modules = ["LLaDABlock", "LLaDASequentialBlock", "LLaDALlamaBlock"]
+    _no_split_modules = ["LLaDALlamaBlock"]
 
     def __init__(self, config: LLaDAConfig, model: Optional[LLaDAModel] = None, init_params: bool = False):
         super().__init__(config)
@@ -1355,7 +1355,7 @@ class LLaDAModelLM(PreTrainedModel):
         if not model:
             model_config = create_model_config_from_pretrained_config(config)
             # Initialize model (always on CPU to start with so we don't run out of GPU memory).
-            model_config.init_device = "cpu"
+            model_config.init_device = "cuda"
             self.model = LLaDAModel(model_config, init_params=init_params)
         else:
             self.model = model
@@ -1456,9 +1456,3 @@ class LLaDAModelLM(PreTrainedModel):
     def tie_weights(self):
         if self.config.weight_tying:
             self.model.transformer.ff_out = self.model.transformer.wte
-
-
-from transformers import AutoModel
-
-# Register the model so that it is available for transformer pipelines, auto-loading, etc.
-AutoModel.register(LLaDAConfig, LLaDAModelLM)

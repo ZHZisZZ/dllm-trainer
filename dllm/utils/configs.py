@@ -8,8 +8,8 @@ from dllm.utils.utils import resolve_with_base_env
 @dataclass
 class ModelArguments:
     model_name_or_path: str = None  # overwrite this
-    load_in_4bit: bool = False
     dtype: str = "bfloat16"
+    load_in_4bit: bool = False
 
     def __post_init__(self):
         self.model_name_or_path = resolve_with_base_env(
@@ -21,9 +21,10 @@ class ModelArguments:
 class DataArguments:
     dataset_args: str = None  # overwrite this
     num_proc: int = 8
+    disable_caching: bool = False
     max_length: int = 1024
     truncation: str = field(
-        default="filter",
+        default="right",
         metadata={
             "help": (
                 'The truncation strategy to use ("filter" or "right"). '
@@ -61,3 +62,4 @@ class TrainingArguments(transformers.TrainingArguments):
     lora_alpha: int = 64
     lora_dropout: float = 0.05
     bias: str = "none"
+    modules_to_save: str = None

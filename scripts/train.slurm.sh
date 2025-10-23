@@ -2,7 +2,7 @@
 #SBATCH --job-name=dllm
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:8
-#SBATCH --cpus-per-task=64
+#SBATCH --cpus-per-task=96
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=mllm_safety
 #SBATCH --quotatype=spot
@@ -40,7 +40,7 @@ export NCCL_ASYNC_ERROR_HANDLING=1
 export PYTHONPATH=.
 
 # ===== Default options =====
-accelerate_config="deepspeed_zero2"
+accelerate_config="zero2"
 script_path="scripts/examples/llada_sft.py"
 
 # ===== Parse arguments =====
@@ -65,8 +65,7 @@ printf '%s\n' "${FORWARD_ARGS[@]}" | xargs -n 2
 echo "============================"
 
 # ===== Launch =====
-if [[ "${NUM_NODES}" -eq 1 ]]; then
-  echo "Running single-node setup..."
+srun --nodes="${NUM_NODES}" --ntasks="${NUM_NODES}" --nodelist="${SLURM_JOB_NODELIST}" \
   accelerate launch \
     --config_file "scripts/accelerate_configs/${accelerate_config}.yaml" \
     --num_machines "${NUM_NODES}" \
@@ -74,17 +73,5 @@ if [[ "${NUM_NODES}" -eq 1 ]]; then
     --main_process_ip "${MASTER_ADDR}" \
     --main_process_port "${MASTER_PORT}" \
     --machine_rank "${SLURM_PROCID}" \
+    --rdzv_backend c10d \
     "${script_path}" "${FORWARD_ARGS[@]}"
-else
-  echo "Running multi-node setup..."
-  srun --nodes="${NUM_NODES}" --ntasks="${NUM_NODES}" --nodelist="${SLURM_JOB_NODELIST}" \
-    accelerate launch \
-      --config_file "scripts/accelerate_configs/${accelerate_config}.yaml" \
-      --num_machines "${NUM_NODES}" \
-      --num_processes "${WORLD_SIZE}" \
-      --main_process_ip "${MASTER_ADDR}" \
-      --main_process_port "${MASTER_PORT}" \
-      --machine_rank "${SLURM_PROCID}" \
-      --rdzv_backend c10d \
-      "${script_path}" "${FORWARD_ARGS[@]}"
-fi

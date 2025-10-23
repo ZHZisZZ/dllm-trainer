@@ -848,9 +848,3 @@ class DreamModel(DreamGenerationMixin, DreamPreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
-
-
-from transformers import AutoModel
-
-# Register the model so that it is available for transformer pipelines, auto-loading, etc.
-AutoModel.register(DreamConfig, DreamModel)

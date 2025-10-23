@@ -94,9 +94,3 @@ class LLaDAMoEConfig(PretrainedConfig):
             tie_word_embeddings=tie_word_embeddings,
             **kwargs,
         )
-
-
-from transformers import AutoConfig
-
-# Register the config class so that it is available for transformer pipelines, auto-loading etc.
-AutoConfig.register("lladamoe", LLaDAMoEConfig)

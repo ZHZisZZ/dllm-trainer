@@ -71,7 +71,7 @@ However, LLaDA supports only substitution. This example shows how to adapt it so
 
 ```shell
 accelerate launch \
-    --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
+    --config_file scripts/accelerate_configs/zero2.yaml \
     examples/editflow/adapt_llada.py \
     --model_name_or_path "GSAI-ML/LLaDA-8B-Instruct" \
     --lm_head_key "model.transformer.ff_out" \
@@ -87,7 +87,7 @@ accelerate launch \
 If you are using slurm and want to train across, for example, four nodes (32 GPUs total), run:
 ```shell
 sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
-    --accelerate_config "deepspeed_zero2" \
+    --accelerate_config "zero2" \
     --script_path "examples/editflow/adapt_llada.py" \
     --model_name_or_path "GSAI-ML/LLaDA-8B-Instruct" \
     --lm_head_key "model.transformer.ff_out" \
@@ -110,7 +110,7 @@ Pretrain on a subset of [mlfoundations/dclm-baseline-1.0](https://huggingface.co
 
 ```shell
 sbatch --nodes=32 --gres=gpu:8 scripts/train.slurm.sh \
-    --accelerate_config "deepspeed_zero2" \
+    --accelerate_config "zero2" \
     --script_path "examples/editflow/pt_llada.py" \
     --model_name_or_path "GSAI-ML/LLaDA-8B-Base" \
     --dataset_args "mlfoundations/dclm-baseline-1.0" \
@@ -126,7 +126,7 @@ Finetune on a subset of [allenai/tulu-3-sft-mixture](https://huggingface.co/data
 ```shell
 # you can also run locally with `accelerate ...`
 sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
-    --accelerate_config "deepspeed_zero2" \
+    --accelerate_config "zero2" \
     --script_path "examples/editflow/sft_llada.py" \
     --model_name_or_path "models/EditFlow-LLaDA-8B-Base/dclm-baseline-1.0/checkpoint-final" \
     --dataset_args "allenai/tulu-3-sft-mixture[train:10000,test:1000]" \

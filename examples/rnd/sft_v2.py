@@ -138,7 +138,6 @@ def train():
             # truncate / filter long sequences if needed
             dataset = dllm.utils.post_process_dataset(dataset, data_args)
     else:
-        from datasets import disable_caching; disable_caching()
         dataset = datasets.load_from_disk(data_args.dataset_args)
         # truncate / filter long sequences if needed
         dataset = dllm.utils.post_process_dataset(dataset, data_args)
@@ -152,6 +151,8 @@ def train():
             outputs.pop("attention_mask")
             # temp fix here (`group_by_length=True` leads to shape mismatch)
             # clip seq_len (second dim) to the same for outputs `input_ids, labels`
+            # TODO -> FIXED: clip all relevant tensors to a common seq_len
+            # Determine common length across present tensors
             import torch
             keys_to_clip = [k for k in ("input_ids", "labels") if k in outputs]
             if keys_to_clip:
@@ -163,6 +164,7 @@ def train():
                         outputs[k] = t[:, :min_len]
             return outputs
 
+    tokenizer.pad_token_id = tokenizer.mask_token_ids
     trainer = rnd.RNDTrainer(
         model=model,
         tokenizer=tokenizer,
@@ -174,7 +176,7 @@ def train():
             # pad_to_multiple_of=8,
             return_tensors="pt",
             padding=True,
-            label_pad_token_id=tokenizer.pad_token_id,  # RND is finetuned on padding <eos_token>
+            label_pad_token_id=-100,
         ),
     )
     trainer.train()

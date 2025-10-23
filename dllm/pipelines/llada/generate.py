@@ -108,7 +108,7 @@ def generate(
     """
     # TODO: Implement blockwise attention mask.
     #       When processing block i, the model must not attend to block i+1.
-    assert 1 <= block_length <= max_new_tokens
+    # assert 1 <= block_length <= max_new_tokens
     assert 1 <= steps
 
     mask_id = tokenizer.mask_token_id
@@ -146,6 +146,8 @@ def generate(
     steps = math.ceil(steps / num_blocks)  # per-block step budget
     effective_steps_per_block: list[int] = []
 
+    attention_mask = (x != eos_id).long() if B > 1 else None
+
     for b in range(num_blocks):
         # Build a per-sample mask *within this block* (aligned to each prompt's tail)
         block_mask_index = torch.zeros(
@@ -182,11 +184,11 @@ def generate(
                 un_x = x.clone()
                 un_x[unmasked_index] = mask_id
                 x_ = torch.cat([x, un_x], dim=0)
-                logits = model(x_).logits
+                logits = model(x_, attention_mask=attention_mask).logits  # Use attention mask here
                 logits, un_logits = torch.chunk(logits, 2, dim=0)
                 logits = un_logits + (cfg_scale + 1) * (logits - un_logits)
             else:
-                logits = model(x).logits
+                logits = model(x, attention_mask=attention_mask).logits  # Use attention mask here
 
             # Argmax decoding with optional Gumbel-Max noise for exploration
             logits_with_noise = add_gumbel_noise(logits, temperature=temperature)
@@ -296,6 +298,9 @@ def infilling(
     steps_per_block = math.ceil(steps / num_blocks)
     effective_steps_per_block: list[int] = []
 
+    # Create attention mask where eos_token_id is masked (set to 0)
+    attention_mask = (x != eos_id).long()
+
     for b in range(num_blocks):
         start = b * block_length
         stop = min(start + block_length, T)
@@ -330,13 +335,13 @@ def infilling(
             # ----- Forward pass (+ optional CFG) -----
             if cfg_scale > 0.0:
                 un_x = x.clone()
-                un_x[unmasked_index] = mask_id  # mask out originally known tokens
+                un_x[unmasked_index] = mask_id
                 x_ = torch.cat([x, un_x], dim=0)
-                logits = model(x_).logits
+                logits = model(x_, attention_mask=attention_mask).logits  # Use attention mask here
                 logits, un_logits = torch.chunk(logits, 2, dim=0)
                 logits = un_logits + (cfg_scale + 1) * (logits - un_logits)
             else:
-                logits = model(x).logits
+                logits = model(x, attention_mask=attention_mask).logits  # Use attention mask here
 
             # Greedy with optional Gumbel-Max noise
             logits_with_noise = add_gumbel_noise(logits, temperature=temperature)

@@ -34,7 +34,7 @@ def resolve_with_base_env(path: str, env_name: str) -> str:
     if os.path.exists(candidate):
         return candidate
     else:
-        return base
+        raise FileNotFoundError
 
 
 @contextmanager
@@ -90,13 +90,21 @@ def load_peft(
 ) -> transformers.PreTrainedModel:
     if not training_args.lora:
         return model
+    target_modules = training_args.target_modules.split(",") if training_args.target_modules else None
+    # if it’s a single 'all-linear', drop the list and use the string directly
+    if target_modules and len(target_modules) == 1 and target_modules[0].strip() == "all-linear":
+        target_modules = target_modules[0]
+    modules_to_save = training_args.modules_to_save.split(",") if training_args.modules_to_save else None
     peft_config = peft.LoraConfig(
         r=training_args.r,
-        target_modules=training_args.target_modules,
+        # target_modules=training_args.target_modules,
+        target_modules=target_modules,
         lora_alpha=training_args.lora_alpha,
         lora_dropout=training_args.lora_dropout,
         bias=training_args.bias,
-        modules_to_save=getattr(model, "modules_to_save", None),
+        # modules_to_save=getattr(model, "modules_to_save", None),
+        # modules_to_save=training_args.modules_to_save.split(","),
+        modules_to_save = modules_to_save,
     )
     model = peft.get_peft_model(model, peft_config)
     if accelerate.PartialState().is_main_process:
@@ -146,10 +154,24 @@ def disable_dataset_progress_bar_except_main():
         disable_progress_bar()
 
 
-def initial_training_setup(training_args: "TrainingArguments"):
+def initial_training_setup(
+    model_args: "ModelArguments",
+    data_args: "DataArguments",
+    training_args: "TrainingArguments",
+):
     transformers.set_seed(training_args.seed)
     disable_caching_allocator_warmup()
     disable_dataset_progress_bar_except_main()
+    if getattr(data_args, "disable_caching", False):
+        disable_dataset_caching()
+
+
+def disable_dataset_caching():
+    from datasets import disable_caching; disable_caching()
+    tmp_root = f"/tmp/hf_cache_rank{accelerate.PartialState().process_index}"
+    os.environ["HF_DATASETS_CACHE"] = tmp_root
+    os.environ["HF_DATASETS_TEMP_DIR"] = tmp_root
+    os.makedirs(tmp_root, exist_ok=True)
 
 
 def parse_spec(spec: str):

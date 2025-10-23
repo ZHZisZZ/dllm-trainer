@@ -62,9 +62,12 @@ class DreamSFTCollator(transformers.DataCollatorForSeq2Seq):
         for f, r_len in zip(features, resp_lens):
             remove_len = max(r_len - kept_len, 0)
             if remove_len > 0:
-                f["input_ids"] = f["input_ids"][:-remove_len]
-                f["attention_mask"] = f["attention_mask"][:-remove_len]
-                f["labels"] = f["labels"][:-remove_len]
+                # f["input_ids"] = f["input_ids"][:-remove_len]
+                # f["attention_mask"] = f["attention_mask"][:-remove_len]
+                # f["labels"] = f["labels"][:-remove_len]
+                for key in ["input_ids", "labels", "attention_mask"]:
+                    if key in f:
+                        f[key] = f[key][:-remove_len]
         return features
 
     # -------------------------------------------------------------------------
@@ -109,7 +112,7 @@ class DreamSFTCollator(transformers.DataCollatorForSeq2Seq):
 
         # always collate only the needed fields
         base = [
-            {k: f[k] for k in ("input_ids", "labels", "attention_mask")}
+            {k: f[k] for k in ("input_ids", "labels", "attention_mask") if k in f}
             for f in features
         ]
         batch = super().__call__(base, return_tensors=return_tensors)
@@ -124,3 +127,50 @@ class DreamSFTCollator(transformers.DataCollatorForSeq2Seq):
 
         batch.pop("prompt_len", None)
         return batch
+
+
+@dataclass
+class DreamPTCollator(transformers.DataCollatorForSeq2Seq):
+    random_length_ratio: float = 0.01
+
+    def __call__(self, features, return_tensors=None):
+        outputs = super().__call__(features, return_tensors=return_tensors)
+        input_ids, labels, attention_mask = outputs["input_ids"], outputs["labels"], outputs["attention_mask"]
+        bsz, seq_len = input_ids.shape
+
+        # --- Random truncation for robustness ---
+        if torch.rand(1).item() < self.random_length_ratio:
+            random_len = torch.randint(1, seq_len + 1, (1,)).item()
+            input_ids = input_ids[:, :random_len]
+            labels = labels[:, :random_len]
+            attention_mask = attention_mask[:, :random_len]
+
+        # --- Add BOS token to the beginning of input_ids ---
+        bos = torch.full(
+            (bsz, 1),
+            self.tokenizer.bos_token_id,
+            dtype=input_ids.dtype,
+            device=input_ids.device,
+        )
+        input_ids = torch.cat([bos, input_ids], dim=1)
+
+        # --- Prepend zeros to labels instead of BOS ---
+        ignore_labels = self.label_pad_token_id * torch.ones(
+            (bsz, 1), dtype=labels.dtype, device=labels.device
+        )
+        labels = torch.cat([ignore_labels, labels], dim=1)
+
+        # --- Prepend ones to attention_mask ---
+        bos_attention = torch.ones(
+            (bsz, 1), dtype=attention_mask.dtype, device=attention_mask.device
+        )
+        attention_mask = torch.cat([bos_attention, attention_mask], dim=1)
+
+        # --- Update and return ---
+        outputs["input_ids"] = input_ids
+        outputs["labels"] = labels
+        outputs["attention_mask"] = attention_mask
+        # Check if attention_mask is all ones and set it to None
+        if torch.all(outputs["attention_mask"] == 1):
+            outputs.pop("attention_mask")
+        return outputs

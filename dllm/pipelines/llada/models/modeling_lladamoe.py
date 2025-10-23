@@ -1166,9 +1166,3 @@ class LLaDAMoEModelLM(LLaDAMoEPreTrainedModel):
             attentions=outputs.attentions,
             router_logits=outputs.router_logits,
         )
-
-
-from transformers import AutoModel
-
-# Register the model so that it is available for transformer pipelines, auto-loading, etc.
-AutoModel.register(LLaDAMoEConfig, LLaDAMoEModelLM)

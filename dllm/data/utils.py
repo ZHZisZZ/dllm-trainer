@@ -7,6 +7,7 @@ from datasets import (
     IterableDatasetDict,
     IterableDataset,
     load_dataset,
+    load_from_disk,
 )
 
 from dllm.utils.utils import resolve_with_base_env, parse_spec
@@ -152,10 +153,7 @@ def load_sft_dataset(dataset_args: str):
 
     for raw in specs:
         dataset_name_or_path, kvs = parse_spec(raw)
-        # assert (
-        #     "dataset_name_or_path" in kvs
-        # ), f"'dataset_name_or_path' missing in spec: {raw}"
-        # dataset_name_or_path = kvs.pop("dataset_name_or_path")
+
         dataset_name_or_path = resolve_with_base_env(
             dataset_name_or_path, "BASE_DATASETS_DIR"
         )
@@ -165,6 +163,9 @@ def load_sft_dataset(dataset_args: str):
         elif _match(dataset_name_or_path, "allenai/tulu-3-sft-mixture"):
             ds = load_dataset(dataset_name_or_path)
             ds = ds["train"].train_test_split(test_size=0.1, seed=42)
+        elif _match(dataset_name_or_path, "HuggingFaceTB/smoltalk"):
+            name = kvs.pop("name", "all")
+            ds = load_dataset(dataset_name_or_path, name)
         elif _match(dataset_name_or_path, "OpenCoder-LLM/opc-sft-stage1") or _match(
             dataset_name_or_path, "OpenCoder-LLM/opc-sft-stage2"
         ):
@@ -177,7 +178,47 @@ def load_sft_dataset(dataset_args: str):
             name = kvs.pop("name", None)
             ds = load_dataset_pku_rlhf_sft(dataset_name_or_path, name)
         else:
-            raise NotImplementedError(f"Unknown dataset: {dataset_name_or_path}")
+            ds = load_dataset(dataset_name_or_path)
+            # raise NotImplementedError(f"Unknown dataset: {dataset_name_or_path}")
+
+        # Normalize to DatasetDict and apply per-split limits
+        # shuffle dataset
+        ds = ds.shuffle(seed=42)
+        ds = _ensure_datasetdict(ds)
+        ds = _truncate_dataset(ds, kvs)
+        all_parts.append(ds)
+
+    # If only one part, return as DatasetDict
+    if len(all_parts) == 1:
+        return _ensure_datasetdict(all_parts[0])
+
+    # Merge all parts into a single DatasetDict
+    merged = all_parts[0]
+    for part in all_parts[1:]:
+        merged = _merge_datasetdicts(merged, part)
+    return _ensure_datasetdict(merged)
+
+
+def load_dataset_from_disk(dataset_args: str):
+    """
+    Returns:
+        datasets.DatasetDict with fields like {"train": Dataset, "test": Dataset, ...}
+    """
+
+    specs = [p.strip() for p in dataset_args.split("|") if p.strip()]
+    all_parts = []
+
+    for raw in specs:
+        dataset_name_or_path, kvs = parse_spec(raw)
+        # assert (
+        #     "dataset_name_or_path" in kvs
+        # ), f"'dataset_name_or_path' missing in spec: {raw}"
+        # dataset_name_or_path = kvs.pop("dataset_name_or_path")
+        dataset_name_or_path = resolve_with_base_env(
+            dataset_name_or_path, "BASE_DATASETS_DIR"
+        )
+
+        ds = load_from_disk(dataset_name_or_path)
 
         # Normalize to DatasetDict and apply per-split limits
         ds = _ensure_datasetdict(ds)
@@ -249,7 +290,7 @@ def _truncate_stream(ds: IterableDataset, n: int | None) -> IterableDataset:
     return ds.take(n)
 
 
-def load_pt_dataset(dataset_args: str):
+def load_pt_dataset(dataset_args: str, streaming: bool = True):
     """
     Streaming loader with concatenation across multiple dataset specs (separated by '|').
 
@@ -272,114 +313,155 @@ def load_pt_dataset(dataset_args: str):
       - "mlfoundations/dclm-baseline-1.0"
       - "OpenCoder-LLM/opc-fineweb-code-corpus"
       - "OpenCoder-LLM/opc-fineweb-math-corpus"
+      - "wikitext[name:{wikitext-103-v1/wikitext-2-v1}]"
     """
     specs = [p.strip() for p in dataset_args.split("|") if p.strip()]
     if not specs:
         raise ValueError("Empty dataset_args for load_pt_dataset.")
 
-    def _load_one_streaming_spec(raw: str) -> IterableDatasetDict:
+    # ---------- Shared loader (only differs by streaming flag) ----------
+    def _load_base_dataset(raw: str, *, streaming: bool) -> tuple[DatasetDict | IterableDatasetDict, dict, str]:
+        """
+        Returns: (base, kvs, dataset_name_or_path)
+        - Pops 'name' from kvs when applicable (e.g., wikitext).
+        - Applies identical matching logic for both streaming/non-streaming.
+        """
         dataset_name_or_path, kvs = parse_spec(raw)
-        # assert (
-        #     "dataset_name_or_path" in kvs
-        # ), f"'dataset_name_or_path' missing in spec: {raw}"
-        # dataset_name_or_path = kvs.pop("dataset_name_or_path")
-        dataset_name_or_path = resolve_with_base_env(
-            dataset_name_or_path, "BASE_DATASETS_DIR"
-        )
+        dataset_name_or_path = resolve_with_base_env(dataset_name_or_path, "BASE_DATASETS_DIR")
+        name = kvs.pop("name", None)
 
-        # ---- Supported streaming datasets ----
-        if _match(
-            dataset_name_or_path,
-            [
-                "mlfoundations/dclm-baseline-1.0",
-                "OpenCoder-LLM/opc-fineweb-code-corpus",
-                "OpenCoder-LLM/opc-fineweb-math-corpus",
-            ],
-        ):
-            # Base stream (single 'train' split on HF hub)
-            base = load_dataset(
-                dataset_name_or_path,
-                split="train",
-                streaming=True,
-            )
-        else:
-            raise NotImplementedError(
-                f"Streaming dataset not supported: {dataset_name_or_path}"
-            )
+        # if _match(
+        #     dataset_name_or_path,
+        #     [
+        #         "mlfoundations/dclm-baseline-1.0",
+        #         "OpenCoder-LLM/opc-fineweb-code-corpus",
+        #         "OpenCoder-LLM/opc-fineweb-math-corpus",
+        #     ],
+        # ):
+        #     base = load_dataset(dataset_name_or_path, name=name, streaming=streaming)
+        # elif _match(dataset_name_or_path, ["wikitext", "HuggingFaceFW/fineweb-edu"]):
+        #     base = load_dataset(dataset_name_or_path, name=name, streaming=streaming)
+        # else:
+        #     base = load_dataset(dataset_name_or_path, streaming=streaming)
+        base = load_dataset(dataset_name_or_path, name=name, streaming=streaming)
 
-        # Optional shuffle before slicing to avoid order bias when we split into train/test
-        # Tune buffer_size for your I/O memory constraints
-        shuffled = base.shuffle(seed=42, buffer_size=10_000)
+        return base, kvs, dataset_name_or_path
 
-        n_train = kvs.get("train", None)
-        n_test = kvs.get("test", None)
+    # ---------- Streaming path ----------
+    def _load_one_streaming_spec(raw: str) -> IterableDatasetDict:
+        base, kvs, dataset_name_or_path = _load_base_dataset(raw, streaming=True)
 
-        if n_train is not None and n_test is not None:
-            n_total = n_train + n_test
-            head = shuffled.take(n_total)
-            # Now split the head deterministically into train/test
-            test = head.take(n_test)
-            train = head.skip(n_test).take(n_train)
-            # train = head.take(n_train)
-            # test = head.skip(n_train).take(n_test)
-            return IterableDatasetDict({"train": train, "test": test})
+        split_names = list(base.keys())
+        single_split = (len(split_names) == 1)
+        single_split_name = split_names[0] if single_split else None
 
-        # Only train limit specified
-        if n_train is not None and n_test is None:
-            train = shuffled.take(n_train)
-            return IterableDatasetDict({"train": train})
+        n_train = kvs.get("train")
+        n_test  = kvs.get("test")
 
-        # Only test limit specified
-        if n_test is not None and n_train is None:
-            test = shuffled.take(n_test)
-            return IterableDatasetDict({"test": test})
+        if (n_train is not None) or (n_test is not None):
+            if (n_train is not None) and (n_test is not None):
+                if single_split:
+                    stream = base[single_split_name]
+                    head = stream.take(n_train + n_test)
+                    test  = head.take(n_test)
+                    train = head.skip(n_test).take(n_train)
+                    return IterableDatasetDict({"train": train, "test": test})
+                else:
+                    if "train" not in base or "test" not in base:
+                        raise ValueError(f"{dataset_name_or_path}: require 'train' and 'test' splits for train+test limits.")
+                    train = base["train"].take(n_train)
+                    test  = base["test"].take(n_test)
+                    return IterableDatasetDict({"train": train, "test": test})
 
-        # No explicit limits → expose full stream as train
-        return IterableDatasetDict({"train": shuffled})
+            if n_train is not None:
+                if single_split:
+                    train = base[single_split_name].take(n_train)
+                else:
+                    if "train" not in base:
+                        raise ValueError(f"{dataset_name_or_path}: missing 'train' split for train limit.")
+                    train = base["train"].take(n_train)
+                return IterableDatasetDict({"train": train})
 
-    # Load each spec to an IterableDatasetDict and apply *post* truncation per split if extra limits exist.
-    # (For sources that already split internally, we respect what _load_one_streaming_spec produced.)
-    parts: list[IterableDatasetDict] = []
-    for raw in specs:
-        ds_part = _load_one_streaming_spec(raw)
-        # Apply *additional* per-split truncations if provided in spec (safe no-ops when already exact-sized)
-        _, kvs = parse_spec(raw)
-        truncated = {}
-        for split, stream in ds_part.items():
-            truncated[split] = _truncate_stream(stream, kvs.get(split, None))
-        parts.append(IterableDatasetDict(truncated))
+            if n_test is not None:
+                if single_split:
+                    test = base[single_split_name].take(n_test)
+                else:
+                    if "test" not in base:
+                        raise ValueError(f"{dataset_name_or_path}: missing 'test' split for test limit.")
+                    test = base["test"].take(n_test)
+                return IterableDatasetDict({"test": test})
 
-    # Merge all parts by concatenating per-split streams
-    merged = parts[0]
-    for p in parts[1:]:
-        merged = _merge_iterabledatasetdicts(merged, p)
+        return base  # already an IterableDatasetDict
 
-    return merged
+    # ---------- Non-streaming path (mirror load_sft_dataset; NO shuffle) ----------
+    def _load_one_nonstreaming_spec(raw: str) -> DatasetDict:
+        base, kvs, _ = _load_base_dataset(raw, streaming=False)
+        ds = _ensure_datasetdict(base)        # normalize
+        ds = _truncate_dataset(ds, kvs)       # apply limits (train/test/...)
+        return ds
+
+    # ---------- Load & Merge ----------
+    if streaming:
+        parts = [_load_one_streaming_spec(raw) for raw in specs]
+        merged = parts[0]
+        for p in parts[1:]:
+            merged = _merge_iterabledatasetdicts(merged, p)
+        # repeat streaming dataset infinitely
+        merged = IterableDatasetDict({
+            k: (v.repeat(None) if k == "train" else v)
+            for k, v in merged.items()
+        })
+        return merged
+    else:
+        parts = [_load_one_nonstreaming_spec(raw) for raw in specs]
+        if len(parts) == 1:
+            return _ensure_datasetdict(parts[0])
+        merged = parts[0]
+        for p in parts[1:]:
+            merged = _merge_datasetdicts(merged, p)
+        return _ensure_datasetdict(merged)
 
 
 if __name__ == "__main__":
-    tulu_dataset = load_sft_dataset("allenai/tulu-3-sft-mixture")
-    tulu_datatset_subset = load_sft_dataset(
-        "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
-    )
-    opc_dataset = load_sft_dataset(
-        "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"
-    )
-    ultrachat_dataset = load_sft_dataset("HuggingFaceH4/ultrachat_200k")
-    saferlhf_dataset = load_sft_dataset("PKU-Alignment/PKU-SafeRLHF[name:safe]")
+    # dataset = load_sft_dataset("data/sft/llada/smoltalk|data/sft/llada/tulu-3-sft-mixture")
 
-    merged_dataset = load_sft_dataset(
-        "allenai/tulu-3-sft-mixture[train:10000,test:1000]|"
-        "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct,train:20000,test:2000]"
-    )
+    # tulu_dataset = load_sft_dataset("allenai/tulu-3-sft-mixture")
+    # smoltalk_dataset = load_sft_dataset("HuggingFaceTB/smoltalk")
+    # tulu_datatset_subset = load_sft_dataset(
+    #     "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    # )
+    # opc_dataset = load_sft_dataset(
+    #     "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"
+    # )
+    # ultrachat_dataset = load_sft_dataset("HuggingFaceH4/ultrachat_200k")
+    # saferlhf_dataset = load_sft_dataset("PKU-Alignment/PKU-SafeRLHF[name:safe]")
 
-    dclm_dataset = load_pt_dataset(
-        "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
-        # "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
-        # "mlfoundations/dclm-baseline-1.0[train:10_000_000,test:500]"
-    )
-    dclm_opc_dataset = load_pt_dataset(
-        "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
-        "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
-    )
+    # merged_dataset = load_sft_dataset(
+    #     "allenai/tulu-3-sft-mixture[train:10000,test:1000]|"
+    #     "OpenCoder-LLM/opc-sft-stage2[name:educational_instruct,train:20000,test:2000]"
+    # )
+
+    # dclm_dataset = load_pt_dataset(
+    #     "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
+    #     # "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
+    #     # "mlfoundations/dclm-baseline-1.0[train:10_000_000,test:500]"
+    # )
+    # dclm_opc_dataset = load_pt_dataset(
+    #     "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]|"
+    #     "mlfoundations/dclm-baseline-1.0[train:4_500,test:500]"
+    # )
+    # wikitext_103_v1 = load_pt_dataset(
+    #     "wikitext[name:wikitext-103-v1]"
+    # )
+    # wikitext_2_v1 = load_pt_dataset(
+    #     "wikitext[name:wikitext-2-v1]",
+    #     streaming=False
+    # )
+    # fineweb_edu_sample_10bt = load_pt_dataset(
+    #     "HuggingFaceFW/fineweb-edu[name:sample-10BT]",
+    #     streaming=False
+    # )
+    # fw = load_pt_dataset("dylanebert/openwebtext", streaming=True)
+    fw = load_dataset("/mnt/lustrenew/mllm_aligned/shared/datasets/huggingface/dylanebert/openwebtext", streaming=True)
+    train = fw["train"].repeat(2)
     breakpoint()
