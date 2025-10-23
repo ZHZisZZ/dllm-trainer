@@ -53,13 +53,13 @@ export MASTER_ADDR MASTER_PORT WORLD_SIZE
 
 # ===== Optional arguments =====
 TASKS="gsm8k"   # Separated by commas
-NUM_FEWSHOT=8
+NUM_FEWSHOT=2
 BATCH_SIZE=1
 SEED=1234
 MC_NUM=1
-MAX_NEW_TOKENS=256
+MAX_NEW_TOKENS=512
 MAX_LENGTH=4096
-STEPS=256
+STEPS=512
 TEMPERATURE=0.0
 TOP_P=1.0
 LIMIT=64
@@ -71,7 +71,7 @@ MODEL_PATH="${BASE_MODELS_DIR}/${MODEL_NAME}"
 
 # ===== Conditional argument =====
 if [[ "${USE_CHAT_TEMPLATE}" == "True" ]]; then
-  APPLY_CHAT_TEMPLATE_ARG="--apply_chat_template True --fewshot_as_multiturn"
+  APPLY_CHAT_TEMPLATE_ARG="--apply_chat_template True"
 else
   APPLY_CHAT_TEMPLATE_ARG=""
 fi
