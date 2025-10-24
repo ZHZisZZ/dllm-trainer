@@ -54,9 +54,9 @@ pip install -e ".[ifeval,math]"
 
 | File | Purpose |
 |------|---------|
-| `eval_model.sh` | Main launcher for model evaluation. Sets up distributed environment variables, loads task configs, and runs the evaluation script. |
-| `eval_configs.sh` | Contains unified per-task configurations (few-shot, max length, temperature, etc.) for all model classes. |
-| `dllm/eval/eval_*.py` | Defines model-specific evaluation logic extending `lm_eval.api.model.LM`. Each file handles generation, NLL computation, and task integration. |
+| [`scripts/eval_model.sh`](/dllm/scripts/eval_model.sh) | Main launcher for model evaluation. Sets up distributed environment variables, loads task configs, and runs the evaluation script. |
+| [`scripts/eval_configs.sh`](/dllm/scripts/eval_configs.sh) | Contains unified per-task configurations (few-shot, max length, temperature, etc.) for all model classes. |
+| [`dllm/eval/eval_*.py`](/dllm/eval/) | Defines model-specific evaluation logic extending `lm_eval.api.model.LM`. Each file handles generation, NLL computation, and task integration. |
 
 
 ---
