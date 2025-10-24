@@ -20,6 +20,9 @@ It supports multiple architectures and evaluation paradigms through a **configur
 
 ## Setup
 
+> [!IMPORTANT]
+> Before running evaluations, you **must** export the required environment variables to specify dataset and model paths.
+
 ### Environment Variables
 
 Before running evaluations, export the following environment variables to specify where datasets, pretrained models, and caches are stored:
@@ -32,7 +35,8 @@ export HF_EVALUATE_CACHE=<path_to_hf_evaluate_cache>
 export PYTHONPATH=.:$PYTHONPATH
 ```
 
-These paths tell the evaluation framework where to locate model checkpoints and datasets, and where to cache evaluation results for lm-eval.
+> [!NOTE]
+> These paths tell the evaluation framework where to locate model checkpoints and datasets, and where to cache evaluation results for lm-eval.
 
 ### Dependencies
 
@@ -43,6 +47,9 @@ pip install -e lm-evaluation-harness
 pip install accelerate transformers datasets
 pip install -e ".[ifeval,math]"
 ```
+
+> [!TIP]
+> Make sure to install dependencies in the correct order to avoid compatibility issues.
 
 ---
 
@@ -59,6 +66,9 @@ pip install -e ".[ifeval,math]"
 
 ## Evaluation
 
+> [!IMPORTANT]
+> All configuration parameters (few-shot, steps, temperature, etc.) are **automatically loaded** from `eval_configs.sh` — no manual configuration needed!
+
 ### Run Command
 
 To start an evaluation:
@@ -72,6 +82,9 @@ bash eval_model.sh <model_class> <task_name> <model_path>
 ```bash
 bash eval_model.sh dream gsm8k Dream-org/Dream-v0-Instruct-7B
 ```
+
+> [!NOTE]
+> The `<model_path>` argument accepts both local paths and HuggingFace model identifiers.
 
 **Arguments:**
 
@@ -87,6 +100,9 @@ All configuration parameters (few-shot, steps, temperature, etc.) are automatica
 |----------|-------|
 | **Instruct** | `mmlu_generative`, `mmlu_pro`, `gsm8k_cot`, `minerva_math`, `gpqa_main_n_shot`, `humaneval_instruct`, `mbpp_instruct`, `ifeval` |
 | **Base** | `humaneval`, `gsm8k_cot`, `mbpp`, `minerva_math`, `bbh`, `mmlu`, `arc_easy`, `arc_challenge`, `hellaswag`, `piqa`, `gpqa_main_n_shot`, `winogrande`, `race` |
+test_dream.sh test
+> [!TIP]
+> Choose **Instruct** tasks for instruction-tuned models and **Base** tasks for pretrained models.
 
 Each task corresponds to a benchmark defined in `eval_configs.sh` and the lm-eval registry.
 
@@ -110,6 +126,9 @@ Each task corresponds to a benchmark defined in `eval_configs.sh` and the lm-eva
 
 ## Framework and Further Extension
 
+> [!NOTE]
+> Each evaluation script in `dllm/eval/` subclasses `lm_eval.api.model.LM` and implements model-specific generation and likelihood computation methods.
+
 Each evaluation script in `dllm/eval/` subclasses `lm_eval.api.model.LM` and implements:
 
 - **`generate_until()`** — defines model-specific text generation (e.g., diffusion or autoregressive).
@@ -119,6 +138,9 @@ Each evaluation script in `dllm/eval/` subclasses `lm_eval.api.model.LM` and imp
 This modular design allows adding new model architectures while keeping the evaluation pipeline unified.
 
 ### Customizing Tasks
+
+> [!TIP]
+> Customize evaluation behavior by editing YAML configuration files — no code changes required!
 
 To customize or extend tasks, edit the configuration files in:
 
@@ -143,6 +165,9 @@ By editing these YAMLs, you can modify task behavior or introduce new benchmarks
 
 ### Adding New Models
 
+> [!IMPORTANT]
+> New model types can be integrated while maintaining **full compatibility** with the unified evaluation system.
+
 To integrate a new model type:
 
 1. **Create a new evaluation file**, e.g. `dllm/eval/eval_newmodel.py`.
@@ -161,5 +186,6 @@ To integrate a new model type:
 
 4. **Add corresponding entries to `eval_configs.sh`** for task configurations.
 
-This approach maintains full compatibility with the unified evaluation system and supports both custom and standard model backends.
+> [!NOTE]
+> This approach supports both custom and standard model backends, making the framework highly extensible.
 
