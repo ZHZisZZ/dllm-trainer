@@ -139,8 +139,6 @@ def train():
     model = dllm.utils.get_model(model_args=model_args)
     # ----- Tokenizer --------------------------------------------------------------
     tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
-    # ----- Optional PEFT: LoRA ----------------------------------------------------
-    model = dllm.utils.load_peft(model=model, training_args=training_args)
 
     # ----- Dataset ----------------------------------------------------------------
     with accelerate.PartialState().local_main_process_first():

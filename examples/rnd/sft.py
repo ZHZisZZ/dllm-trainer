@@ -87,8 +87,6 @@ def train():
     model = dllm.utils.get_model(model_args=model_args, config=config)
     # ----- Tokenizer --------------------------------------------------------------
     tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
-    # ----- Optional PEFT: LoRA ----------------------------------------------------
-    model = dllm.utils.load_peft(model=model, training_args=training_args)
     # ----- Optionally freeze modules ----------------------------------------------
     if not isinstance(model, peft.PeftModel):
         if getattr(training_args, "freeze_gate", False):
