@@ -14,11 +14,7 @@ Training Diffusion Large Language Models Made Simple
 ## Overview
 **dLLM** is an educational library offering unified implementations for training **diffusion language models**. It brings transparency to the entire training and deployment process, making **reproduction and finetuning** of open-weight diffusion language models much easier. Below are some of the key features that make dLLM special:
 
-<<<<<<< HEAD
-- dLLM provides reproduction and finetuning recipes for a variety of open-weight models (e.g., [LLaDA / LLaDA-MoE](https://arxiv.org/abs/2502.09992) and [Dream](https://arxiv.org/abs/2508.15487)), and provides reference implementation of various training algorithms (e.g., [Edit Flows](https://arxiv.org/abs/2506.09018)).
-=======
 - dLLM provides reproduction and finetuning recipes for a variety of open-weight models (e.g., [LLaDA](https://arxiv.org/abs/2502.09992), [Dream](https://arxiv.org/abs/2508.15487) and [RND1](https://www.radicalnumerics.ai/assets/rnd1_report.pdf)), and provides reference implementation of various training algorithms (e.g., [Edit Flows](https://arxiv.org/abs/2506.09018)).
->>>>>>> f8d723741c1237fcb6775254f97e5c7f2823dbf1
 
 - dLLM, built on top of [🤗 Transformers](https://github.com/huggingface/transformers), scales seamlessly—from edge devices with [LoRA](https://github.com/huggingface/peft) to multi-node clusters with [DeepSpeed](https://github.com/deepspeedai/DeepSpeed) and beyond.
 
@@ -42,11 +38,6 @@ Training Diffusion Large Language Models Made Simple
 
 ## Features & Documentations
 
-<<<<<<< HEAD
-1. [`examples/llada`](/examples/llada): Finetuning open-weight LLaDA [LLaDA / LLaDA-MoE](https://arxiv.org/abs/2502.09992), as well as reproducing LLaDA by training from scratch on public data (pretraining & finetuning).
-2. [`examples/dream`](/examples/dream): Finetuning open-weight Dream [Dream](https://arxiv.org/abs/2508.15487), as well as reproducing Dream by training from scratch on public data (pretraining & finetuning).
-3. [`examples/rnd`](/examples/rnd): Finetuning open-weight RND1 [RND1-Base](https://www.radicalnumerics.ai/assets/rnd1_report.pdf).
-=======
 1. [`examples/llada`](/examples/llada): Finetuning open-weight LLaDA [LLaDA](https://arxiv.org/abs/2502.09992) / [LLaDA-MoE](https://arxiv.org/abs/2509.24389), as well as reproducing LLaDA by training from scratch on public data (pretraining & finetuning).
 2. [`examples/dream`](/examples/dream): Finetuning open-weight Dream [Dream](https://arxiv.org/abs/2508.15487), as well as reproducing Dream by training from scratch on public data (pretraining & finetuning).
 3. [`examples/rnd`](/examples/rnd): (WIP) Finetuning open-weight RND1 [RND1-Base](https://www.radicalnumerics.ai/assets/rnd1_report.pdf).
