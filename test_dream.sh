@@ -8,7 +8,7 @@ export HF_DATASETS_TRUST_REMOTE_CODE=true  # For CMMLU dataset
 
 main_port=29511
 pretrained="/mnt/lustrenew/mllm_aligned/shared/models/huggingface/Dream-org/Dream-v0-Instruct-7B,dtype=bfloat16"
-common_args="--model dream --limit 64 --seed 1234 --apply_chat_template" #  --limit None
+common_args="--model dream --limit 16 --seed 1234 --apply_chat_template" #  --limit None
 base_path="dllm/eval/eval_dream.py"
 num_gpu=4
 
@@ -32,22 +32,22 @@ num_gpu=4
 
 
 
-PYTHONBREAKPOINT=0 \
-srun -p mllm_safety --quotatype=spot --gres=gpu:${num_gpu} --time=01:00:00 \
-    accelerate launch --main_process_port ${main_port} ${base_path} \
-        --tasks mbpp_instruct \
-        --batch_size 1 \
-        ${common_args} \
-        --model_args "pretrained=${pretrained},max_new_tokens=1024,steps=1024,temperature=0.1,top_p=0.9,alg=entropy" \
-        --device cuda \
-        --num_fewshot 0 \
-        --output_path dream_mbpp_16.json \
-        --log_samples \
-        --confirm_run_unsafe_code
+# PYTHONBREAKPOINT=0 \
+# srun -p mllm_safety --quotatype=spot --gres=gpu:${num_gpu} --time=01:00:00 \
+#     accelerate launch --main_process_port ${main_port} ${base_path} \
+#         --tasks mbpp_instruct \
+#         --batch_size 1 \
+#         ${common_args} \
+#         --model_args "pretrained=${pretrained},max_new_tokens=1024,steps=1024,temperature=0.1,top_p=0.9,alg=entropy" \
+#         --device cuda \
+#         --num_fewshot 0 \
+#         --output_path dream_mbpp_16.json \
+#         --log_samples \
+#         --confirm_run_unsafe_code
 
-# |    Tasks    |Version|   Filter   |n-shot| Metric  |   |Value|   |Stderr|
-# |-------------|------:|------------|-----:|---------|---|----:|---|-----:|
-# |mbpp_instruct|      1|extract_code|     0|pass_at_1|↑  |  0.5|±  |0.1291|
+# |    Tasks    |Version|   Filter   |n-shot| Metric  |   |Value |   |Stderr|
+# |-------------|------:|------------|-----:|---------|---|-----:|---|-----:|
+# |mbpp_instruct|      1|extract_code|     0|pass_at_1|↑  |0.5156|±  | 0.063|
 
 
 # PYTHONBREAKPOINT=0 \
@@ -102,16 +102,16 @@ srun -p mllm_safety --quotatype=spot --gres=gpu:${num_gpu} --time=01:00:00 \
 
 
 
-# PYTHONBREAKPOINT=0 \
-# srun -p mllm_safety --quotatype=spot --gres=gpu:${num_gpu} --time=01:00:00 \
-#     accelerate launch --main_process_port ${main_port} ${base_path} \
-#         --tasks mmlu_generative \
-#         --batch_size 1 \
-#         ${common_args} \
-#         --model_args "pretrained=${pretrained},max_new_tokens=128,steps=128,temperature=0.1,top_p=0.9,alg=entropy" \
-#         --device cuda \
-#         --num_fewshot 4 \
-#         --confirm_run_unsafe_code
+PYTHONBREAKPOINT=0 \
+srun -p mllm_safety --quotatype=spot --gres=gpu:${num_gpu} --time=01:00:00 \
+    accelerate launch --main_process_port ${main_port} ${base_path} \
+        --tasks mmlu_generative \
+        --batch_size 1 \
+        ${common_args} \
+        --model_args "pretrained=${pretrained},max_new_tokens=128,steps=128,temperature=0.1,top_p=0.9,alg=entropy" \
+        --device cuda \
+        --num_fewshot 4 \
+        --confirm_run_unsafe_code
 
 # PYTHONBREAKPOINT=0 \
 # srun -p mllm_safety --quotatype=spot --gres=gpu:${num_gpu} --time=01:00:00 \
