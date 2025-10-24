@@ -22,6 +22,7 @@ It supports multiple architectures and evaluation paradigms through a **configur
 
 > [!IMPORTANT]
 > Before running evaluations, you **must** export the required environment variables to specify dataset and model paths.
+> These paths tell the evaluation framework where to locate model checkpoints and datasets, and where to cache evaluation results for lm-eval.
 
 ### Environment Variables
 
@@ -35,8 +36,6 @@ export HF_EVALUATE_CACHE=<path_to_hf_evaluate_cache>
 export PYTHONPATH=.:$PYTHONPATH
 ```
 
-> [!NOTE]
-> These paths tell the evaluation framework where to locate model checkpoints and datasets, and where to cache evaluation results for lm-eval.
 
 ### Dependencies
 
@@ -48,8 +47,6 @@ pip install accelerate transformers datasets
 pip install -e ".[ifeval,math]"
 ```
 
-> [!TIP]
-> Make sure to install dependencies in the correct order to avoid compatibility issues.
 
 ---
 
@@ -66,12 +63,12 @@ pip install -e ".[ifeval,math]"
 
 ## Evaluation
 
+### Run Command
+
 > [!IMPORTANT]
 > All configuration parameters (few-shot, steps, temperature, etc.) are **automatically loaded** from `eval_configs.sh` — no manual configuration needed!
 
-### Run Command
-
-To start an evaluation:
+**Basic usage:**
 
 ```bash
 bash eval_model.sh <model_class> <task_name> <model_path>
@@ -83,16 +80,13 @@ bash eval_model.sh <model_class> <task_name> <model_path>
 bash eval_model.sh dream gsm8k Dream-org/Dream-v0-Instruct-7B
 ```
 
-> [!NOTE]
-> The `<model_path>` argument accepts both local paths and HuggingFace model identifiers.
-
 **Arguments:**
 
-- `<model_class>` – model type (e.g., `dream`, `llada`, or future extensions)
-- `<task_name>` – evaluation task name (e.g., `gsm8k`, `mmlu`, `mbpp`)
-- `<model_path>` – local or HuggingFace model identifier
-
-All configuration parameters (few-shot, steps, temperature, etc.) are automatically loaded from `eval_configs.sh`.
+| Argument | Description | Examples |
+|----------|-------------|----------|
+| `<model_class>` | Model type identifier | `dream`, `llada` |
+| `<task_name>` | Evaluation benchmark | `gsm8k`, `mmlu`, `mbpp` |
+| `<model_path>` | Model location | `Dream-org/Dream-v0-Instruct-7B` (HF) or `/path/to/model` (local) |
 
 ### Plausible Tasks
 
@@ -100,31 +94,63 @@ All configuration parameters (few-shot, steps, temperature, etc.) are automatica
 |----------|-------|
 | **Instruct** | `mmlu_generative`, `mmlu_pro`, `gsm8k_cot`, `minerva_math`, `gpqa_main_n_shot`, `humaneval_instruct`, `mbpp_instruct`, `ifeval` |
 | **Base** | `humaneval`, `gsm8k_cot`, `mbpp`, `minerva_math`, `bbh`, `mmlu`, `arc_easy`, `arc_challenge`, `hellaswag`, `piqa`, `gpqa_main_n_shot`, `winogrande`, `race` |
-test_dream.sh test
-> [!TIP]
-> Choose **Instruct** tasks for instruction-tuned models and **Base** tasks for pretrained models.
 
-Each task corresponds to a benchmark defined in `eval_configs.sh` and the lm-eval registry.
+> [!TIP]
+> Choose **Instruct** tasks for instruction-tuned models and **Base** tasks for pretrained models. Model's task-specific parameter are stored within /eval/eval_configs.sh
+
 
 ### Example Evaluation Results
 
+
+
 <details>
-<summary><strong>Click to view example evaluation summary</strong></summary>
+<summary><strong>LLaDA-Base results</strong></summary>
 
-| Model | Task | Metric | Value | Notes |
-|-------|------|--------|-------|-------|
-| Model-A | GSM8K | Acc@1 | 63.2 | 8-shot CoT |
-| Model-B | MMLU | Acc | 65.4 | no template |
-| Model-C | BBH | EM | 47.2 | block-sampling |
-| Model-D | MBPP | Pass@1 | 38.7 | functional correctness |
+| Source | BBH | GSM8K | Math | HumanEval | MBPP |
+|--------|-----|-------|------|-----------|------|
+| **Reported** | — | — | — | — | — |
+| **Reproduced** | — | — | — | — | — |
 
-*(Values are illustrative; actual results are stored in JSON logs.)*
+</details>
+
+
+
+<details>
+<summary><strong>LLaDA-Instruct results</strong></summary>
+
+| Source | BBH | GSM8K | Math | HumanEval | MBPP |
+|--------|-----|-------|------|-----------|------|
+| **Reported** | — | — | — | — | — |
+| **Reproduced** | — | — | — | — | — |
+
+</details>
+
+
+
+<details>
+<summary><strong>Dream-Base results</strong></summary>
+
+| Source | BBH | GSM8K | Math | HumanEval | MBPP |
+|--------|-----|-------|------|-----------|------|
+| **Reported** | — | — | — | — | — |
+| **Reproduced** | — | — | — | — | — |
+
+</details>
+
+
+<details>
+<summary><strong>Dream-Instruct results</strong></summary>
+
+| Source | BBH | GSM8K | Math | HumanEval | MBPP |
+|--------|-----|-------|------|-----------|------|
+| **Reported** | — | — | — | — | — |
+| **Reproduced** | — | — | — | — | — |
 
 </details>
 
 ---
 
-## Framework and Further Extension
+<!-- ## Framework and Further Extension
 
 > [!NOTE]
 > Each evaluation script in `dllm/eval/` subclasses `lm_eval.api.model.LM` and implements model-specific generation and likelihood computation methods.
@@ -188,4 +214,4 @@ To integrate a new model type:
 
 > [!NOTE]
 > This approach supports both custom and standard model backends, making the framework highly extensible.
-
+ -->
