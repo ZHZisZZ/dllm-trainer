@@ -48,18 +48,16 @@ pip install -e ".[ifeval,math]"
 ```
 
 
----
 
 ## File Structure
 
 | File | Purpose |
 |------|---------|
-| [`scripts/eval_model.sh`](/dllm/scripts/eval_model.sh) | Main launcher for model evaluation. Sets up distributed environment variables, loads task configs, and runs the evaluation script. |
-| [`scripts/eval_configs.sh`](/dllm/scripts/eval_configs.sh) | Contains unified per-task configurations (few-shot, max length, temperature, etc.) for all model classes. |
+| [`scripts/eval_model.sh`](/scripts/eval_model.sh) | Main launcher for model evaluation. Sets up distributed environment variables, loads task configs, and runs the evaluation script. |
+| [`scripts/eval_configs.sh`](/scripts/eval_configs.sh) | Contains unified per-task configurations (few-shot, max length, temperature, etc.) for all model classes. |
 | [`dllm/eval/eval_*.py`](/dllm/eval/) | Defines model-specific evaluation logic extending `lm_eval.api.model.LM`. Each file handles generation, NLL computation, and task integration. |
 
 
----
 
 ## Evaluation
 
@@ -148,7 +146,7 @@ bash eval_model.sh dream gsm8k Dream-org/Dream-v0-Instruct-7B
 
 </details>
 
----
+
 
 ## Framework and Further Extension
 
