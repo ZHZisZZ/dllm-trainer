@@ -65,7 +65,7 @@ pip install -e ".[ifeval,math]"
 
 ### Run Command
 
-> [!IMPORTANT]
+> [!NOTE]
 > All configuration parameters (few-shot, steps, temperature, etc.) are **automatically loaded** from `eval_configs.sh` — no manual configuration needed!
 
 **Basic usage:**
@@ -95,7 +95,7 @@ bash eval_model.sh dream gsm8k Dream-org/Dream-v0-Instruct-7B
 | **Instruct** | `mmlu_generative`, `mmlu_pro`, `gsm8k_cot`, `minerva_math`, `gpqa_main_n_shot`, `humaneval_instruct`, `mbpp_instruct`, `ifeval` |
 | **Base** | `humaneval`, `gsm8k_cot`, `mbpp`, `minerva_math`, `bbh`, `mmlu`, `arc_easy`, `arc_challenge`, `hellaswag`, `piqa`, `gpqa_main_n_shot`, `winogrande`, `race` |
 
-> [!TIP]
+> [!NOTE]
 > Choose **Instruct** tasks for instruction-tuned models and **Base** tasks for pretrained models. Model's task-specific parameter are stored within /eval/eval_configs.sh
 
 
@@ -165,8 +165,8 @@ This modular design allows adding new model architectures while keeping the eval
 
 ### Customizing Tasks
 
-> [!TIP]
-> Customize evaluation behavior by editing YAML configuration files — no code changes required!
+> [!NOTE]
+> Customize evaluation behavior by editing YAML configuration files — no code changes required.
 
 To customize or extend tasks, edit the configuration files in:
 
@@ -191,7 +191,7 @@ By editing these YAMLs, you can modify task behavior or introduce new benchmarks
 
 ### Adding New Models
 
-> [!IMPORTANT]
+> [!NOTE]
 > New model types can be integrated while maintaining **full compatibility** with the unified evaluation system.
 
 To integrate a new model type:
