@@ -157,7 +157,7 @@ def single_turn_generate(generator, gen_config, visualize: bool):
             print("(Empty input, skipped)\n")
             continue
 
-        enc = tokenizer(user_text, return_tensors="pt", add_special_tokens=True)
+        enc = tokenizer(user_text, return_tensors="pt", add_special_tokens=False)
         inputs = enc["input_ids"][0].to(model.device)
 
         outputs = generator.generate([inputs], gen_config, return_dict_in_generate=True)

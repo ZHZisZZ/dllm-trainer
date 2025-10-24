@@ -1,29 +1,26 @@
 """
-Interactive chat / generation script for Dream models.
+Interactive chat / generation script for Bert models.
 
 Examples
 --------
-# Chat mode (multi-turn, chat template)
-python -u examples/dream/chat.py --model_name_or_path "YOUR_MODEL_PATH" --chat True
-
 # Raw single-turn generation
-python -u examples/dream/chat.py --model_name_or_path "YOUR_MODEL_PATH" --chat False
+python -u examples/bert/chat.py --model_name_or_path "YOUR_MODEL_PATH"
 """
 import sys
 from dataclasses import dataclass
 import transformers
 
 import dllm
-from dllm.pipelines import dream
+from dllm.pipelines import llada
 from dllm.tools.chat import multi_turn_chat, single_turn_generate
 
 
 
 @dataclass
 class ScriptArguments:
-    model_name_or_path: str = "Dream-org/Dream-v0-Instruct-7B"
+    model_name_or_path: str = "models/ModernBERT-large/wikitext-103-v1/epochs-20-bs-512-len-512/checkpoint-final"
     seed: int = 42
-    chat: bool = True
+    chat: bool = False
     visualize: bool = True
 
     def __post_init__(self):
@@ -34,13 +31,13 @@ class ScriptArguments:
 
 
 @dataclass
-class GeneratorConfig(dream.DreamGeneratorConfig):
+class GeneratorConfig(llada.LLaDAGeneratorConfig):
     steps: int = 128
     max_new_tokens: int = 128
-    temperature: float = 0.2
-    top_p: float = 0.95
-    alg: str = "entropy"
-    alg_temp: float = 0.0
+    block_length: int = 128
+    temperature: float = 0.3
+    remasking: str = "random"
+    cfg_scale: float = 0.5
 
 
 def main():
@@ -52,7 +49,7 @@ def main():
 
     model = dllm.utils.get_model(model_args=script_args).eval()
     tokenizer = dllm.utils.get_tokenizer(model_args=script_args, model=model)
-    generator = dream.DreamGenerator(model=model, tokenizer=tokenizer)
+    generator = llada.LLaDAGenerator(model=model, tokenizer=tokenizer)
 
     if script_args.chat:
         multi_turn_chat(

@@ -1,13 +1,13 @@
 """
-Interactive chat / generation script for Dream models.
+Interactive chat / generation script for LLaDA models.
 
 Examples
 --------
 # Chat mode (multi-turn, chat template)
-python -u examples/llada/chat.py --model_name_or_path "YOUR_MODEL_PATH" --chat True --visualize True
+python -u examples/llada/chat.py --model_name_or_path "YOUR_MODEL_PATH" --chat True
 
 # Raw single-turn generation
-python -u examples/llada/chat.py --model_name_or_path "YOUR_MODEL_PATH" --chat False --visualize False
+python -u examples/llada/chat.py --model_name_or_path "YOUR_MODEL_PATH" --chat False
 """
 import sys
 from dataclasses import dataclass
