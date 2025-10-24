@@ -1,7 +1,7 @@
 """
 srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --cpus-per-task=12 --time=03:00:000 \
     accelerate launch --config_file scripts/accelerate_configs/ddp.yaml --num_processes 1 \
-        examples/roberta/pt.py \
+        examples/bert/pt.py \
         --model_name_or_path "FacebookAI/roberta-large" \
         --dataset_args "Trelis/tiny-shakespeare" \
         --text_field "Text" \
@@ -10,7 +10,7 @@ srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --cpus-per-task=12 --time
 
 srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:8 --cpus-per-task=12 --time=03:00:000 \
     accelerate launch --config_file scripts/accelerate_configs/zero2.yaml --num_processes 8 \
-        examples/roberta/pt.py \
+        examples/bert/pt.py \
         --model_name_or_path "microsoft/deberta-v2-xxlarge" \
         --dataset_args "wikitext[name:wikitext-103-v1]" \
         --text_field "text" \
@@ -24,7 +24,7 @@ srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:8 --cpus-per-task=12 --time
         
 sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "ddp" \
-    --script_path "examples/roberta/pt.py" \
+    --script_path "examples/bert/pt.py" \
     --model_name_or_path "FacebookAI/roberta-large" \
     --dataset_args "wikitext[name:wikitext-103-v1]" \
     --text_field "text" \
@@ -37,7 +37,7 @@ sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
 
 sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "ddp" \
-    --script_path "examples/roberta/pt.py" \
+    --script_path "examples/bert/pt.py" \
     --model_name_or_path "FacebookAI/roberta-base" \
     --dataset_args "wikitext[name:wikitext-103-v1]" \
     --text_field "text" \
@@ -53,7 +53,7 @@ sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
 
 sbatch --nodes=8 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "ddp" \
-    --script_path "examples/roberta/pt.py" \
+    --script_path "examples/bert/pt.py" \
     --model_name_or_path "FacebookAI/roberta-large" \
     --dataset_args "dylanebert/openwebtext" \
     --text_field "text" \
@@ -69,7 +69,7 @@ sbatch --nodes=8 --gres=gpu:8 scripts/train.slurm.sh \
 
 sbatch --nodes=16 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "ddp" \
-    --script_path "examples/roberta/pt.py" \
+    --script_path "examples/bert/pt.py" \
     --model_name_or_path "FacebookAI/roberta-large" \
     --dataset_args "dylanebert/openwebtext" \
     --text_field "text" \
