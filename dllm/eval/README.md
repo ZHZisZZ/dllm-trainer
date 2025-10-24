@@ -1,9 +1,9 @@
-# Unified Model Evaluation Framework
+# Evaluation
 
-This repository provides a **unified evaluation interface** built upon **[lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness)** for assessing generative and likelihood-based language models.  
-It supports multiple architectures and evaluation paradigms through a **configuration-driven** and **extensible** design.
+We provide a **unified evaluation framework** built on top of **[lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness)**, serving as the standardized backbone for `dllm` model evaluation.  
+It supports diverse model architectures and evaluation paradigms through a **configuration-driven**, **modular**, and **extensible** design.
 
----
+
 
 ## Table of Contents
 1. [Setup](#setup)
@@ -16,7 +16,7 @@ It supports multiple architectures and evaluation paradigms through a **configur
    - [Example Evaluation Results](#example-evaluation-results)
 4. [Framework and Further Extension](#framework-and-further-extension)
 
----
+
 
 ## Setup
 
