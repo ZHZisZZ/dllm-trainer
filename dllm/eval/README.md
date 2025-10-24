@@ -150,7 +150,7 @@ bash eval_model.sh dream gsm8k Dream-org/Dream-v0-Instruct-7B
 
 ---
 
-<!-- ## Framework and Further Extension
+## Framework and Further Extension
 
 > [!NOTE]
 > Each evaluation script in `dllm/eval/` subclasses `lm_eval.api.model.LM` and implements model-specific generation and likelihood computation methods.
@@ -214,4 +214,4 @@ To integrate a new model type:
 
 > [!NOTE]
 > This approach supports both custom and standard model backends, making the framework highly extensible.
- -->
+
