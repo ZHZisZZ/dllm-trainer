@@ -205,7 +205,7 @@ class Dream(LM):
                 g.lstrip("<|endoftext|>").split(self.tokenizer.eos_token, 1)[0]
                 for g in self.tokenizer.batch_decode(truncated_generation_ids)
             ]
-            breakpoint()
+            
             # ====== END merged _generate_batch logic ======
 
             # handle "until" truncation
@@ -392,7 +392,6 @@ class Dream(LM):
                 "prefix": prefix,
                 "target": target,
             }
-        breakpoint()
         ds = []
         ds = [{"prefix": req.args[0], "target": req.args[1]} for req in requests]
         ds = Dataset.from_list(ds)

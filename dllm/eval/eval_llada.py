@@ -111,18 +111,37 @@ class LLaDAEvalHarness(LM):
 """.lstrip()
 
 
-        self.mc_num = mc_num
+        self.mc_num = int(mc_num)
         self.batch_size = int(batch_size)
         assert mc_num % self.batch_size == 0
         self.sampling_eps = 0.
-        self.max_length = max_length
+        self.max_length = int(max_length)
         self.is_check_greedy = is_check_greedy
 
-        self.cfg = cfg
-        self.steps = steps
-        self.max_new_tokens = max_new_tokens
-        self.block_length = block_length
+        self.cfg = int(cfg)
+        self.steps = int(steps)
+        self.max_new_tokens = int(max_new_tokens)
+        self.block_length = int(block_length)
         self.remasking = remasking    
+
+    def apply_chat_template(
+        self, chat_history, add_generation_prompt: bool = True
+    ) -> str:
+        """
+        Method to apply a chat template to a list of chat history between user and model.
+        """
+        chat_templated = self.tokenizer.apply_chat_template(
+            chat_history,
+            tokenize=False,
+            add_generation_prompt=add_generation_prompt,
+            continue_final_message=not add_generation_prompt,
+        )
+        return chat_templated
+
+    @property
+    def tokenizer_name(self) -> str:
+        return self.tokenizer.name_or_path.replace("/", "__")
+
     @property
     def rank(self):
         return self._rank
@@ -277,11 +296,21 @@ class LLaDAEvalHarness(LM):
         ds = ds.with_format("torch")
 
         out = []
+        
         for elem in tqdm(ds, desc="Generating..."):
             prompt = [elem["question"].to(self.device)]
             stop_tokens = elem["until"]
-            generated_answer = generate(model=self.model, tokenizer=self.tokenizer, prompts=prompt, steps=self.steps, max_new_tokens=self.max_new_tokens, block_length=self.block_length, temperature=0, cfg_scale=self.cfg, remasking=self.remasking)
-            generated_answer = self.tokenizer.decode(generated_answer[0][prompt[0].shape[0]:], skip_special_tokens=False)
+            generated_ids = generate(
+                model=self.model, 
+                tokenizer=self.tokenizer, 
+                prompts=prompt, 
+                steps=self.steps, 
+                max_new_tokens=self.max_new_tokens, 
+                block_length=self.block_length, 
+                temperature=0.0, 
+                cfg_scale=self.cfg, 
+                remasking=self.remasking)
+            generated_answer = self.tokenizer.decode(generated_ids[0][prompt[0].shape[0]:], skip_special_tokens=False)
             for stop_seq in stop_tokens:
                 if stop_seq in generated_answer:
                     generated_answer = generated_answer.split(stop_seq)[0]
@@ -290,7 +319,6 @@ class LLaDAEvalHarness(LM):
             generated_answer_ids = self.tokenizer(generated_answer)["input_ids"]
             generated_answer = self.tokenizer.decode(generated_answer_ids, skip_special_tokens=True)
             out.append(generated_answer)
-
             if self.accelerator is not None:
                 self.accelerator.wait_for_everyone()
 
