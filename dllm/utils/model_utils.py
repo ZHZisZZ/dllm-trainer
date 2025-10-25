@@ -102,6 +102,7 @@ def get_tokenizer(
     from dllm.pipelines.llada.models.modeling_lladamoe import LLaDAMoEModelLM
     from dllm.pipelines.dream.models.modeling_dream import DreamModel
     from dllm.pipelines.rnd.models.modeling_rnd import RND1LM
+    from transformers import BertForMaskedLM, RobertaForMaskedLM, ModernBertForMaskedLM
 
     model_name_or_path = getattr(model_args, "model_name_or_path")
 
@@ -127,35 +128,46 @@ def get_tokenizer(
     if issubclass(model_cls, LLaDAModelLM):
         tokenizer.add_special_tokens({"mask_token": "<|mdm_mask|>"})
         tokenizer.eot_token = "<|eot_id|>"
-        tokenizer.eot_token_id = tokenizer.convert_tokens_to_ids("<|eot_id|>")
+        # tokenizer.eot_token_id = tokenizer.convert_tokens_to_ids(tokenizer.eot_token) # can not do this for llada base directly
+        # TODO: for llada base, add special_tokens = {"<|start_header_id|>": 126346, "<|end_header_id|>": 126347, "<|eot_id|>": 126348} 
         # fix bugs in chat template
-        tokenizer.chat_template = """
-{% set loop_messages = messages -%}
-{%- for message in loop_messages %}
-{%- if loop.index0 == 0 -%}{{ bos_token }}{%- endif -%}
+        tokenizer.chat_template = """\
+{% set loop_messages = messages %}
+{% for message in loop_messages %}
+{% if loop.index0 == 0 %}{{ bos_token }}{% endif %}
 <|start_header_id|>{{ message['role'] }}<|end_header_id|>
 
 {{ message['content'] | trim }}<|eot_id|>
-{%- endfor -%}
-{%- if add_generation_prompt and (loop_messages | length == 0 or loop_messages[-1]['role'] != 'assistant') %}
+{%- endfor %}
+{% if add_generation_prompt and (loop_messages | length == 0 or loop_messages[-1]['role'] != 'assistant') %}
 <|start_header_id|>assistant<|end_header_id|>
 
 {% endif %}
-""".lstrip()
+"""
     elif issubclass(model_cls, LLaDAMoEModelLM):
-        # tokenizer.mask_token = "<|mask|>"
-        # tokenizer.mask_token_id = tokenizer.convert_tokens_to_ids("<|mask|>")
         tokenizer.add_special_tokens({"mask_token": "<|mask|>"})
         tokenizer.eot_token = "<|role_end|>"
-        tokenizer.eot_token_id = tokenizer.convert_tokens_to_ids("<|role_end|>")
+        tokenizer.eot_token_id = tokenizer.convert_tokens_to_ids(tokenizer.eot_token)
     elif issubclass(model_cls, DreamModel):
         tokenizer.eot_token = "<|im_end|>"
-        tokenizer.eot_token_id = tokenizer.convert_tokens_to_ids("<|im_end|>")
-        tokenizer.chat_template = """{%- if tools %}\n {{- '<|im_start|>system\\n' }}\n {%- if messages[0]['role'] == 'system' %}\n {{- messages[0]['content'] }}\n {%- else %}\n {{- 'You are a helpful assistant.' }}\n {%- endif %}\n {{- \"\\n\\n# Tools\\n\\nYou may call one or more functions to assist with the user query.\\n\\nYou are provided with function signatures within <tools></tools> XML tags:\\n<tools>\" }}\n {%- for tool in tools %}\n {{- \"\\n\" }}\n {{- tool | tojson }}\n {%- endfor %}\n {{- \"\\n</tools>\\n\\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\\n<tool_call>\\n{\\\"name\\\": <function-name>, \\\"arguments\\\": <args-json-object>}\\n</tool_call><|im_end|>\\n\" }}\n{%- else %}\n {%- if messages[0]['role'] == 'system' %}\n {{- '<|im_start|>system\\n' + messages[0]['content'] + '<|im_end|>\\n' }}\n {%- else %}\n {{- '<|im_start|>system\\nYou are a helpful assistant.<|im_end|>\\n' }}\n {%- endif %}\n{%- endif %}\n{%- for message in messages %}\n {%- if (message.role == \"user\") or (message.role == \"system\" and not loop.first) or (message.role == \"assistant\" and not message.tool_calls) %}\n {{- '<|im_start|>' + message.role + '\\n' + message.content + '<|im_end|>' + '\\n' }}\n {%- elif message.role == \"assistant\" %}\n {{- '<|im_start|>' + message.role }}\n {%- if message.content %}\n {{- '\\n' + message.content }}\n {%- endif %}\n {%- for tool_call in message.tool_calls %}\n {%- if tool_call.function is defined %}\n {%- set tool_call = tool_call.function %}\n {%- endif %}\n {{- '\\n<tool_call>\\n{\"name\": \"' }}\n {{- tool_call.name }}\n {{- '\", \"arguments\": ' }}\n {{- tool_call.arguments | tojson }}\n {{- '}\\n</tool_call>' }}\n {%- endfor %}\n {{- '<|im_end|>\\n' }}\n {%- elif message.role == \"tool\" %}\n {%- if (loop.index0 == 0) or (messages[loop.index0 - 1].role != \"tool\") %}\n {{- '<|im_start|>user' }}\n {%- endif %}\n {{- '\\n<tool_response>\\n' }}\n {{- message.content }}\n {{- '\\n</tool_response>' }}\n {%- if loop.last or (messages[loop.index0 + 1].role != \"tool\") %}\n {{- '<|im_end|>\\n' }}\n {%- endif %}\n {%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n {{- '<|im_start|>assistant\\n' }}\n{%- else %}\n{{ '<|endoftext|>' }}\n{%- endif %}\n""".lstrip()
+        tokenizer.eot_token_id = tokenizer.convert_tokens_to_ids(tokenizer.eot_token)
     elif issubclass(model_cls, RND1LM):
-        # tokenizer.add_special_tokens({"mask_token": "<|mask|>"})
-        # tokenizer.mask_token_id = 151669
         tokenizer.add_special_tokens({"mask_token": "<|mask|>"})
+    elif issubclass(model_cls, (BertForMaskedLM, RobertaForMaskedLM, ModernBertForMaskedLM)):
+        tokenizer.eot_token = "`````"
+        tokenizer.chat_template = """\
+{% set loop_messages = messages %}
+{% for message in loop_messages %}
+{{ message['role'] }}:
+`````
+{{ message['content'] | trim }}
+`````
+{% endfor %}
+{% if add_generation_prompt and (loop_messages | length == 0 or loop_messages[-1]['role'] != 'assistant') %}
+assistant:
+`````
+{% endif %}
+"""
     else:
         print_main("no tokenizer customization for model class:", model_cls)
     return tokenizer

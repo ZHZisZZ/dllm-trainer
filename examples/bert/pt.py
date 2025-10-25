@@ -168,7 +168,7 @@ def train():
 
     # ----- Training --------------------------------------------------------------
     @dataclass
-    class Collator(transformers.DataCollatorForSeq2Seq):
+    class BERTPTCollator(transformers.DataCollatorForSeq2Seq):
         # Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md#pre-training
         # By default, 1% of the pre-training data are truncated to a random length
         random_length_ratio: float = 0.01
@@ -194,7 +194,7 @@ def train():
         train_dataset=dataset["train"],
         eval_dataset=dataset.get("test", None),
         args=training_args,
-        data_collator=Collator(
+        data_collator=BERTPTCollator(
             tokenizer,
             return_tensors="pt",
             padding=True,

@@ -83,6 +83,11 @@ def decode_trim(tokenizer, seq_ids: List[int], input_ids) -> str:
 
     gen_ids = full[start:end]
     text = tokenizer.decode(gen_ids, skip_special_tokens=True)
+    # in case there is no eos_id or eot_id, just strings
+    eos = getattr(tokenizer, "eos_token", None)
+    eot = getattr(tokenizer, "eot_token", None)
+    if eos: text = text.split(eos)[0]
+    if eot: text = text.split(eot)[0]
     return text.strip()
 
 

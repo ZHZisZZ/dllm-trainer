@@ -39,14 +39,12 @@ import dllm
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
-    model_name_or_path: str = (
-        "GSAI-ML/LLaDA-8B-Base"  # "inclusionAI/LLaDA-MoE-7B-A1B-Base"
-    )
+    model_name_or_path: str = None # TODO
 
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
-    dataset_args: str = "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    dataset_args: str = "tatsu-lab/alpaca"
     load_preprocessed_data: bool = False
     mask_prompt_loss: bool = field(
         default=True,
@@ -56,7 +54,7 @@ class DataArguments(dllm.utils.DataArguments):
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = "models/LLaDA-8B-SFT/tulu-3-sft-mixture[train:10000,test:1000]"
+    output_dir: str = "models/TODO/alpaca"
     group_by_length: bool = True
 
 
@@ -126,11 +124,8 @@ def train():
 
     # ----- Training --------------------------------------------------------------
     @dataclass
-    class LLaDASFTCollator(transformers.DataCollatorForSeq2Seq):
+    class BERTSFTCollator(transformers.DataCollatorForSeq2Seq):
         # Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md#sft
-        #
-        # LLaDA is finetuned on all tokens, including padding (<eos_token>).
-        # Therefore, the attention_mask — which normally ignores padding tokens — should be disabled.
         def __call__(self, features, return_tensors=None):
             outputs = super().__call__(features, return_tensors)
             outputs.pop("attention_mask")
@@ -144,7 +139,7 @@ def train():
         train_dataset=dataset["train"],
         eval_dataset=dataset.get("test", None),
         args=training_args,
-        data_collator=LLaDASFTCollator(
+        data_collator=BERTSFTCollator(
             tokenizer,
             return_tensors="pt",
             padding=True,
