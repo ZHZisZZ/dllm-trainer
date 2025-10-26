@@ -39,7 +39,7 @@ export BASE_MODELS_DIR="/mnt/lustrenew/mllm_aligned/shared/models/huggingface"
 export HF_DATASETS_CACHE="/mnt/lustrenew/mllm_safety-shared/datasets/huggingface"
 export HF_EVALUATE_CACHE="/mnt/lustrenew/mllm_safety-shared/tmp/fanyuyu/.cache/hf_evaluate_rank_${SLURM_PROCID}"
 export HF_ALLOW_CODE_EVAL=1
-export HF_DATASETS_TRUST_REMOTE_CODE=true # For CMMLU
+export HF_DATASETS_TRUST_REMOTE_CODE=True # For cmmlu dataset
 export MASTER_ADDR MASTER_PORT WORLD_SIZE
 
 # ===== Load configs =====
@@ -48,10 +48,12 @@ source ./eval_configs.sh
 MODEL_CLASS=${1,,}   # "llada" or "dream"
 TASK=${2:-"gsm8k"}   # dataset name
 MODEL_NAME=${3}      # model path or name (required)
+USE_CHAT_TEMPLATE=${4:-"False"}  # used for evaluating instruct model
+BATCH_SIZE=${5:-"1"}             # control batchsize
 
 if [[ -z "${MODEL_NAME}" ]]; then
   echo "❌ Missing model name/path argument!"
-  echo "Usage: sbatch eval_model.sh <model_class> <task> <model_name_or_path>"
+  echo "Usage: sbatch eval_model.sh <model_class> <task> <model_name_or_path> [use_chat_template] [batch_size]"
   exit 1
 fi
 
@@ -64,10 +66,10 @@ case "${MODEL_CLASS}" in
       exit 1
     fi
 
-    # ---- Match config order exactly ----
-    IFS="|" read -r NUM_FEWSHOT LIMIT USE_CHAT_TEMPLATE MAX_NEW_TOKENS STEPS BLOCK_LENGTH SEED BATCH_SIZE MC_NUM CFG <<< "${CONFIG}"
+    # ---- Match new config order ----
+    IFS="|" read -r NUM_FEWSHOT LIMIT MAX_NEW_TOKENS STEPS BLOCK_LENGTH SEED MC_NUM CFG <<< "${CONFIG}"
 
-    MODEL_PATH="${BASE_MODELS_DIR}/${MODEL_NAME}" # direct argument
+    MODEL_PATH="${BASE_MODELS_DIR}/${MODEL_NAME}"
     MODEL_TYPE="llada_dist"
     SCRIPT_PATH="dllm/eval/eval_llada.py"
     MODEL_ARGS="pretrained=${MODEL_PATH},is_check_greedy=False,mc_num=${MC_NUM},max_new_tokens=${MAX_NEW_TOKENS},steps=${STEPS},block_length=${BLOCK_LENGTH},cfg=${CFG}"
@@ -81,7 +83,7 @@ case "${MODEL_CLASS}" in
       exit 1
     fi
 
-    IFS="|" read -r NUM_FEWSHOT LIMIT USE_CHAT_TEMPLATE MAX_NEW_TOKENS MAX_LENGTH STEPS TEMPERATURE TOP_P SEED BATCH_SIZE MC_NUM <<< "${CONFIG}"
+    IFS="|" read -r NUM_FEWSHOT LIMIT MAX_NEW_TOKENS MAX_LENGTH STEPS TEMPERATURE TOP_P SEED MC_NUM <<< "${CONFIG}"
 
     MODEL_PATH="${BASE_MODELS_DIR}/${MODEL_NAME}"
     MODEL_TYPE="dream"
@@ -105,6 +107,7 @@ echo "============================"
 echo "Few-shot: ${NUM_FEWSHOT}"
 echo "Seed: ${SEED}"
 echo "Batch size: ${BATCH_SIZE}"
+echo "Use chat template: ${USE_CHAT_TEMPLATE}"
 echo "============================"
 
 RUN_CMD="accelerate launch \
