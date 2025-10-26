@@ -69,7 +69,7 @@ examples/llada
 We support training models with either DDP or DeepSpeed ZeRO-{1,2,3}. For example, to SFT [LLaDA-8B-Base](https://huggingface.co/GSAI-ML/LLaDA-8B-Base) for instruction following on [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture) using DeepSpeed ZeRO-2 on 8 GPUs, run:
 ```shell
 accelerate launch \
-    --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
+    --config_file scripts/accelerate_configs/zero2.yaml \
     examples/llada/sft.py \
     --model_name_or_path "GSAI-ML/LLaDA-8B-Base" \
     --dataset_args "allenai/tulu-3-sft-mixture" \
@@ -81,7 +81,7 @@ accelerate launch \
 If you are using slurm and want to train across, for example, four nodes (32 GPUs total), run:
 ```shell
 sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
-    --accelerate_config "deepspeed_zero2" \
+    --accelerate_config "zero2" \
     --script_path "examples/llada/sft.py" \
     --model_name_or_path "GSAI-ML/LLaDA-8B-Base" \
     --dataset_args "allenai/tulu-3-sft-mixture" \
@@ -98,7 +98,7 @@ sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
 Pretrain on [mlfoundations/dclm-baseline-1.0](https://huggingface.co/datasets/mlfoundations/dclm-baseline-1.0) using 256 GPUs (32x8) and DeepSpeed ZeRO-2:
 ```shell
 sbatch --nodes=32 --gres=gpu:8 scripts/train.slurm.sh \
-    --accelerate_config "deepspeed_zero2" \
+    --accelerate_config "zero2" \
     --script_path "examples/llada/pt.py" \
     --model_name_or_path "GSAI-ML/LLaDA-8B-Base" \
     --dataset_args "mlfoundations/dclm-baseline-1.0" \
@@ -110,7 +110,7 @@ sbatch --nodes=32 --gres=gpu:8 scripts/train.slurm.sh \
 Finetune on [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture) using 8 GPUs and DeepSpeed ZeRO-2 for better instruction following:
 ```shell
 sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
-    --accelerate_config "deepspeed_zero2" \
+    --accelerate_config "zero2" \
     --script_path "examples/llada/sft.py" \
     --model_name_or_path "models/LLaDA-8B-PT/dclm-baseline-1.0/checkpoint-final" \
     --dataset_args "allenai/tulu-3-sft-mixture" \

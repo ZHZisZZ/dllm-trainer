@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass, field
 
 import transformers
@@ -8,8 +9,16 @@ from dllm.utils.utils import resolve_with_base_env
 @dataclass
 class ModelArguments:
     model_name_or_path: str = None  # overwrite this
-    load_in_4bit: bool = False
     dtype: str = "bfloat16"
+    load_in_4bit: bool = False
+    # --- fold PEFT args here ---
+    lora: bool = False
+    target_modules: str = "all-linear"
+    r: int = 32
+    lora_alpha: int = 64
+    lora_dropout: float = 0.05
+    bias: str = "none"
+    modules_to_save: str = None
 
     def __post_init__(self):
         self.model_name_or_path = resolve_with_base_env(
@@ -21,9 +30,10 @@ class ModelArguments:
 class DataArguments:
     dataset_args: str = None  # overwrite this
     num_proc: int = 8
+    disable_caching: bool = False
     max_length: int = 1024
     truncation: str = field(
-        default="filter",
+        default="right",
         metadata={
             "help": (
                 'The truncation strategy to use ("filter" or "right"). '
@@ -49,15 +59,8 @@ class TrainingArguments(transformers.TrainingArguments):
     bf16: bool = True
     num_train_epochs: float = 4
     logging_steps: float = 10
-    eval_on_start: bool = True
+    eval_on_start: bool = False
     eval_strategy: str = "steps"
     eval_steps: float = 0.25
     save_steps: float = 0.25
     save_only_model: bool = True
-    # --- fold PEFT args here ---
-    lora: bool = False
-    target_modules: str = "all-linear"
-    r: int = 32
-    lora_alpha: int = 64
-    lora_dropout: float = 0.05
-    bias: str = "none"

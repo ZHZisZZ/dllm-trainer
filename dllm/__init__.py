@@ -1,1 +1,1 @@
-from dllm import core, data, pipelines, utils
+from . import core, data, pipelines, utils

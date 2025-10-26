@@ -3,12 +3,12 @@ Local users
 ------------
 - 1 GPU:
     accelerate launch \
-        --config_file scripts/accelerate_configs/single_gpu.yaml \
+        --config_file scripts/accelerate_configs/ddp.yaml --num_processes 1 \
         examples/editflow/adapt_dream.py
     
 - 8 GPUs (DeepSpeed ZeRO-2):
     accelerate launch \
-        --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
+        --config_file scripts/accelerate_configs/zero2.yaml \
         examples/editflow/adapt_dream.py
 
 Slurm users
@@ -22,7 +22,7 @@ Slurm users
 
 - 2 Nodes, 16 GPUs (DeepSpeed ZeRO-2):
     sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
-        --accelerate_config "deepspeed_zero2" \
+        --accelerate_config "zero2" \
         --script_path "examples/editflow/adapt_dream.py"
 """
 
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
-    dllm.utils.initial_training_setup(training_args)
+    dllm.utils.initial_training_setup(model_args, data_args, training_args)
     # Create EditFlow model (bf16 init on CUDA)
     ef_cfg = dllm.pipelines.editflow.EditFlowDreamConfig.from_pretrained(
         model_args.model_name_or_path

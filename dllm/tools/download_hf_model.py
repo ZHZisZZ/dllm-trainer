@@ -15,7 +15,7 @@ script_args = tyro.cli(ScriptArguments)
 model_id = script_args.model_id
 
 # Replace with your desired local directory
-local_dir = f"/mnt/lustrenew/mllm_aligned/models/huggingface/{model_id}"
+local_dir = f"/mnt/lustrenew/mllm_aligned/shared/models/huggingface/{model_id}"
 
 # Download the model snapshot
 snapshot_download(

@@ -1,2 +1,2 @@
-from dllm.core.schedulers.alpha import *
-from dllm.core.schedulers.kappa import *
+from .alpha import *
+from .kappa import *

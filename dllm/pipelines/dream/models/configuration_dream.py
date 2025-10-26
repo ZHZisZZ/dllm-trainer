@@ -83,9 +83,3 @@ class DreamConfig(PretrainedConfig):
         )
         self.mask_token_id = mask_token_id
         self.pad_token_id = pad_token_id
-
-
-from transformers import AutoConfig
-
-# Register the config class so that it is available for transformer pipelines, auto-loading etc.
-AutoConfig.register("Dream", DreamConfig)

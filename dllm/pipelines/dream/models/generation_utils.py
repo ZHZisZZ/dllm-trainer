@@ -143,7 +143,7 @@ class DreamGenerationConfig(GenerationConfig):
         # Validate the values of the attributes
         self.validate(is_init=True)
 
-    def validate(self, is_init=False):
+    def validate(self, is_init=False, **kwargs):
         pass
 
 class DreamGenerationMixin:

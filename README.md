@@ -16,7 +16,7 @@ Training Diffusion Large Language Models Made Simple
 
 - dLLM provides reproduction and finetuning recipes for a variety of open-weight models (e.g., [LLaDA](https://arxiv.org/abs/2502.09992), [Dream](https://arxiv.org/abs/2508.15487) and [RND1](https://www.radicalnumerics.ai/assets/rnd1_report.pdf)), and provides reference implementation of various training algorithms (e.g., [Edit Flows](https://arxiv.org/abs/2506.09018)).
 
-- dLLM, built on top of [🤗 Transformers](https://github.com/huggingface/transformers), scales seamlessly—from edge devices with [LoRA](https://github.com/huggingface/peft) to multi-node clusters with [DeepSpeed](https://github.com/deepspeedai/DeepSpeed) and beyond.
+- dLLM, built on top of [🤗 Transformers](https://github.com/huggingface/transformers), scales seamlessly—from edge devices with [LoRA](https://github.com/huggingface/peft) to multi-node clusters with [DeepSpeed](https://github.com/deepspeedai/DeepSpeed)/[FSDP](https://pytorch.org/blog/introducing-pytorch-fully-sharded-data-parallel-api/) and beyond.
 
 - dLLM provides unified, modular training pipelines (inspired by [🤗 Transformers Trainer](https://github.com/huggingface/transformers/blob/main/src/transformers/trainer.py)) and well-documented [examples](/examples/), making customization simple and development highly user-friendly.
 
@@ -152,21 +152,23 @@ trainer.train()
 ## Training
 You can launch training job locally with `accelerate`, or submit it to a [Slurm](https://slurm.schedmd.com/) cluster using `sbatch`.
 ```shell
-# Run locally (DeepSpeed ZeRO-2 with 8 GPUs)
+# Run locally (ZeRO-2 on 8 GPUs with 4bit quantization and LoRA)
 accelerate launch \
-    --config_file scripts/accelerate_configs/deepspeed_zero2.yaml \
+    --config_file scripts/accelerate_configs/zero2.yaml \
     examples/llada/sft.py \
-    --num_train_epochs 4
+    --num_train_epochs 4 \
+    --load_in_4bit True --lora True
 ```
 ```shell
-# Submit to a Slurm cluster (DeepSpeed ZeRO-2 with 8 GPUs)
+# Submit to a Slurm cluster (FSDP on 1 node, 8 GPUs)
 sbatch --gres=gpu:8 scripts/train.slurm.sh \
-    --accelerate_config "deepspeed_zero2" \
+    --accelerate_config "fsdp" \
     --script_path "examples/llada/sft.py" \
     --num_train_epochs 4
-# Submit to a Slurm cluster (DeepSpeed ZeRO-2 with 2 nodes, 16 GPUs)
+
+# Submit to a Slurm cluster (FSDP on 2 nodes, 16 GPUs)
 sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
-    --accelerate_config "deepspeed_zero2" \
+    --accelerate_config "fsdp" \
     --script_path "examples/llada/sft.py" \
     --num_train_epochs 4
 ```

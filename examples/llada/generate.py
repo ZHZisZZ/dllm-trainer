@@ -1,47 +1,46 @@
 """
-Local users
-------------
-python examples/llada/generate.py --model_name_or_path "YOUR_MODEL_PATH"
-
-Slurm users
-------------
-srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --time=03:00:000 \
-    python examples/llada/generate.py --model_name_or_path "YOUR_MODEL_PATH"
+python -u examples/llada/generate.py --model_name_or_path "YOUR_MODEL_PATH"
 """
 
 from dataclasses import dataclass
 
-import tyro
 import transformers
 
 import dllm
+from dllm.tools.chat import decode_trim
 from dllm.pipelines import llada
 
 
 @dataclass
 class ScriptArguments:
-    model_name_or_path: str = (
-        "GSAI-ML/LLaDA-8B-Instruct"  # "inclusionAI/LLaDA-MoE-7B-A1B-Instruct"
-    )
-    steps: int = 128
-    max_new_tokens: int = 128
-    block_length: int = 32
-    temperature: float = 0.0
-    remasking: str = "low_confidence"
+    model_name_or_path: str = "GSAI-ML/LLaDA-8B-Instruct"
     seed: int = 42
-
+    visualize: bool = True
     def __post_init__(self):
         self.model_name_or_path = dllm.utils.resolve_with_base_env(
             self.model_name_or_path, "BASE_MODELS_DIR"
         )
 
+@dataclass
+class GeneratorConfig(llada.LLaDAGeneratorConfig):
+    steps: int = 128
+    max_new_tokens: int = 128
+    block_length: int = 32
+    temperature: float = 0.0
+    remasking: str = "low_confidence"
 
-script_args = tyro.cli(ScriptArguments)
+
+parser = transformers.HfArgumentParser(
+    (ScriptArguments, GeneratorConfig)
+)
+script_args, gen_config = parser.parse_args_into_dataclasses()
 transformers.set_seed(script_args.seed)
 
 # Load model & tokenizer
 model = dllm.utils.get_model(model_args=script_args).eval()
 tokenizer = dllm.utils.get_tokenizer(model_args=script_args, model=model)
+generator = llada.LLaDAGenerator(model=model, tokenizer=tokenizer)
+terminal_visualizer = dllm.core.generation.visualizer.TerminalVisualizer(tokenizer=tokenizer)
 
 # --- Example 1: Batch generation ---
 print("\n" + "=" * 80)
@@ -53,42 +52,30 @@ messages = [
     [{"role": "user", "content": "Please write an educational python function."}],
 ]
 
-input_ids_list = [
-    tokenizer.apply_chat_template(
-        m,
-        add_generation_prompt=True,
-        tokenize=True,
-        return_tensors="pt",
-    )[0].to(model.device)
-    for m in messages
-]
-
-out = llada.generate(
-    model,
-    tokenizer,
-    input_ids_list,
-    steps=script_args.steps,
-    max_new_tokens=script_args.max_new_tokens,
-    block_length=script_args.block_length,
-    temperature=script_args.temperature,
-    remasking=script_args.remasking,
+inputs = tokenizer.apply_chat_template(
+    messages,
+    add_generation_prompt=True,
+    tokenize=True,
 )
 
-generations = [g.split(tokenizer.eos_token, 1)[0] for g in tokenizer.batch_decode(out)]
-for i, o in enumerate(generations):
-    print("\n" + "-" * 80)
-    print(f"[Case {i}]")
-    print("-" * 80)
-    print(o.strip() if o.strip() else "<empty>")
+outputs = generator.generate(inputs, gen_config, return_dict_in_generate=True)
+sequences = decode_trim(tokenizer, outputs.sequences.tolist(), inputs)
 
+for iter, s in enumerate(sequences):
+    print("\n" + "-" * 80)
+    print(f"[Case {iter}]")
+    print("-" * 80)
+    print(s.strip() if s.strip() else "<empty>")
 print("\n" + "=" * 80 + "\n")
+
+if script_args.visualize: terminal_visualizer.visualize(outputs.histories, rich=True)
 
 # --- Example 2: Batch fill-in-the-blanks ---
 print("\n" + "=" * 80)
 print("TEST: llada.infilling()".center(80))
 print("=" * 80)
 
-masked_inputs = [
+masked_messages = [
     [
         {"role": "user", "content": tokenizer.mask_token * 20},
         {
@@ -105,32 +92,21 @@ masked_inputs = [
     ],
 ]
 
-fib_input_ids_list = [
-    tokenizer.apply_chat_template(
-        m,
-        add_generation_prompt=False,
-        tokenize=True,
-        return_tensors="pt",
-    )[0].to(model.device)
-    for m in masked_inputs
-]
-
-out = llada.infilling(
-    model,
-    tokenizer,
-    fib_input_ids_list,
-    steps=script_args.steps,
-    temperature=script_args.temperature,
-    remasking=script_args.remasking,
+inputs = tokenizer.apply_chat_template(
+    masked_messages,
+    add_generation_prompt=False,
+    tokenize=True,
 )
 
-filled = tokenizer.batch_decode(out)
+outputs = generator.infill(inputs, gen_config, return_dict_in_generate=True)
+sequences = decode_trim(tokenizer, outputs.sequences.tolist(), inputs)
 
-for i, (ids, f) in enumerate(zip(fib_input_ids_list, filled)):
+for iter, (i, s) in enumerate(zip(inputs, sequences)):
     print("\n" + "-" * 80)
-    print(f"[Case {i}]")
+    print(f"[Case {iter}]")
     print("-" * 80)
-    print("[Masked]:\n" + tokenizer.decode(ids))
-    print("\n[Filled]:\n" + (f.strip() if f.strip() else "<empty>"))
-
+    print("[Masked]:\n" + tokenizer.decode(i))
+    print("\n[Filled]:\n" + (s.strip() if s.strip() else "<empty>"))
 print("\n" + "=" * 80 + "\n")
+
+if script_args.visualize: terminal_visualizer.visualize(outputs.histories, rich=True)
