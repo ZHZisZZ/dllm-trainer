@@ -25,10 +25,10 @@ def tokenize_and_group(
 
     # --- optionally append EOS to each sample ---
     if insert_eos:
-        eos_id = getattr(tokenizer, "eos_token_id", None)
-        if eos_id is not None:
-            # append EOS only if the sample doesn't already end with it
-            ids = [seq + ([] if (seq and seq[-1] == eos_id) else [eos_id]) for seq in ids]
+        eos_id = getattr(tokenizer, "eos_token_id")
+        assert eos_id
+        # append EOS only if the sample doesn't already end with it
+        ids = [seq + ([] if (seq and seq[-1] == eos_id) else [eos_id]) for seq in ids]
     # ----------------------------------------------------------------
 
     # 2) Flatten and concatenate all token lists

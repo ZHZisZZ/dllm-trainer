@@ -31,7 +31,6 @@ import transformers
 import accelerate
 
 import dllm
-from dllm.pipelines import llada
 
 
 @dataclass
@@ -100,7 +99,7 @@ def train():
     # ----- Tokenizer --------------------------------------------------------------
     tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
     # ----- Optional PEFT: LoRA ----------------------------------------------------
-    model = dllm.utils.load_peft(model=model, training_args=training_args)
+    model = dllm.utils.load_peft(model=model, model_args=model_args)
 
     # ----- Dataset ----------------------------------------------------------------
     # pack sequences to fixed length (no padding at all); infinite for training
@@ -141,7 +140,7 @@ def train():
 
     accelerate.PartialState().wait_for_everyone()
     dllm.utils.print_main("start training...")
-    trainer = llada.LLaDATrainer(
+    trainer = dllm.core.trainers.MDLMTrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],

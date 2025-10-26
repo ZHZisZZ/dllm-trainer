@@ -462,6 +462,4 @@ if __name__ == "__main__":
     #     streaming=False
     # )
     # fw = load_pt_dataset("dylanebert/openwebtext", streaming=True)
-    fw = load_dataset("/mnt/lustrenew/mllm_aligned/shared/datasets/huggingface/dylanebert/openwebtext", streaming=True)
-    train = fw["train"].repeat(2)
     breakpoint()

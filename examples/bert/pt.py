@@ -1,7 +1,7 @@
 """
 srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --cpus-per-task=12 --time=03:00:000 \
     accelerate launch --config_file scripts/accelerate_configs/ddp.yaml --num_processes 1 \
-        examples/roberta/pt.py \
+        examples/bert/pt.py \
         --model_name_or_path "FacebookAI/roberta-large" \
         --dataset_args "Trelis/tiny-shakespeare" \
         --text_field "Text" \
@@ -10,7 +10,7 @@ srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --cpus-per-task=12 --time
 
 srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:8 --cpus-per-task=12 --time=03:00:000 \
     accelerate launch --config_file scripts/accelerate_configs/zero2.yaml --num_processes 8 \
-        examples/roberta/pt.py \
+        examples/bert/pt.py \
         --model_name_or_path "microsoft/deberta-v2-xxlarge" \
         --dataset_args "wikitext[name:wikitext-103-v1]" \
         --text_field "text" \
@@ -24,7 +24,7 @@ srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:8 --cpus-per-task=12 --time
         
 sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "ddp" \
-    --script_path "examples/roberta/pt.py" \
+    --script_path "examples/bert/pt.py" \
     --model_name_or_path "FacebookAI/roberta-large" \
     --dataset_args "wikitext[name:wikitext-103-v1]" \
     --text_field "text" \
@@ -37,7 +37,7 @@ sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
 
 sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "ddp" \
-    --script_path "examples/roberta/pt.py" \
+    --script_path "examples/bert/pt.py" \
     --model_name_or_path "FacebookAI/roberta-base" \
     --dataset_args "wikitext[name:wikitext-103-v1]" \
     --text_field "text" \
@@ -53,7 +53,7 @@ sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
 
 sbatch --nodes=8 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "ddp" \
-    --script_path "examples/roberta/pt.py" \
+    --script_path "examples/bert/pt.py" \
     --model_name_or_path "FacebookAI/roberta-large" \
     --dataset_args "dylanebert/openwebtext" \
     --text_field "text" \
@@ -69,7 +69,7 @@ sbatch --nodes=8 --gres=gpu:8 scripts/train.slurm.sh \
 
 sbatch --nodes=16 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "ddp" \
-    --script_path "examples/roberta/pt.py" \
+    --script_path "examples/bert/pt.py" \
     --model_name_or_path "FacebookAI/roberta-large" \
     --dataset_args "dylanebert/openwebtext" \
     --text_field "text" \
@@ -105,23 +105,14 @@ class ModelArguments(dllm.utils.ModelArguments):
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
     dataset_args: str = "wikitext[name:wikitext-103-v1]"
+    max_length: int = 512
     text_field: str = "text"
-    max_length: int = 256
     streaming: bool = False
     drop_tail: bool = True
     insert_eos: bool = field(
         default=False,
         metadata={
             "help": "False when adjacent samples from the datasets are semantically coherent."
-        },
-    )
-    random_length_ratio: float = field(
-        default=0.0,
-        metadata={
-            "help": (
-                "The probability of randomly cut sequences during training. "
-                "See https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md#pre-training for reference."
-            )
         },
     )
 
@@ -154,7 +145,8 @@ def train():
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_pt_dataset(
             data_args.dataset_args, streaming=data_args.streaming)
-        dataset = dataset.map(
+        def pack(dataset_):
+            return dataset_.map(
             functools.partial(
                 dllm.utils.tokenize_and_group, 
                 tokenizer=tokenizer, 
@@ -163,29 +155,13 @@ def train():
                 insert_eos=data_args.insert_eos,
                 drop_tail=data_args.drop_tail),
             batched=True,
-            remove_columns=dataset["train"].column_names,
+            remove_columns=dataset_["train"].column_names,
         )
+        if not data_args.streaming: dataset = pack(dataset) # trainer will shuffle for us
+        elif data_args.insert_eos: dataset = pack(dataset.shuffle(seed=training_args.seed))
+        else: dataset = pack(dataset).shuffle(seed=training_args.seed)
 
     # ----- Training --------------------------------------------------------------
-    @dataclass
-    class Collator(transformers.DataCollatorForSeq2Seq):
-        # Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md#pre-training
-        # By default, 1% of the pre-training data are truncated to a random length
-        random_length_ratio: float = 0.01
-
-        def __call__(self, features, return_tensors=None):
-            outputs = super().__call__(features, return_tensors)
-            if torch.rand(1) < self.random_length_ratio:
-                random_length = torch.randint(
-                    1, outputs["input_ids"].shape[1] + 1, (1,)
-                )
-                for key in ["input_ids", "labels", "attention_mask"]:
-                    if key in outputs: outputs[key] = outputs[key][:, :random_length]
-            # Check if attention_mask is all ones and set it to None
-            if torch.all(outputs["attention_mask"] == 1):
-                outputs.pop("attention_mask")
-            return outputs
-
     accelerate.PartialState().wait_for_everyone()
     dllm.utils.print_main("start training...")
     trainer = dllm.core.trainers.MDLMTrainer(
@@ -194,11 +170,10 @@ def train():
         train_dataset=dataset["train"],
         eval_dataset=dataset.get("test", None),
         args=training_args,
-        data_collator=Collator(
+        data_collator=transformers.DataCollatorForSeq2Seq(
             tokenizer,
             return_tensors="pt",
             padding=True,
-            random_length_ratio=data_args.random_length_ratio,
         ),
     )
     trainer.train()

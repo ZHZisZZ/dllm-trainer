@@ -17,7 +17,7 @@ Slurm users
 ------------
 - 1 GPU:
     sbatch --gres=gpu:1 scripts/train.slurm.sh \
-        --accelerate_config "single_gpu" \
+        --accelerate_config "ddp" \
         --script_path "examples/rnd/sft.py"
 
 - 2 Nodes, 16 GPUs (DeepSpeed ZeRO-2):
@@ -54,7 +54,7 @@ class DataArguments(dllm.utils.DataArguments):
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = "models/RND1-SFT-0910/smoltalk[train:10000,test:1000]"
     # rnd specific
-    group_by_length: bool = True
+    # group_by_length: bool = True
     mask_prompt_loss: bool = field(
         default=True,
         metadata={"help": "Whether to mask the loss on the prompt tokens"},
@@ -67,6 +67,24 @@ class TrainingArguments(dllm.utils.TrainingArguments):
         default=False,
         metadata={"help": "If True, freeze embedding parameters."},
     )
+    perbatch_cutoff: bool = field(
+        default=True,
+        metadata={
+            "help": (
+                "Randomly pick a response length from batch and trim other responses. "
+                "See https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml."
+            )
+        },
+    )
+    resp_cutoff_ratio: float = field(
+        default=0.0,
+        metadata={
+            "help": (
+                "The probability of randomly cutting sequences during training. "
+                "See https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml."
+            )
+        },
+    )
 
 
 def train():
@@ -75,6 +93,8 @@ def train():
         (ModelArguments, DataArguments, TrainingArguments)
     )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    # necessary when batch contains customized fields
+    training_args.remove_unused_columns = False
     dllm.utils.print_args_main(model_args, data_args, training_args)
     dllm.utils.initial_training_setup(model_args, data_args, training_args)
 
@@ -125,7 +145,7 @@ def train():
         return {
             "input_ids": prompt_response_tokens,
             "labels": labels,
-            # "attention_mask": [1.0] * len(prompt_response_tokens),
+            "attention_mask": [1] * len(prompt_response_tokens),
             "prompt_len": len(prompt_tokens),
         }
 
@@ -136,44 +156,52 @@ def train():
             # truncate / filter long sequences if needed
             dataset = dllm.utils.post_process_dataset(dataset, data_args)
     else:
-        from datasets import disable_caching; disable_caching()
         dataset = datasets.load_from_disk(data_args.dataset_args)
         # truncate / filter long sequences if needed
         dataset = dllm.utils.post_process_dataset(dataset, data_args)
 
     # ----- Training --------------------------------------------------------------
-    @dataclass
-    class RNDSFTCollator(transformers.DataCollatorForSeq2Seq):
-        def __call__(self, features, return_tensors=None):
-            outputs = super().__call__(features, return_tensors)
-            # RND is finetuned on padding <eos_token>
-            outputs.pop("attention_mask")
-            # temp fix here (`group_by_length=True` leads to shape mismatch)
-            # clip seq_len (second dim) to the same for outputs `input_ids, labels`
-            import torch
-            keys_to_clip = [k for k in ("input_ids", "labels") if k in outputs]
-            if keys_to_clip:
-                # Get smallest seq_len to avoid out-of-bounds
-                min_len = min(outputs[k].size(1) for k in keys_to_clip if isinstance(outputs[k], torch.Tensor))
-                for k in keys_to_clip:
-                    t = outputs[k]
-                    if isinstance(t, torch.Tensor) and t.size(1) != min_len:
-                        outputs[k] = t[:, :min_len]
-            return outputs
-
+    # @dataclass
+    # class RNDSFTCollator(transformers.DataCollatorForSeq2Seq):
+    #     def __call__(self, features, return_tensors=None):
+    #         outputs = super().__call__(features, return_tensors)
+    #         # RND is finetuned on padding <eos_token>
+    #         outputs.pop("attention_mask")
+    #         # temp fix here (`group_by_length=True` leads to shape mismatch)
+    #         # clip seq_len (second dim) to the same for outputs `input_ids, labels`
+    #         import torch
+    #         keys_to_clip = [k for k in ("input_ids", "labels") if k in outputs]
+    #         if keys_to_clip:
+    #             # Get smallest seq_len to avoid out-of-bounds
+    #             min_len = min(outputs[k].size(1) for k in keys_to_clip if isinstance(outputs[k], torch.Tensor))
+    #             for k in keys_to_clip:
+    #                 t = outputs[k]
+    #                 if isinstance(t, torch.Tensor) and t.size(1) != min_len:
+    #                     outputs[k] = t[:, :min_len]
+    #         return outputs
     trainer = rnd.RNDTrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],
         eval_dataset=dataset["test"],
         args=training_args,
-        data_collator=RNDSFTCollator(
+        # data_collator=RNDSFTCollator(
+        #     tokenizer,
+        #     # pad_to_multiple_of=8,
+        #     return_tensors="pt",
+        #     padding=True,
+        #     label_pad_token_id=-100,  # RND is finetuned on padding <eos_token>
+        # ),
+        data_collator=dllm.pipelines.dream.utils.DreamSFTCollator(
             tokenizer,
             # pad_to_multiple_of=8,
             return_tensors="pt",
             padding=True,
-            label_pad_token_id=tokenizer.pad_token_id,  # RND is finetuned on padding <eos_token>
+            label_pad_token_id=-100,
+            perbatch_cutoff=training_args.perbatch_cutoff,
+            resp_cutoff_ratio=training_args.resp_cutoff_ratio,
         ),
+
     )
     trainer.train()
     trainer.save_model(os.path.join(training_args.output_dir, "checkpoint-final"))

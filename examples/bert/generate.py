@@ -1,5 +1,5 @@
 """
-python -u examples/llada/generate.py --model_name_or_path "YOUR_MODEL_PATH"
+python -u examples/bert/generate.py --model_name_or_path "YOUR_MODEL_PATH"
 """
 
 from dataclasses import dataclass
@@ -13,7 +13,7 @@ from dllm.pipelines import llada
 
 @dataclass
 class ScriptArguments:
-    model_name_or_path: str = "GSAI-ML/LLaDA-8B-Instruct"
+    model_name_or_path: str = "models/ModernBERT-large/tulu-3-smoltalk/epochs-10-bs-384-len-1024/checkpoint-final"
     seed: int = 42
     visualize: bool = True
     def __post_init__(self):
@@ -25,9 +25,9 @@ class ScriptArguments:
 class GeneratorConfig(llada.LLaDAGeneratorConfig):
     steps: int = 128
     max_new_tokens: int = 128
-    block_length: int = 32
+    block_length: int = 64
     temperature: float = 0.0
-    remasking: str = "low_confidence"
+    remasking: str = "random"
 
 
 parser = transformers.HfArgumentParser(
@@ -44,7 +44,7 @@ terminal_visualizer = dllm.core.generation.visualizer.TerminalVisualizer(tokeniz
 
 # --- Example 1: Batch generation ---
 print("\n" + "=" * 80)
-print("TEST: llada.generate()".center(80))
+print("TEST: bert.generate()".center(80))
 print("=" * 80)
 
 messages = [
@@ -66,47 +66,6 @@ for iter, s in enumerate(sequences):
     print(f"[Case {iter}]")
     print("-" * 80)
     print(s.strip() if s.strip() else "<empty>")
-print("\n" + "=" * 80 + "\n")
-
-if script_args.visualize: terminal_visualizer.visualize(outputs.histories, rich=True)
-
-# --- Example 2: Batch fill-in-the-blanks ---
-print("\n" + "=" * 80)
-print("TEST: llada.infilling()".center(80))
-print("=" * 80)
-
-masked_messages = [
-    [
-        {"role": "user", "content": tokenizer.mask_token * 20},
-        {
-            "role": "assistant",
-            "content": "Sorry, I do not have answer to this question.",
-        },
-    ],
-    [
-        {"role": "user", "content": "Please write an educational python function."},
-        {
-            "role": "assistant",
-            "content": "def hello_" + tokenizer.mask_token * 20 + " return",
-        },
-    ],
-]
-
-inputs = tokenizer.apply_chat_template(
-    masked_messages,
-    add_generation_prompt=False,
-    tokenize=True,
-)
-
-outputs = generator.infill(inputs, gen_config, return_dict_in_generate=True)
-sequences = decode_trim(tokenizer, outputs.sequences.tolist(), inputs)
-
-for iter, (i, s) in enumerate(zip(inputs, sequences)):
-    print("\n" + "-" * 80)
-    print(f"[Case {iter}]")
-    print("-" * 80)
-    print("[Masked]:\n" + tokenizer.decode(i))
-    print("\n[Filled]:\n" + (s.strip() if s.strip() else "<empty>"))
 print("\n" + "=" * 80 + "\n")
 
 if script_args.visualize: terminal_visualizer.visualize(outputs.histories, rich=True)

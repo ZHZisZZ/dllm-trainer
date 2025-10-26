@@ -4,27 +4,27 @@ Local users
 - 1 GPU (4bit quant & LoRA, useful for testing):
     accelerate launch \
         --config_file scripts/accelerate_configs/ddp.yaml --num_processes 1 \
-        examples/dream/sft.py \
+        examples/llada/sft.py \
         --load_in_4bit True --lora True
     
 - 8 GPUs (FSDP):
     accelerate launch \
         --config_file scripts/accelerate_configs/fsdp.yaml \
-        examples/dream/sft.py
+        examples/llada/sft.py
 
 Slurm users
 # Note: run `mkdir logs` before running sbatch; and adjust 
 #       `partition` and `quotatype` in `scripts/train.slurm.sh` for your cluster.
 ------------
 - 1 Nodes, 8 GPUs (FSDP):
-    sbatch --gres=gpu:1 scripts/train.slurm.sh \
+    sbatch --gres=gpu:8 scripts/train.slurm.sh \
         --accelerate_config "fsdp" \
-        --script_path "examples/dream/sft.py"
+        --script_path "examples/llada/sft.py"
 
 - 2 Nodes, 16 GPUs (FSDP):
     sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
         --accelerate_config "fsdp" \
-        --script_path "examples/dream/sft.py"
+        --script_path "examples/llada/sft.py"
 """
 
 import os
@@ -35,93 +35,68 @@ import transformers
 import accelerate
 
 import dllm
-from dllm.pipelines import dream
 
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
-    model_name_or_path: str = "Dream-org/Dream-v0-Base-7B"
+    model_name_or_path: str = "answerdotai/ModernBERT-large"
 
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
-    dataset_args: str = "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    dataset_args: str = "tatsu-lab/alpaca"
+    max_length: int = 512
     load_preprocessed_data: bool = False
     mask_prompt_loss: bool = field(
         default=True,
         metadata={"help": "Whether to mask the loss on the prompt tokens"},
     )
-    # Dream SFT specific args
-    perbatch_cutoff: bool = field(
-        default=True,
-        metadata={
-            "help": (
-                "Randomly pick a response length from batch and trim other responses. "
-                "See https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml."
-            )
-        },
-    )
-    resp_cutoff_ratio: float = field(
-        default=0.0,
-        metadata={
-            "help": (
-                "The probability of randomly cutting sequences during training. "
-                "See https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml."
-            )
-        },
-    )
+
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = "models/Dream-7B-SFT"
+    output_dir: str = "models/ModernBERT-large/alpaca"
     group_by_length: bool = True
-    # Dream SFT specific args
-    loss_weight_type: str = field(
-        default="cart[geo_p:0.3]",
-        metadata={
-            "help": (
-                "The loss weight type. "
-                "See https://github.com/DreamLM/Dream/blob/main/src/trainer/config/sft_trainer.yaml."
-            )
-        },
-    )
+    learning_rate: float = 1e-4
+    num_train_epochs: int = 20
+    per_device_train_batch_size: int = 64
+    per_device_eval_batch_size: int = 64
+    eval_steps: float = 0.1
+    save_steps: float = 0.1
 
 
-# ------------------------------------------------------------------------------
-# SFT mapping function
-# ------------------------------------------------------------------------------
-def sft_map_fn(row, *, tokenizer, mask_prompt_loss: bool) -> dict:
+# -----------------------------
+# SFT map function
+# -----------------------------
+def sft_map_fn(row, *, tokenizer, mask_prompt_loss: bool = True) -> dict:
     """
-    Build Dream SFT features from a chat-format row.
+    Build input_ids and labels for SFT.
+
+    Args:
+        row: a dataset row with `messages`
+        tokenizer: a HF tokenizer
+        mask_prompt_loss: whether to mask prompt tokens (set their labels to -100)
 
     Returns:
-        dict with input_ids, labels, attention_mask, prompt_len
+        dict with keys: input_ids, labels, and optionally prompt_len
     """
-    prompt_tokens = tokenizer.apply_chat_template(
-        row["messages"][:-1], tokenize=True, add_generation_prompt=True
-    )
     prompt_response_tokens = tokenizer.apply_chat_template(
         row["messages"], tokenize=True, add_generation_prompt=False
     )
     labels = prompt_response_tokens.copy()
 
     if mask_prompt_loss:
+        prompt_tokens = tokenizer.apply_chat_template(
+            row["messages"][:-1], tokenize=True, add_generation_prompt=True
+        )
         labels[: len(prompt_tokens)] = [-100] * len(prompt_tokens)
-    else:
-        # When training on all tokens, prepend a BOS token (if missing)
-        # so the model can predict the first token.
-        if prompt_response_tokens[0] != tokenizer.bos_token_id:
-            bos = [tokenizer.bos_token_id]
-            prompt_response_tokens = bos + prompt_response_tokens
-            prompt_tokens = bos + prompt_tokens
-            labels = bos + labels
-        labels[0] = -100  # ignore loss on BOS
+        return {
+            "input_ids": prompt_response_tokens,
+            "labels": labels,
+            "prompt_len": len(prompt_tokens),
+        }
 
-    return {
-        "input_ids": prompt_response_tokens,
-        "labels": labels,
-        "prompt_len": len(prompt_tokens),
-    }
+    return {"input_ids": prompt_response_tokens, "labels": labels}
 
 
 def train():
@@ -130,8 +105,6 @@ def train():
         (ModelArguments, DataArguments, TrainingArguments)
     )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    # necessary when batch contains customized fields
-    training_args.remove_unused_columns = False
     dllm.utils.print_args_main(model_args, data_args, training_args)
     dllm.utils.initial_training_setup(model_args, data_args, training_args)
 
@@ -157,21 +130,27 @@ def train():
         dataset = dllm.utils.post_process_dataset(dataset, data_args)
 
     # ----- Training --------------------------------------------------------------
+    @dataclass
+    class BERTSFTCollator(transformers.DataCollatorForSeq2Seq):
+        # Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md#sft
+        def __call__(self, features, return_tensors=None):
+            outputs = super().__call__(features, return_tensors)
+            outputs.pop("attention_mask")
+            return outputs
+
     accelerate.PartialState().wait_for_everyone()
     dllm.utils.print_main("start training...")
-    trainer = dream.DreamTrainer(
+    trainer = dllm.core.trainers.MDLMTrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"],
         eval_dataset=dataset.get("test", None),
         args=training_args,
-        loss_weight_type=training_args.loss_weight_type,
-        data_collator=dream.utils.DreamSFTCollator(
+        data_collator=BERTSFTCollator(
             tokenizer,
             return_tensors="pt",
             padding=True,
-            perbatch_cutoff=data_args.perbatch_cutoff,
-            resp_cutoff_ratio=data_args.resp_cutoff_ratio,
+            label_pad_token_id=tokenizer.pad_token_id,  # finetune on padding <eos_token>
         ),
     )
     trainer.train()
