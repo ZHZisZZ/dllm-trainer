@@ -1,0 +1,57 @@
+tag:
+  - multiple_choice
+task: hellaswag_gen
+dataset_path: Rowan/hellaswag
+dataset_name: null
+output_type: generate_until
+training_split: train
+validation_split: validation
+test_split: null
+
+# Enable processing to inject A–D fields
+process_docs: !function utils.llada_process_docs
+
+# ---- Prompt Formatting ----
+doc_to_text: |
+  {{ctx}}
+  Question: Which ending makes the most sense?
+  A. {{A}}
+  B. {{B}}
+  C. {{C}}
+  D. {{D}}
+  You may choose from 'A', 'B', 'C', 'D'.
+  Answer:
+
+doc_to_target: "{% if label == 0 %}a{% elif label == 1 %}b{% elif label == 2 %}c{% elif label == 3 %}d{% else %}{{label}}{% endif %}"
+
+# ---- Generation Behavior ----
+generation_kwargs:
+  do_sample: false
+  temperature: 0.0
+  max_new_tokens: 3
+  until:
+    - "\n"           # stop when newline appears
+    - "</s>"         # optional model EOS
+    - "<|im_end|>"   # optional chat EOS
+
+# ---- Evaluation ----
+metric_list:
+  - metric: exact_match
+    aggregation: mean
+    higher_is_better: true
+    ignore_case: true
+    ignore_punctuation: false
+    regexes_to_ignore:
+      - ","
+      - "\\$"
+      - "(?s).*#### "
+      - "\\.$"
+
+# ---- Output Filtering (postprocess) ----
+filter_list:
+  - name: first_option_filter
+    filter:
+      - function: lowercase
+      - function: regex
+        regex_pattern: "[abcd]"
+      - function: take_first

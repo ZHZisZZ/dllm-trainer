@@ -2,6 +2,7 @@ import re
 from typing import Union
 
 import evaluate as hf_evaluate
+from typing import List
 
 
 try:
@@ -42,6 +43,22 @@ def extract_code_blocks(text: str) -> str:
         return ""
     else:
         return matches[0]
+
+
+class LLaDAExtractCodeBlocks:
+    def apply(self, resps: List[str], docs: List[dict]) -> List[str]:
+        def _extract_one(text: str) -> str:
+            if isinstance(text, list):
+                text = text[0] if len(text) > 0 else ""
+            pattern = r"```(?:\w+)?\n?(.*?)\n?```"
+            matches = re.findall(pattern, text[0], re.DOTALL)
+            if not matches:
+                text_without_lang = re.sub(r"```python", "```", text)
+                matches = re.findall(pattern, text_without_lang, re.DOTALL)
+            return matches[0].strip() if matches else text.strip()
+
+        return [_extract_one(r) for r in resps]
+
 
 
 def build_predictions(resps: list[list[str]], docs: list[dict]) -> list[list[str]]:

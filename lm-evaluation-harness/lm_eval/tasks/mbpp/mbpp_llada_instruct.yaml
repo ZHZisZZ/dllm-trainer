@@ -1,0 +1,105 @@
+dataset_name: full
+dataset_path: google-research-datasets/mbpp
+task: mbpp_llada_instruct
+test_split: test
+
+# ---------------------------
+# Prompt & target formatting
+# ---------------------------
+doc_to_text: |
+  You are an expert Python programmer, and here is your task:
+  {{text}}
+  Your code should pass these tests:
+  {% for t in test_list %}
+  {{t}}
+  {% endfor %}
+
+  [BEGIN]
+doc_to_target: '{{code}}'
+
+# ---------------------------
+# Few-shot examples (from OpenCompass template)
+# ---------------------------
+fewshot_config:
+  sampler: first_n
+  samples:
+    - text: "Write a function to find the similar elements from the given two tuple lists."
+      test_list:
+        - "assert similar_elements((3, 4, 5, 6),(5, 7, 4, 10)) == (4, 5)"
+        - "assert similar_elements((1, 2, 3, 4),(5, 4, 3, 7)) == (3, 4)"
+        - "assert similar_elements((11, 12, 14, 13),(17, 15, 14, 13)) == (13, 14)"
+      code: |
+        [BEGIN]
+        'def similar_elements(test_tup1, test_tup2):
+            res = tuple(set(test_tup1) & set(test_tup2))
+            return res'
+        [DONE]
+
+    - text: "Write a python function to identify non-prime numbers."
+      test_list:
+        - "assert is_not_prime(2) == False"
+        - "assert is_not_prime(10) == True"
+        - "assert is_not_prime(35) == True"
+      code: |
+        [BEGIN]
+        'import math
+        def is_not_prime(n):
+            result = False
+            for i in range(2,int(math.sqrt(n)) + 1):
+                if n % i == 0:
+                    result = True
+            return result'
+        [DONE]
+
+    - text: "Write a function to find the largest integers from a given list of numbers using heap queue algorithm."
+      test_list:
+        - "assert heap_queue_largest([25, 35, 22, 85, 14, 65, 75, 22, 58],3)==[85, 75, 65]"
+        - "assert heap_queue_largest([25, 35, 22, 85, 14, 65, 75, 22, 58],2)==[85, 75]"
+        - "assert heap_queue_largest([25, 35, 22, 85, 14, 65, 75, 22, 58],5)==[85, 75, 65, 58, 35]"
+      code: |
+        [BEGIN]
+        'import heapq as hq
+        def heap_queue_largest(nums, n):
+            largest_nums = hq.nlargest(n, nums)
+            return largest_nums'
+        [DONE]
+
+num_fewshot: 3
+
+# ---------------------------
+# Generation & filtering
+# ---------------------------
+generation_kwargs:
+  do_sample: false
+  until:
+    - '[DONE]'
+    - '</s>'
+    - '<|im_end|>'
+output_type: generate_until
+
+# filter_list:
+#   - filter:
+#     - function: regex
+#       regex_pattern: '\[BEGIN\](.*)\[DONE\]'
+#     - function: take_first
+#     name: extract_code
+
+filter_list:
+  - name: extract_code
+    filter:
+      - function: !function utils.LLaDAExtractCodeBlocks
+
+# ---------------------------
+# Metrics
+# ---------------------------
+metric_list:
+  - metric: !function utils.pass_at_1
+    aggregation: mean
+    higher_is_better: true
+
+metadata:
+  version: 3.0
+  description: >
+    MBPP evaluation reformatted for lm-eval using Hugging Face MBPP dataset.
+    Each sample provides a natural-language specification (`text`) and test cases (`test_list`).
+    The model generates Python code, which is evaluated by executing the code against the given tests (pass@1).

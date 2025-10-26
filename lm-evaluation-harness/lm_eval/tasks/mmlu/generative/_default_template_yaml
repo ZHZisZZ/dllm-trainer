@@ -4,7 +4,14 @@ fewshot_split: dev
 fewshot_config:
   sampler: first_n
 output_type: generate_until
-doc_to_text: "{{question.strip()}}\nA. {{choices[0]}}\nB. {{choices[1]}}\nC. {{choices[2]}}\nD. {{choices[3]}}\nAnswer:"
+doc_to_text: |
+  There is a single choice question about {{subject}}. Answer the question by replying A, B, C or D.
+  Q: {{question}}
+  A. {{choices[0]}}
+  B. {{choices[1]}}
+  C. {{choices[2]}}
+  D. {{choices[3]}}
+  A:
 doc_to_target: "{{['A', 'B', 'C', 'D'][answer]}}"
 generation_kwargs:
   until:

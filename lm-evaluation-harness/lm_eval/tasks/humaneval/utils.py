@@ -1,5 +1,6 @@
 import os
 import torch
+import warnings
 import evaluate as hf_evaluate
 
 # --- Per-rank cache setup (no Accelerate dependency) ---
@@ -10,10 +11,27 @@ else:
     rank = 0
     world_size = 1
 
-cache_root = "/mnt/lustrenew/mllm_safety-shared/tmp/fanyuyu/.cache"
-hf_eval_cache = f"{cache_root}/hf_evaluate_job_{os.getenv('SLURM_JOB_ID', 'local')}_rank_{rank}"
-os.environ["HF_EVALUATE_CACHE"] = hf_eval_cache
-os.makedirs(hf_eval_cache, exist_ok=True)
+# Determine base cache directory
+base_cache = os.environ.get("HF_EVALUATE_CACHE") or os.environ.get("SLURM_TMPDIR")
+
+if base_cache is None:
+    warnings.warn(
+        "[Warning] Neither HF_EVALUATE_CACHE nor SLURM_TMPDIR is set. "
+        "Please export one of them to a writable directory for evaluation cache, e.g.:\n"
+        "    export HF_EVALUATE_CACHE=/home/tmp/hf_eval_cache"
+    )
+else:
+    # Build cache path
+    job_id = os.getenv("SLURM_JOB_ID", "local")
+    hf_eval_cache = os.path.join(base_cache, f"hf_evaluate_job_{job_id}_rank_{rank}")
+
+    # Ensure directory exists
+    os.makedirs(hf_eval_cache, exist_ok=True)
+    os.environ["HF_EVALUATE_CACHE"] = hf_eval_cache
+
+    print(f"[Eval Cache] Using cache directory: {hf_eval_cache}")
+    print(f"[Eval Cache] rank={rank}, world_size={world_size}")
+
 
 # --- Load and test metric ---
 try:
