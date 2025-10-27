@@ -130,7 +130,7 @@ def _match(name: str, needle) -> bool:
     return name.endswith(needle) or needle in name
 
 
-def load_sft_dataset(dataset_args: str):
+def load_sft_dataset(dataset_args: str, load_preprocessed_data: bool = False):
     """
     Returns:
         datasets.DatasetDict with fields like {"train": Dataset, "test": Dataset, ...}
@@ -146,7 +146,6 @@ def load_sft_dataset(dataset_args: str):
     """
     from dllm.data.alpaca import load_dataset_alpaca
     from dllm.data.opc import load_dataset_opc
-    from dllm.data.saferlhf import load_dataset_pku_rlhf_sft
 
     specs = [p.strip() for p in dataset_args.split("|") if p.strip()]
     all_parts = []
@@ -158,6 +157,7 @@ def load_sft_dataset(dataset_args: str):
             dataset_name_or_path, "BASE_DATASETS_DIR"
         )
 
+        # Implement your customized dataset here
         if _match(dataset_name_or_path, "tatsu-lab/alpaca"):
             ds = load_dataset_alpaca(dataset_name_or_path)
         elif _match(dataset_name_or_path, "allenai/tulu-3-sft-mixture"):
@@ -174,12 +174,8 @@ def load_sft_dataset(dataset_args: str):
         elif _match(dataset_name_or_path, "HuggingFaceH4/ultrachat_200k"):
             ds = load_dataset(dataset_name_or_path)
             ds = DatasetDict({"train": ds["train_sft"], "test": ds["test_sft"]})
-        elif _match(dataset_name_or_path, "PKU-Alignment/PKU-SafeRLHF"):
-            name = kvs.pop("name", None)
-            ds = load_dataset_pku_rlhf_sft(dataset_name_or_path, name)
         else:
             ds = load_dataset(dataset_name_or_path)
-            # raise NotImplementedError(f"Unknown dataset: {dataset_name_or_path}")
 
         # Normalize to DatasetDict and apply per-split limits
         # shuffle dataset
@@ -199,41 +195,37 @@ def load_sft_dataset(dataset_args: str):
     return _ensure_datasetdict(merged)
 
 
-def load_dataset_from_disk(dataset_args: str):
-    """
-    Returns:
-        datasets.DatasetDict with fields like {"train": Dataset, "test": Dataset, ...}
-    """
+# def load_dataset_from_disk(dataset_args: str):
+#     """
+#     Returns:
+#         datasets.DatasetDict with fields like {"train": Dataset, "test": Dataset, ...}
+#     """
 
-    specs = [p.strip() for p in dataset_args.split("|") if p.strip()]
-    all_parts = []
+#     specs = [p.strip() for p in dataset_args.split("|") if p.strip()]
+#     all_parts = []
 
-    for raw in specs:
-        dataset_name_or_path, kvs = parse_spec(raw)
-        # assert (
-        #     "dataset_name_or_path" in kvs
-        # ), f"'dataset_name_or_path' missing in spec: {raw}"
-        # dataset_name_or_path = kvs.pop("dataset_name_or_path")
-        dataset_name_or_path = resolve_with_base_env(
-            dataset_name_or_path, "BASE_DATASETS_DIR"
-        )
+#     for raw in specs:
+#         dataset_name_or_path, kvs = parse_spec(raw)
+#         dataset_name_or_path = resolve_with_base_env(
+#             dataset_name_or_path, "BASE_DATASETS_DIR"
+#         )
 
-        ds = load_from_disk(dataset_name_or_path)
+#         ds = load_from_disk(dataset_name_or_path)
 
-        # Normalize to DatasetDict and apply per-split limits
-        ds = _ensure_datasetdict(ds)
-        ds = _truncate_dataset(ds, kvs)
-        all_parts.append(ds)
+#         # Normalize to DatasetDict and apply per-split limits
+#         ds = _ensure_datasetdict(ds)
+#         ds = _truncate_dataset(ds, kvs)
+#         all_parts.append(ds)
 
-    # If only one part, return as DatasetDict
-    if len(all_parts) == 1:
-        return _ensure_datasetdict(all_parts[0])
+#     # If only one part, return as DatasetDict
+#     if len(all_parts) == 1:
+#         return _ensure_datasetdict(all_parts[0])
 
-    # Merge all parts into a single DatasetDict
-    merged = all_parts[0]
-    for part in all_parts[1:]:
-        merged = _merge_datasetdicts(merged, part)
-    return _ensure_datasetdict(merged)
+#     # Merge all parts into a single DatasetDict
+#     merged = all_parts[0]
+#     for part in all_parts[1:]:
+#         merged = _merge_datasetdicts(merged, part)
+#     return _ensure_datasetdict(merged)
 
 
 def _concat_iterable_datasets(parts: list[IterableDataset]) -> IterableDataset:

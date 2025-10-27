@@ -111,7 +111,8 @@ def train():
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_pt_dataset(
             data_args.dataset_args, streaming=data_args.streaming)
-        dataset = dataset.map(
+        def pack(dataset_):
+            return dataset_.map(
             functools.partial(
                 dllm.utils.tokenize_and_group, 
                 tokenizer=tokenizer, 
@@ -120,8 +121,11 @@ def train():
                 insert_eos=data_args.insert_eos,
                 drop_tail=data_args.drop_tail),
             batched=True,
-            remove_columns=dataset["train"].column_names,
+            remove_columns=dataset_["train"].column_names,
         )
+        if not data_args.streaming: dataset = pack(dataset) # trainer will shuffle for us
+        elif data_args.insert_eos: dataset = pack(dataset.shuffle(seed=training_args.seed))
+        else: dataset = pack(dataset).shuffle(seed=training_args.seed)
 
     # ----- Training --------------------------------------------------------------
     accelerate.PartialState().wait_for_everyone()
