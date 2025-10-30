@@ -26,7 +26,6 @@ This directory provides examples for (1) finetuning open-weight Dream models, (2
 ```
 # tools relevant with Dream
 dllm/pipelines/dream
-├── generate.py                     # Generation and diffusion sampling utilities
 ├── __init__.py                     # Package initialization
 ├── models/
 │   ├── configuration_dream.py      # Dream model configuration
@@ -37,13 +36,13 @@ dllm/pipelines/dream
 ├── trainer.py                      # Training logic (pretraining and SFT)
 └── utils.py                        # Auxiliary utilities and helper functions
 
-# example entry points for training / sampling
+# example entry points for training / inference
 examples/dream
-├── generate.py                     # Sampling example
+├── chat.py                         # Interactive inference example
+├── generate.py                     # Inference example
 ├── pt.py                           # Pretraining example
 ├── README.md                       # Documentation (you are here)
 └── sft.py                          # Supervised finetuning example
-
 ```
 <!-- > [!NOTE]
 >  We slightly modified [`modeling_dream.py`](/dllm/pipelines/dream/models/modeling_dream.py) so that the `model.forward()` supports 2-D attention masks. We recommend loading models with `dllm.utils.get_tokenizer`; otherwise `import dllm` before calling `AutoModel.from_pretrained` to ensure the correct models from `dllm` are used. 
@@ -60,7 +59,7 @@ examples/dream
 >
 > - Train with LoRA and 4bit quantization: `--load_in_4bit True --lora True`. -->
 
-### Finetuning [Dream-v0-Base-7B](https://huggingface.co/Dream-org/Dream-v0-Base-7B)
+### Finetuning
 For example, to SFT [Dream-v0-Base-7B](https://huggingface.co/Dream-org/Dream-v0-Base-7B) for instruction following on 8 GPUs, run:
 ```shell
 accelerate launch \
@@ -86,9 +85,9 @@ sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
     --learning_rate 2e-5
 ```
 
-<!-- **Reproducing [Dream-v0-Instruct-7B](https://huggingface.co/Dream-org/Dream-v0-Base-7B)**. We tried our best to reproduce Dream-v0-Instruct-7B by fine-tuning Dream-v0-Base-7B using our training pipeline on the public instruction-following dataset [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture): -->
+<!-- **Reproducing [Dream-v0-Instruct-7B](https://huggingface.co/Dream-org/Dream-v0-Base-7B)**. We tried our best to reproduce Dream-v0-Instruct-7B by finetuning Dream-v0-Base-7B using our training pipeline on the public instruction-following dataset [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture): -->
 #### Reproducing [Dream-v0-Instruct-7B](https://huggingface.co/Dream-org/Dream-v0-Base-7B)
-We tried our best to reproduce Dream-v0-Instruct-7B by fine-tuning Dream-v0-Base-7B using our training pipeline on the public instruction-following dataset [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture):
+We tried our best to reproduce Dream-v0-Instruct-7B by finetuning Dream-v0-Base-7B using our training pipeline on the public instruction-following dataset [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture):
 
 ```shell
 # preprocessing SFT data (optional, but can avoid redundant preprocessing for multi-node training)
@@ -126,7 +125,7 @@ Training curves are on Wandb; checkpoints with evaluation results are available 
 <!-- > [!NOTE]
 > This is an educational example demonstrating how to reproduce Dream pretraining and finetuning on public data. We do not guarantee performance comparable to the official Dream models. -->
 
-Pretrain on [mlfoundations/dclm-baseline-1.0](https://huggingface.co/datasets/mlfoundations/dclm-baseline-1.0) using 192 GPUs (24x8) and FSDP:
+Pretrain on [mlfoundations/dclm-baseline-1.0](https://huggingface.co/datasets/mlfoundations/dclm-baseline-1.0) from scratch using 192 GPUs (24x8) and FSDP:
 ```shell
 sbatch --nodes=24 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "fsdp" \

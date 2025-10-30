@@ -31,7 +31,6 @@ This directory provides examples for (1) finetuning open-weight LLaDA models, (2
 ```
 # tools relevant with LLaDA
 dllm/pipelines/llada
-├── generate.py                     # Generation utilities
 ├── __init__.py                     # Package initialization
 ├── models/
 │   ├── configuration_lladamoe.py   # LLaDA-MoE model configuration
@@ -41,10 +40,10 @@ dllm/pipelines/llada
 ├── generator.py                    # Inference logic
 └── trainer.py                      # Training logic (pretraining and finetuning)
 
-# example entry points for training / sampling
+# example entry points for training / inference
 examples/llada
-├── chat.py                         # Interactive generation
-├── generate.py                     # Generation example
+├── chat.py                         # Interactive inference example
+├── generate.py                     # Inference example
 ├── pt.py                           # Pretraining example
 ├── README.md                       # Documentation (you are here)
 └── sft.py                          # Supervised finetuning example
@@ -105,7 +104,7 @@ Though LLaDA is trained on proprietary data, we tried our best to reproduce LLaD
 
 ```shell
 # preprocessing SFT data (optional, but can avoid redundant preprocessing for multi-node training)
-PYTHONPATH=. python dllm/tools/preprocess_sft_dataset.py \
+python dllm/tools/preprocess_sft_dataset.py \
     --model_name_or_path "GSAI-ML/LLaDA-8B-Base" \
     --sft_map_fn_path "dllm.utils.default_sft_map_fn" \
     --dataset_args "allenai/tulu-3-sft-mixture" \
@@ -140,7 +139,7 @@ Training curves are on Wandb; checkpoints with evaluation results are available 
 > 
 > This is an educational example demonstrating how to reproduce LLaDA pretraining and finetuning on public data. We do not guarantee performance comparable to the official LLaDA models. -->
 
-Pretrain on [mlfoundations/dclm-baseline-1.0](https://huggingface.co/datasets/mlfoundations/dclm-baseline-1.0) using 192 GPUs (24x8) and FSDP:
+Pretrain on [mlfoundations/dclm-baseline-1.0](https://huggingface.co/datasets/mlfoundations/dclm-baseline-1.0) from scratch using 192 GPUs (24x8) and FSDP:
 ```shell
 sbatch --nodes=24 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "fsdp" \
