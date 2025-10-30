@@ -67,7 +67,7 @@
 #     args = tyro.cli(ScriptArguments)
 
 #     # tokenizer = transformers.AutoTokenizer.from_pretrained(model_name_or_path)
-#     tokenizer = dllm.utils.get_tokenizer(args, model_cls=dllm.pipelines.rnd.RND1LM)
+#     tokenizer = dllm.utils.get_tokenizer(args)
 
 #     # Load your raw dataset (must contain a "messages" field per example).
 #     dataset = dllm.data.load_sft_dataset(args.dataset_args)
@@ -93,7 +93,7 @@ def main():
     args = tyro.cli(ScriptArguments)
 
     # tokenizer = transformers.AutoTokenizer.from_pretrained(model_name_or_path)
-    tokenizer = dllm.utils.get_tokenizer(args, model_cls=dllm.pipelines.rnd.RND1LM)
+    tokenizer = dllm.utils.get_tokenizer(args)
 
     # Load your raw dataset (must contain a "messages" field per example).
     dataset = dllm.data.load_sft_dataset(args.dataset_args)

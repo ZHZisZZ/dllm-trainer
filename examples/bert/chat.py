@@ -47,7 +47,7 @@ def main():
     transformers.set_seed(script_args.seed)
 
     model = dllm.utils.get_model(model_args=script_args).eval()
-    tokenizer = dllm.utils.get_tokenizer(model_args=script_args, model=model)
+    tokenizer = dllm.utils.get_tokenizer(model_args=script_args)
     generator = llada.LLaDAGenerator(model=model, tokenizer=tokenizer)
 
     if script_args.chat:

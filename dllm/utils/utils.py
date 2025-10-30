@@ -130,7 +130,16 @@ def print_args_main(
         # keep it tiny: just show first few entries
         short = {k: d[k] for k in list(d)}  # adjust number as you like
         print_main(f"{name}:")
-        pprint_main(short, width=100, compact=True)
+        pprint_main(short, width=100, compact=True, sort_dicts=False) 
+    print_main("============================\n")
+
+
+def print_args(args):
+    print_main("\n===== Parsed arguments =====")
+    d = asdict(args)
+    # keep it tiny: just show first few entries
+    short = {k: d[k] for k in list(d)}  # adjust number as you like
+    pprint_main(short, width=100, compact=True, sort_dicts=False)
     print_main("============================\n")
 
 

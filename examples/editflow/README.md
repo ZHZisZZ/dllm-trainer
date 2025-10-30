@@ -50,10 +50,10 @@ examples/editflow
 
 ## Training
 
-> [!NOTE]
+<!-- > [!NOTE]
 > Use `--dataset_args "allenai/tulu-3-sft-mixture[train:10000,test:1000]"` to train / eval only on a subset; 
 > 
-> Use `--dataset_args "allenai/tulu-3-sft-mixture | OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"` to concatenate datasets.
+> Use `--dataset_args "allenai/tulu-3-sft-mixture | OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"` to concatenate datasets. -->
 
 ### Adapting [LLaDA-8B-Instruct](https://huggingface.co/GSAI-ML/LLaDA-8B-Instruct) to support *insertion* and *deletion*
 
@@ -79,7 +79,7 @@ accelerate launch \
     --dataset_args "allenai/tulu-3-sft-mixture" \
     --output_dir "models/EditFlow-LLaDA-8B-Instruct-Adapt/tulu-3-sft-mixture" \
     --x0_sampler "masks[length:128]" \
-    --max_length 1024 \ 
+    --max_length 1024 \
     --num_train_epochs 4 \
     --learning_rate 5e-5
 ```
@@ -87,7 +87,7 @@ accelerate launch \
 If you are using slurm and want to train across, for example, four nodes (32 GPUs total), run:
 ```shell
 sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
-    --accelerate_config "zero2" \
+    --accelerate_config "fsdp" \
     --script_path "examples/editflow/adapt_llada.py" \
     --model_name_or_path "GSAI-ML/LLaDA-8B-Instruct" \
     --lm_head_key "model.transformer.ff_out" \
@@ -106,11 +106,11 @@ After training, you can use the [generate.py](/examples/editflow/generate.py) sc
 ### Pretraining & Finetuning from scratch
 You can also train an EditFlow model from scratch (pretrain → SFT) without adapting an existing DLLM.
 
-Pretrain on a subset of [mlfoundations/dclm-baseline-1.0](https://huggingface.co/datasets/mlfoundations/dclm-baseline-1.0) using 256 GPUs (32x8) and DeepSpeed ZeRO-2:
+Pretrain on a subset of [mlfoundations/dclm-baseline-1.0](https://huggingface.co/datasets/mlfoundations/dclm-baseline-1.0) using 192 GPUs (24x8) and FSDP:
 
 ```shell
-sbatch --nodes=32 --gres=gpu:8 scripts/train.slurm.sh \
-    --accelerate_config "zero2" \
+sbatch --nodes=24 --gres=gpu:8 scripts/train.slurm.sh \
+    --accelerate_config "fsdp" \
     --script_path "examples/editflow/pt_llada.py" \
     --model_name_or_path "GSAI-ML/LLaDA-8B-Base" \
     --dataset_args "mlfoundations/dclm-baseline-1.0" \
@@ -121,12 +121,12 @@ sbatch --nodes=32 --gres=gpu:8 scripts/train.slurm.sh \
     --learning_rate 3e-4
 ```
 
-Finetune on a subset of [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture) using 8 GPUS and DeepSpeed ZeRO-2 for better instruction following:
+Finetune on a subset of [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture) using 8 GPUS and FSDP for better instruction following:
 
 ```shell
 # you can also run locally with `accelerate ...`
 sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
-    --accelerate_config "zero2" \
+    --accelerate_config "fsdp" \
     --script_path "examples/editflow/sft_llada.py" \
     --model_name_or_path "models/EditFlow-LLaDA-8B-Base/dclm-baseline-1.0/checkpoint-final" \
     --dataset_args "allenai/tulu-3-sft-mixture[train:10000,test:1000]" \

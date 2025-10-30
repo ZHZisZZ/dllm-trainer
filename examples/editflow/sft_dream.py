@@ -1,12 +1,13 @@
 """
 Local users
 ------------
-- 1 GPU:
+- 1 GPU (LoRA, useful for testing):
     accelerate launch \
         --config_file scripts/accelerate_configs/ddp.yaml --num_processes 1 \
-        examples/editflow/sft_dream.py
+        examples/editflow/sft_dream.py \
+        --lora True
     
-- 8 GPUs (DeepSpeed ZeRO-2):
+- 8 GPUs (FSDP):
     accelerate launch \
         --config_file scripts/accelerate_configs/zero2.yaml \
         examples/editflow/sft_dream.py
@@ -15,19 +16,14 @@ Slurm users
 # Note: run `mkdir logs` before running sbatch; and adjust 
 #       `partition` and `quotatype` in `scripts/train.slurm.sh` for your cluster.
 ------------
-- 1 GPU:
-    sbatch --gres=gpu:1 scripts/train.slurm.sh \
-        --accelerate_config "single_gpu" \
-        --script_path "examples/editflow/sft_dream.py"
-
-- 8 GPUs (DeepSpeed ZeRO-2):
+- 1 Node, 8 GPUs (FSDP):
     sbatch --gres=gpu:8 scripts/train.slurm.sh \
-        --accelerate_config "zero2" \
+        --accelerate_config "fsdp" \
         --script_path "examples/editflow/sft_dream.py"
 
-- 2 Nodes, 16 GPUs (DeepSpeed ZeRO-2):
+- 2 Nodes, 16 GPUs (FSDP):
     sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
-        --accelerate_config "zero2" \
+        --accelerate_config "fsdp" \
         --script_path "examples/editflow/sft_dream.py"
 """
 

@@ -1,7 +1,7 @@
 import torch
 import accelerate
 import transformers
-from peft import prepare_model_for_kbit_training, PeftModel
+from peft import prepare_model_for_kbit_training
 
 from dllm.utils.utils import disable_caching_allocator_warmup, print_main, load_peft
 from dllm.utils.configs import ModelArguments, TrainingArguments
@@ -81,11 +81,7 @@ def get_model(
     return model
 
 
-def get_tokenizer(
-    model_args = None,
-    model_cls: type[transformers.PreTrainedModel] | None = None,
-    model: type[transformers.PreTrainedModel] | None = None,
-) -> transformers.PreTrainedTokenizer:
+def get_tokenizer(model_args) -> transformers.PreTrainedTokenizer:
     """
     Load a tokenizer with flexible input sources.
 
@@ -102,7 +98,7 @@ def get_tokenizer(
     from dllm.pipelines.llada.models.modeling_lladamoe import LLaDAMoEModelLM
     from dllm.pipelines.dream.models.modeling_dream import DreamModel
     from dllm.pipelines.rnd.models.modeling_rnd import RND1LM
-    from transformers import BertForMaskedLM, RobertaForMaskedLM, ModernBertForMaskedLM
+    from transformers import BertPreTrainedModel, RobertaPreTrainedModel, ModernBertPreTrainedModel
 
     model_name_or_path = getattr(model_args, "model_name_or_path")
 
@@ -118,14 +114,8 @@ def get_tokenizer(
     if not tokenizer.eos_token: tokenizer.eos_token = tokenizer.pad_token
 
     # If model is not provided, return as-is
-    if not model_cls and not model:
-        return tokenizer
-
-    if not model_cls: 
-        if isinstance(model, PeftModel):
-            model_cls = type(model.model)
-        else:
-            model_cls = type(model)
+    model_cfg = transformers.AutoConfig.from_pretrained(model_name_or_path)
+    model_cls = transformers.AutoModel._model_mapping[type(model_cfg)]
 
     # ---------------- Model-specific customization ----------------
     if issubclass(model_cls, LLaDAModelLM):
@@ -156,7 +146,7 @@ def get_tokenizer(
         tokenizer.eot_token_id = tokenizer.convert_tokens_to_ids(tokenizer.eot_token)
     elif issubclass(model_cls, RND1LM):
         tokenizer.add_special_tokens({"mask_token": "<|mask|>"})
-    elif issubclass(model_cls, (BertForMaskedLM, RobertaForMaskedLM, ModernBertForMaskedLM)):
+    elif issubclass(model_cls, (BertPreTrainedModel, RobertaPreTrainedModel, ModernBertPreTrainedModel)):
         tokenizer.eot_token = "[/Answer]"
         tokenizer.chat_template = """\
 {% if messages[0]['role'] == 'system' %}

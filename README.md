@@ -1,7 +1,7 @@
 <h1 align="center">dLLM</h1>
 
 <p align="center">
-Training Diffusion Large Language Models Made Simple
+Simple Diffusion Language Modeling
 </p>
 
 <p align="center">
@@ -12,36 +12,42 @@ Training Diffusion Large Language Models Made Simple
 
 
 ## Overview
-**dLLM** is an educational library offering unified implementations for training **diffusion language models**. It brings transparency to the entire training and deployment process, making **reproduction and finetuning** of open-weight diffusion language models much easier. Below are some of the key features that make dLLM special:
+**dLLM** is an educational library offering unified implementations for training and evaluating **diffusion language models**. It brings transparency to the entire development pipeline, making **reproduction** of open-weight diffusion language models much easier. Below are some of the key features that make dLLM special:
 
-- dLLM provides reproduction and finetuning recipes for a variety of open-weight models (e.g., [LLaDA](https://arxiv.org/abs/2502.09992), [Dream](https://arxiv.org/abs/2508.15487) and [RND1](https://www.radicalnumerics.ai/assets/rnd1_report.pdf)), and provides reference implementation of various training algorithms (e.g., [Edit Flows](https://arxiv.org/abs/2506.09018)).
+ <!-- and [RND1](https://www.radicalnumerics.ai/assets/rnd1_report.pdf) -->
 
-- dLLM, built on top of [🤗 Transformers](https://github.com/huggingface/transformers), scales seamlessly—from edge devices with [LoRA](https://github.com/huggingface/peft) to multi-node clusters with [DeepSpeed](https://github.com/deepspeedai/DeepSpeed)/[FSDP](https://pytorch.org/blog/introducing-pytorch-fully-sharded-data-parallel-api/) and beyond.
+- dLLM provides modular training pipelines (inspired by [🤗 Transformers Trainer](https://github.com/huggingface/transformers/blob/main/src/transformers/trainer.py)), which scales easily with [LoRA](https://github.com/huggingface/peft) and [DeepSpeed](https://github.com/deepspeedai/DeepSpeed) / [FSDP](https://pytorch.org/blog/introducing-pytorch-fully-sharded-data-parallel-api/) and beyond.
 
-- dLLM provides unified, modular training pipelines (inspired by [🤗 Transformers Trainer](https://github.com/huggingface/transformers/blob/main/src/transformers/trainer.py)) and well-documented [examples](/examples/), making customization simple and development highly user-friendly.
+- dLLM provides unified evaluation pipelines (inspired by [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness)), abstracting away inference details and making customization simple.
 
-> [!NOTE]
-> This repository is primarily for educational purposes and does not aim for 100% exact reproduction of official models (which is impossible). We hope it serves as a helpful reference for the community — contributions and improvements are always welcome!
+- With these modules, we provide the minimal pretraining / finetuning / evaluation recipes for a variety of open-weight models (e.g., [LLaDA](https://arxiv.org/abs/2502.09992) and [Dream](https://arxiv.org/abs/2508.15487)), and implementations of various training algorithms (e.g., [Edit Flows](https://arxiv.org/abs/2506.09018)).
 
+<!-- > [!NOTE]
+> This repository is primarily for educational purposes and does not aim for 100% exact reproduction of official models (which is impossible). We hope it serves as a helpful reference for the community — contributions and improvements are always welcome! -->
+
+
+## News
+**[2025/10]** We release a collection of BERTs finetuned for instruction-following: [`ModernBERT-{large,base}-{chat,code}-v1`](https://huggingface.co/collections/dllm-collection/generative-bert). This proof-of-concept shows that BERT’s internal knowledge can be leveraged for generative tasks via masked instruction tuning. See [blog](https://wandb.ai/asap-zzhou/dllm/reports/dLLM-Generative-BERT--VmlldzoxNDg0MzExNg) for experimental results and lessons learned and [`examples/bert`](/examples/bert) for reproduction instructions.
 
 ## Table of Contents
 <!-- - [Overview](#overview) -->
-- [Features & Documentation](#features--documentations)
+- [Features](#features)
 - [Setup](#setup)
   <!-- - [Installation](#installation)
   - [(optional) Slurm setup](#optional-slurm-setup) -->
 - [Files overview](#files-overview)
 - [Training](#training)
-- [Roadmap](#roadmap)
+- [Inference](#inference)
+- [Evaluation](#evaluation)
 - [Citation](#citation)
 
 
-## Features & Documentations
+## Features
 
-1. [`examples/llada`](/examples/llada): Finetuning open-weight LLaDA [LLaDA](https://arxiv.org/abs/2502.09992) / [LLaDA-MoE](https://arxiv.org/abs/2509.24389), as well as reproducing LLaDA by training from scratch on public data (pretraining & finetuning).
-2. [`examples/dream`](/examples/dream): Finetuning open-weight Dream [Dream](https://arxiv.org/abs/2508.15487), as well as reproducing Dream by training from scratch on public data (pretraining & finetuning).
-3. [`examples/rnd`](/examples/rnd): (WIP) Finetuning open-weight RND1 [RND1-Base](https://www.radicalnumerics.ai/assets/rnd1_report.pdf).
-4. [`examples/editflow`](/examples/editflow): Educational reference for training [EditFlow](https://arxiv.org/abs/2506.09018) models, demonstrating how to extend existing DLLMs (e.g., LLaDA and Dream) with *edit operations*—insertion, deletion, and substitution—and how to pretrain or finetune EditFlow models from scratch on public data.
+- [`examples/llada`](/examples/llada): Finetuning open-weight LLaDA [LLaDA](https://arxiv.org/abs/2502.09992) / [LLaDA-MoE](https://arxiv.org/abs/2509.24389), as well as reproducing LLaDA by training from scratch on public data (pretraining & finetuning).
+- [`examples/dream`](/examples/dream): Finetuning open-weight Dream [Dream](https://arxiv.org/abs/2508.15487), as well as reproducing Dream by training from scratch on public data (pretraining & finetuning).
+- [`examples/rnd`](/examples/rnd): (WIP) Finetuning open-weight RND1 [RND1-Base](https://www.radicalnumerics.ai/assets/rnd1_report.pdf).
+- [`examples/editflow`](/examples/editflow): Educational reference for training [EditFlow](https://arxiv.org/abs/2506.09018) models, demonstrating how to extend existing DLLMs (e.g., LLaDA and Dream) with *edit operations*—insertion, deletion, and substitution—and how to pretrain or finetune EditFlow models from scratch on public data.
 
    <details>
    <summary>🎬 Click to show EditFlow Demo</summary>
@@ -53,8 +59,9 @@ Training Diffusion Large Language Models Made Simple
 
    </details>
 
+- [`examples/bert`](/examples/bert): [TODO]
 
-4. More upcoming — see [Roadmap](#roadmap).
+- More upcoming.
 
 
 ## Setup
@@ -93,6 +100,7 @@ This folder will store the log files generated by your sbatch jobs.
 # modules for training / sampling
 dllm
 ├── core                # Core reusable modules shared across `dllm/pipelines` 
+│   ├── generation
 │   ├── schedulers
 │   └── trainers
 ├── data
@@ -100,9 +108,9 @@ dllm
 │   ├── dream
 │   ├── editflow
 │   └── llada
-│       ├── models      # Model architecture and configs 
-│       ├── generate.py # Generation utilities
-│       └── trainer.py  # Core training logic
+│       ├── models       # Model architecture and configs 
+│       ├── generator.py # Generation utilities
+│       └── trainer.py   # Core training logic
 ├── tools
 └── utils
 
@@ -117,7 +125,9 @@ examples
     └── sft.py         # SFT example
 ```
 
-A typical training entry script look like (for example, [`examples/llada/sft.py`](/examples/llada/sft.py)) looks like this:
+## Training
+
+A typical training entry script looks like (for example, [`examples/llada/sft.py`](/examples/llada/sft.py)) looks like this:
 ```python
 import transformers
 
@@ -127,12 +137,12 @@ model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 # ----- Model ------------------------------------------------------------------
 model = dllm.utils.get_model(model_args=model_args)
 # ----- Tokenizer --------------------------------------------------------------
-tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
+tokenizer = dllm.utils.get_tokenizer(model_args=model_args)
 # ----- Dataset ----------------------------------------------------------------
 dataset = "..."
 
 # ----- Training --------------------------------------------------------------
-trainer = dllm.pipelines.llada.LLaDATrainer(
+trainer = dllm.core.trainers.MDLMTrainer(
     model=model,
     tokenizer=tokenizer,
     train_dataset=dataset["train"],
@@ -140,16 +150,14 @@ trainer = dllm.pipelines.llada.LLaDATrainer(
     args=training_args,
     data_collator=transformers.DataCollatorForSeq2Seq(
         tokenizer,
-        pad_to_multiple_of=8,
         return_tensors="pt",
         padding=True,
-        label_pad_token_id=tokenizer.pad_token_id,  # LLaDA is trained on padding <eos_token>
+        label_pad_token_id=tokenizer.pad_token_id, 
     ),
 )
 trainer.train()
 ```
 
-## Training
 You can launch training job locally with `accelerate`, or submit it to a [Slurm](https://slurm.schedmd.com/) cluster using `sbatch`.
 ```shell
 # Run locally (ZeRO-2 on 8 GPUs with 4bit quantization and LoRA)
@@ -172,25 +180,67 @@ sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
     --script_path "examples/llada/sft.py" \
     --num_train_epochs 4
 ```
-See [Features & Documentation](#features--documentations) for training/inference details and task-specific recipes.
+See [Features](#features) for specific training recipes.
 
 
-## Roadmap
+> [!NOTE]
+> Here are some useful tips for training:
+> 1. Use a subset of data:
+> `--dataset_args "allenai/tulu-3-sft-mixture[train:10000,test:1000]"`
+> 2. Concatenate datasets:
+> `--dataset_args "allenai/tulu-3-sft-mixture|HuggingFaceTB/smoltalk"`
+> 3. Train with LoRA and 4bit quantization:
+> `--load_in_4bit True --lora True`
+> 4. Train with different distributed training methods:
+> `--accelerate_config" ddp,zero-{1,2,3},fsdp"`
 
-- [ ] Support for additional diffusion LLMs.  
+## Inference
 
-- [ ] Support for evaluation.
+We provide unified [generators](/dllm/core/generation/generator.py) that abstracts away inference details. 
+A typical inference entry script (for example, [`examples/llada/generate.py`](/examples/llada/generate.py)) looks like this:
+```python
+import dllm
+from dllm import llada
 
-- [ ] Support for RL finetuning.
+model = dllm.utils.get_model(model_args=script_args).eval()
+tokenizer = dllm.utils.get_tokenizer(model_args=script_args)
+# for other models, change your generator and keep others unchanged
+generator = llada.LLaDAGenerator(model=model, tokenizer=tokenizer)
 
+messages = [
+    [{"role": "user", "content": "Lily runs 12 km/h for 4 hours. How far in 8 hours?"}],
+    [{"role": "user", "content": "Please write an educational python function."}],
+]
+
+inputs = tokenizer.apply_chat_template(
+    messages,
+    add_generation_prompt=True,
+    tokenize=True,
+)
+
+outputs = generator.generate(inputs, return_dict_in_generate=True)
+sequences = decode_trim(tokenizer, outputs.sequences.tolist(), inputs)
+```
+
+You can also try interactive chat script (for example, [`examples/llada/chat.py`](/examples/llada/chat.py)) for visualized multi-turn dialogue:
+
+<p align="center">
+    <img src="/assets/chat.gif" alt="chat" width="80%">
+</p>
+<!-- <p align="center"><em>EditFlow performing insertion (blue), substitution from mask tokens (black), substitution from non-mask tokens (red), and deletion (strikethrough → removed) during generation.</em></p> -->
+
+## Evaluation
+
+[TODO]
 
 ## Citation
 ```
 @misc{dllm,
-    author = {Zhanhui Zhou and Lingjie Chen},
-    title = {dLLM: Training Diffusion Large Language Models Made Simple},
-    howpublished = {https://github.com/ZHZisZZ/dllm},
-    note = {Accessed: 2025-10-12},
-    year = {2025}
+    author = {Zhanhui Zhou and Lingjie Chen and Hanghang Tong and Dawn Song},
+    title = {dLLM: Simple Diffusion Language Modeling},
+    year = {2025},
+    publisher = {GitHub},
+    journal = {GitHub repository},
+    howpublished = {\url{https://github.com/ZHZisZZ/dllm}},
 }
 ```

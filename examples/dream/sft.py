@@ -16,7 +16,7 @@ Slurm users
 # Note: run `mkdir logs` before running sbatch; and adjust 
 #       `partition` and `quotatype` in `scripts/train.slurm.sh` for your cluster.
 ------------
-- 1 Nodes, 8 GPUs (FSDP):
+- 1 Node, 8 GPUs (FSDP):
     sbatch --gres=gpu:1 scripts/train.slurm.sh \
         --accelerate_config "fsdp" \
         --script_path "examples/dream/sft.py"
@@ -138,13 +138,11 @@ def train():
     # ----- Model ------------------------------------------------------------------
     model = dllm.utils.get_model(model_args=model_args)
     # ----- Tokenizer --------------------------------------------------------------
-    tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
+    tokenizer = dllm.utils.get_tokenizer(model_args=model_args)
 
     # ----- Dataset ----------------------------------------------------------------
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_sft_dataset(data_args.dataset_args)
-
-        # Use functools.partial so this fn can be imported elsewhere without binding tokenizer/flags.
         if not data_args.load_preprocessed_data:
             map_fn = partial(
                 sft_map_fn,
@@ -152,7 +150,6 @@ def train():
                 mask_prompt_loss=data_args.mask_prompt_loss,
             )
             dataset = dataset.map(map_fn, num_proc=data_args.num_proc)
-
         # truncate / filter long sequences if needed
         dataset = dllm.utils.post_process_dataset(dataset, data_args)
 
