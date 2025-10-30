@@ -9,9 +9,10 @@ import accelerate
 from datasets import Dataset
 from packaging import version
 from tqdm import tqdm
+from types import SimpleNamespace
 
 import dllm
-from dllm.pipelines.dream import generate
+from dllm.pipelines.dream import DreamGenerator
 from lm_eval import utils
 from lm_eval.api.instance import Instance
 from lm_eval.api.model import LM
@@ -69,10 +70,10 @@ class Dream(LM):
             self._world_size = 1
 
         # Use accelerator for device placement
-        self.model = dllm.utils.get_model(
+        self.model = dllm.utils.get_model(SimpleNamespace(
             model_name_or_path=pretrained,
             dtype=get_dtype(dtype)
-        )
+        ))
         self.model.eval()
 
         if accelerator.num_processes > 1:
@@ -86,7 +87,10 @@ class Dream(LM):
             self.device = torch.device(device)
             self.accelerator = None
 
-        self.tokenizer = dllm.utils.get_tokenizer(model_name_or_path=pretrained, model=self.model)
+        self.tokenizer = dllm.utils.get_tokenizer(SimpleNamespace(
+            model_name_or_path=pretrained, 
+            model=self.model
+            ))
         self.tokenizer.chat_template = """{%- if tools %}\n {{- '<|im_start|>system\\n' }}\n {%- if messages[0]['role'] == 'system' %}\n {{- messages[0]['content'] }}\n {%- else %}\n {{- 'You are a helpful assistant.' }}\n {%- endif %}\n {{- \"\\n\\n# Tools\\n\\nYou may call one or more functions to assist with the user query.\\n\\nYou are provided with function signatures within <tools></tools> XML tags:\\n<tools>\" }}\n {%- for tool in tools %}\n {{- \"\\n\" }}\n {{- tool | tojson }}\n {%- endfor %}\n {{- \"\\n</tools>\\n\\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\\n<tool_call>\\n{\\\"name\\\": <function-name>, \\\"arguments\\\": <args-json-object>}\\n</tool_call><|im_end|>\\n\" }}\n{%- else %}\n {%- if messages[0]['role'] == 'system' %}\n {{- '<|im_start|>system\\n' + messages[0]['content'] + '<|im_end|>\\n' }}\n {%- else %}\n {{- '<|im_start|>system\\nYou are a helpful assistant.<|im_end|>\\n' }}\n {%- endif %}\n{%- endif %}\n{%- for message in messages %}\n {%- if (message.role == \"user\") or (message.role == \"system\" and not loop.first) or (message.role == \"assistant\" and not message.tool_calls) %}\n {{- '<|im_start|>' + message.role + '\\n' + message.content + '<|im_end|>' + '\\n' }}\n {%- elif message.role == \"assistant\" %}\n {{- '<|im_start|>' + message.role }}\n {%- if message.content %}\n {{- '\\n' + message.content }}\n {%- endif %}\n {%- for tool_call in message.tool_calls %}\n {%- if tool_call.function is defined %}\n {%- set tool_call = tool_call.function %}\n {%- endif %}\n {{- '\\n<tool_call>\\n{\"name\": \"' }}\n {{- tool_call.name }}\n {{- '\", \"arguments\": ' }}\n {{- tool_call.arguments | tojson }}\n {{- '}\\n</tool_call>' }}\n {%- endfor %}\n {{- '<|im_end|>\\n' }}\n {%- elif message.role == \"tool\" %}\n {%- if (loop.index0 == 0) or (messages[loop.index0 - 1].role != \"tool\") %}\n {{- '<|im_start|>user' }}\n {%- endif %}\n {{- '\\n<tool_response>\\n' }}\n {{- message.content }}\n {{- '\\n</tool_response>' }}\n {%- if loop.last or (messages[loop.index0 + 1].role != \"tool\") %}\n {{- '<|im_end|>\\n' }}\n {%- endif %}\n {%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n {{- '<|im_start|>assistant\\n' }}\n{%- else %}\n{{ '<|endoftext|>' }}\n{%- endif %}\n""".lstrip()
 
         self.max_length = max_length
@@ -156,7 +160,7 @@ class Dream(LM):
             disable=(disable_tqdm or (self.rank != 0)),
             desc="Running generate_until requests",
         )
-
+        generator = DreamGenerator(model=self.model, tokenizer=self.tokenizer)
         for batch_idx in range(0, len(requests), self.batch_size):
             batch_requests = requests[batch_idx : batch_idx + self.batch_size]
             contexts, gen_args = zip(*[req.arguments for req in batch_requests])
@@ -179,11 +183,9 @@ class Dream(LM):
                 prompt_ids = [p_id[-cutoff_len:] for p_id in prompt_ids]
 
             # generation
-            generation_ids = generate(
-                model=self.model,
-                tokenizer=self.tokenizer,
+            generation_ids = generator.generate(
                 max_new_tokens=self.max_new_tokens,
-                prompts=prompt_ids,
+                inputs=prompt_ids,
                 steps=self.steps,
                 temperature=self.temperature,
                 top_p=self.top_p,

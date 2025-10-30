@@ -18,10 +18,12 @@ from lm_eval.api.instance import Instance
 from lm_eval.api.model import LM
 from lm_eval.models.utils import get_dtype
 from lm_eval.api.registry import register_model
+from transformers.models.modernbert.modeling_modernbert import ModernBertForMaskedLM
 from tqdm import tqdm
 
 from transformers import AutoTokenizer, AutoModel
-from dllm.pipelines.llada import generate
+from dllm.pipelines.llada import LLaDAGenerator
+from types import SimpleNamespace
 
 
 @register_model("llada_dist")
@@ -72,10 +74,10 @@ class LLaDAEvalHarness(LM):
             self._world_size = 1
 
         # Use accelerator for device placement
-        self.model = dllm.utils.get_model(
+        self.model = dllm.utils.get_model(SimpleNamespace(
             model_name_or_path=pretrained,
             dtype=get_dtype(dtype)
-        )
+        ))
         self.model.eval()
 
         if accelerator.num_processes > 1:
@@ -89,9 +91,13 @@ class LLaDAEvalHarness(LM):
             self.device = torch.device(device)
             self.accelerator = None
 
-        self.mask_id = mask_id
-        assert self.mask_id == 126336, f"The mask token id should be {126336} for llada model."
-        self.tokenizer = dllm.utils.get_tokenizer(model_name_or_path=pretrained, model=self.model)
+        # self.mask_id = mask_id
+        # assert self.mask_id == 126336, f"The mask token id should be {126336} for llada model."
+        self.tokenizer = dllm.utils.get_tokenizer(SimpleNamespace(
+            model_name_or_path=pretrained, 
+            model=self.model
+            ))
+        self.mask_id = self.tokenizer.mask_token_id
         # Because when we use distributed process, model_types are  <class 'torch.nn.parallel.distributed.DistributedDataParallel'>
         self.tokenizer.mask_token = "<|mdm_mask|>"
         self.tokenizer.mask_token_id = self.tokenizer.convert_tokens_to_ids("<|mdm_mask|>")
@@ -296,14 +302,13 @@ class LLaDAEvalHarness(LM):
         ds = ds.with_format("torch")
 
         out = []
+        generator = LLaDAGenerator(model=self.model, tokenizer=self.tokenizer)
         
         for elem in tqdm(ds, desc="Generating..."):
             prompt = [elem["question"].to(self.device)]
             stop_tokens = elem["until"]
-            generated_ids = generate(
-                model=self.model, 
-                tokenizer=self.tokenizer, 
-                prompts=prompt, 
+            generated_ids = generator.generate(
+                inputs=prompt, 
                 steps=self.steps, 
                 max_new_tokens=self.max_new_tokens, 
                 block_length=self.block_length, 
