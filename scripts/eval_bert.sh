@@ -29,7 +29,6 @@ accelerate launch \
     --batch_size 1 \
     ${common_args} \
     --num_fewshot 0 \
-    --limit 100 \
     --model_args "pretrained=ModernBERT-base/checkpoint-final,is_check_greedy=False,mc_num=1,max_new_tokens=128,steps=128,block_length=128"
 
 accelerate launch \
@@ -41,7 +40,6 @@ accelerate launch \
     --batch_size 1 \
     ${common_args} \
     --num_fewshot 0 \
-    --limit 100 \
     --model_args "pretrained=ModernBERT-base/checkpoint-final,is_check_greedy=False,mc_num=1,max_new_tokens=128,steps=128,block_length=128"
 
 accelerate launch \
@@ -53,7 +51,6 @@ accelerate launch \
     --batch_size 1 \
     ${common_args} \
     --num_fewshot 0 \
-    --limit 100 \
     --model_args "pretrained=ModernBERT-base/checkpoint-final,is_check_greedy=False,mc_num=1,max_new_tokens=256,steps=256,block_length=256"
 
 accelerate launch \
@@ -65,7 +62,6 @@ accelerate launch \
     --batch_size 1 \
     ${common_args} \
     --num_fewshot 0 \
-    --limit 100 \
     --model_args "pretrained=ModernBERT-base/checkpoint-final,is_check_greedy=False,mc_num=1,max_new_tokens=128,steps=128,block_length=128"
 
 accelerate launch \
@@ -77,5 +73,4 @@ accelerate launch \
     --batch_size 1 \
     ${common_args} \
     --num_fewshot 0 \
-    --limit 100 \
     --model_args "pretrained=ModernBERT-base/checkpoint-final,is_check_greedy=False,mc_num=1,max_new_tokens=128,steps=128,block_length=128"
