@@ -151,4 +151,20 @@ python examples/dream/chat.py --model_name_or_path "Dream-org/Dream-v0-Instruct-
 ```
 
 ## Evaluation
-[TODO]
+```shell
+accelerate launch  --num_processes 4 --num_machines 1 --main_process_port 20006 \
+    dllm/eval/eval_dream.py \
+    --tasks mmlu_pro \
+    --batch_size 1 \
+    --model dream \
+    --seed 1234 \
+    --device cuda \
+    --apply_chat_template \
+    --num_fewshot 4 \
+    --model_args "pretrained=Dream-org/Dream-v0-Instruct-7B,mc_num=1,max_new_tokens=128,max_length=128,steps=128,temperature=0.1,top_p=0.9,add_bos_token=true,escape_until=true"
+
+# Run using preconfigured script
+bash scripts/eval_dream_base.sh
+bash scripts/eval_dream_instruct.sh
+```
+

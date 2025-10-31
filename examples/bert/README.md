@@ -76,17 +76,16 @@ accelerate launch --config_file scripts/accelerate_configs/zero2.yaml --num_proc
 
 ## Evaluation
 ```shell
-accelerate launch  --num_processes 4 --num_machines 1 --main_process_port 20005 \
+accelerate launch  --num_processes 4 --num_machines 1 --main_process_port 20004 \
     dllm/eval/eval_bert.py \
-    --tasks hellaswag_gen \
+    --tasks mmlu_pro \
     --batch_size 1 \
     --model bert \
     --seed 1234 \
     --device cuda \
     --apply_chat_template \
     --num_fewshot 0 \
-    --limit 100 \
-    --model_args "pretrained=ModernBERT-base/checkpoint-final,is_check_greedy=False,mc_num=1,max_new_tokens=128,steps=128,block_length=128"
+    --model_args "pretrained=ModernBERT-base/checkpoint-final,is_check_greedy=False,mc_num=1,max_new_tokens=256,steps=256,block_length=256"
 
 # Run using preconfigured script
 bash scripts/eval_bert.sh
