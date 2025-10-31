@@ -1,10 +1,14 @@
-from dllm.pipelines.editflow import trainer, utils
-from dllm.pipelines.editflow.models.dream.modelling_dream import (
+from . import trainer, utils
+from .models.dream.modelling_dream import (
     EditFlowDreamConfig,
     EditFlowDreamModel,
 )
-from dllm.pipelines.editflow.models.llada.modelling_llada import (
+from .models.llada.modelling_llada import (
     EditFlowLLaDAConfig,
     EditFlowLLaDAModel,
+)
+from .models.bert.modelling_modernbert import (
+    EditFlowModernBertConfig,
+    EditFlowModernBertModel,
 )
 from dllm.pipelines.editflow.trainer import EditFlowTrainer

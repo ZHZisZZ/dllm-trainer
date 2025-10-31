@@ -4,13 +4,13 @@ Local users
 - 1 GPU (LoRA, useful for testing):
     accelerate launch \
         --config_file scripts/accelerate_configs/ddp.yaml --num_processes 1 \
-        examples/editflow/adapt_dream.py \
+        examples/editflow/dream/adapt.py \
         --lora True
     
 - 8 GPUs (FSDP):
     accelerate launch \
         --config_file scripts/accelerate_configs/fsdp.yaml \
-        examples/editflow/adapt_dream.py
+        examples/editflow/dream/adapt.py
 
 Slurm users
 # Note: run `mkdir logs` before running sbatch; and adjust 
@@ -19,12 +19,12 @@ Slurm users
 - 1 Node, 8 GPUs (FSDP):
     sbatch --gres=gpu:8 scripts/train.slurm.sh \
         --accelerate_config "fsdp" \
-        --script_path "examples/editflow/adapt_dream.py"
+        --script_path "examples/editflow/dream/adapt.py"
 
 - 2 Nodes, 16 GPUs (FSDP):
     sbatch --nodes=2 --gres=gpu:8 scripts/train.slurm.sh \
         --accelerate_config "fsdp" \
-        --script_path "examples/editflow/adapt_dream.py"
+        --script_path "examples/editflow/dream/adapt.py"
 """
 
 from dataclasses import dataclass
@@ -33,7 +33,7 @@ import torch
 import transformers
 
 import dllm
-import sft as editflow_sft
+from .. import sft as editflow_sft
 
 
 @dataclass

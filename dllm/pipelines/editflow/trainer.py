@@ -13,140 +13,140 @@ from dllm.pipelines.editflow.utils import pad_1d
 
 BLANK = -1
 
-# def align_with_blanks(x0: List[int], x1: List[int], sub_cost: int = 1, gap_cost: int = 1) -> Dict:
-#     """
-#     Needleman–Wunsch global alignment of two integer sequences with:
-#         match cost = 0, substitution cost = sub_cost, gap cost = gap_cost.
-#     Returns aligned sequences (z0, z1) of equal length containing BLANK = ε where gaps occur.
-#     """
-#     n, m = len(x0), len(x1)
-#     # DP tables
-#     dp = [[0]*(m+1) for _ in range(n+1)]
-#     ptr = [[None]*(m+1) for _ in range(n+1)]  # 'diag', 'up', 'left'
-
-#     for i in range(1, n+1):
-#         dp[i][0] = i * gap_cost
-#         ptr[i][0] = 'up'
-#     for j in range(1, m+1):
-#         dp[0][j] = j * gap_cost
-#         ptr[0][j] = 'left'
-
-#     for i in range(1, n+1):
-#         for j in range(1, m+1):
-#             cost_diag = dp[i-1][j-1] + (0 if x0[i-1] == x1[j-1] else sub_cost)
-#             cost_up   = dp[i-1][j] + gap_cost
-#             cost_left = dp[i][j-1] + gap_cost
-#             best = min(cost_diag, cost_up, cost_left)
-#             dp[i][j] = best
-#             if best == cost_diag:
-#                 ptr[i][j] = 'diag'
-#             elif best == cost_up:
-#                 ptr[i][j] = 'up'
-#             else:
-#                 ptr[i][j] = 'left'
-
-#     # traceback
-#     z0, z1 = [], []
-#     i, j = n, m
-#     while i > 0 or j > 0:
-#         p = ptr[i][j]
-#         if p == 'diag':
-#             z0.append(x0[i-1])
-#             z1.append(x1[j-1])
-#             i -= 1; j -= 1
-#         elif p == 'up':
-#             z0.append(x0[i-1])
-#             z1.append(BLANK)
-#             i -= 1
-#         else:  # 'left'
-#             z0.append(BLANK)
-#             z1.append(x1[j-1])
-#             j -= 1
-#     z0.reverse(); z1.reverse()
-#     # return Alignment(z0=z0, z1=z1)
-#     # return {"z0": z0, "z1": z1}
-#     return dict(z0=z0, z1=z1)
-
-
-def align_with_blanks(
-    x0: list[int], x1: list[int], sub_cost: int = 1, gap_cost: int = 1
-) -> dict:
+def align_with_blanks(x0: List[int], x1: List[int], sub_cost: int = 1, gap_cost: int = 1) -> Dict:
     """
-    Needleman–Wunsch with a secondary objective that defers gaps to the end:
-      - 'up' (gap in z1) is penalized if j < m
-      - 'left' (gap in z0) is penalized if i < n
-    This pushes blanks (-1) to the *right* whether x0 > x1 or x0 < x1.
+    Needleman–Wunsch global alignment of two integer sequences with:
+        match cost = 0, substitution cost = sub_cost, gap cost = gap_cost.
+    Returns aligned sequences (z0, z1) of equal length containing BLANK = ε where gaps occur.
     """
     n, m = len(x0), len(x1)
+    # DP tables
+    dp = [[0]*(m+1) for _ in range(n+1)]
+    ptr = [[None]*(m+1) for _ in range(n+1)]  # 'diag', 'up', 'left'
 
-    dp_cost = [[0] * (m + 1) for _ in range(n + 1)]
-    dp_pen = [[0] * (m + 1) for _ in range(n + 1)]
-    ptr = [[None] * (m + 1) for _ in range(n + 1)]  # 'diag' | 'up' | 'left'
+    for i in range(1, n+1):
+        dp[i][0] = i * gap_cost
+        ptr[i][0] = 'up'
+    for j in range(1, m+1):
+        dp[0][j] = j * gap_cost
+        ptr[0][j] = 'left'
 
-    # Left edge: all 'up' moves with j=0 (< m) → penalize each step
-    for i in range(1, n + 1):
-        dp_cost[i][0] = i * gap_cost
-        dp_pen[i][0] = i  # i early 'up' moves
-        ptr[i][0] = "up"
-
-    # Top edge: all 'left' moves with i=0 (< n) → penalize each step
-    for j in range(1, m + 1):
-        dp_cost[0][j] = j * gap_cost
-        dp_pen[0][j] = j  # j early 'left' moves
-        ptr[0][j] = "left"
-
-    for i in range(1, n + 1):
-        xi = x0[i - 1]
-        for j in range(1, m + 1):
-            yj = x1[j - 1]
-
-            # diag
-            cost_diag = dp_cost[i - 1][j - 1] + (0 if xi == yj else sub_cost)
-            pen_diag = dp_pen[i - 1][j - 1]
-            cand_diag = (cost_diag, pen_diag)
-
-            # up: add blank to z1, penalize if j < m (early)
-            cost_up = dp_cost[i - 1][j] + gap_cost
-            pen_up = dp_pen[i - 1][j] + (1 if j < m else 0)
-            cand_up = (cost_up, pen_up)
-
-            # left: add blank to z0, penalize if i < n (early)
-            cost_left = dp_cost[i][j - 1] + gap_cost
-            pen_left = dp_pen[i][j - 1] + (1 if i < n else 0)
-            cand_left = (cost_left, pen_left)
-
-            # choose (cost,pen) min; deterministic tie-break: diag > left > up
-            best = min(cand_diag, cand_left, cand_up)
-            dp_cost[i][j], dp_pen[i][j] = best
-            if best == cand_diag:
-                ptr[i][j] = "diag"
-            elif best == cand_left:
-                ptr[i][j] = "left"
+    for i in range(1, n+1):
+        for j in range(1, m+1):
+            cost_diag = dp[i-1][j-1] + (0 if x0[i-1] == x1[j-1] else sub_cost)
+            cost_up   = dp[i-1][j] + gap_cost
+            cost_left = dp[i][j-1] + gap_cost
+            best = min(cost_diag, cost_up, cost_left)
+            dp[i][j] = best
+            if best == cost_diag:
+                ptr[i][j] = 'diag'
+            elif best == cost_up:
+                ptr[i][j] = 'up'
             else:
-                ptr[i][j] = "up"
+                ptr[i][j] = 'left'
 
     # traceback
     z0, z1 = [], []
     i, j = n, m
     while i > 0 or j > 0:
         p = ptr[i][j]
-        if p == "diag":
-            z0.append(x0[i - 1])
-            z1.append(x1[j - 1])
-            i -= 1
-            j -= 1
-        elif p == "up":
-            z0.append(x0[i - 1])
+        if p == 'diag':
+            z0.append(x0[i-1])
+            z1.append(x1[j-1])
+            i -= 1; j -= 1
+        elif p == 'up':
+            z0.append(x0[i-1])
             z1.append(BLANK)
             i -= 1
         else:  # 'left'
             z0.append(BLANK)
-            z1.append(x1[j - 1])
+            z1.append(x1[j-1])
             j -= 1
-
-    z0.reverse()
-    z1.reverse()
+    z0.reverse(); z1.reverse()
+    # return Alignment(z0=z0, z1=z1)
+    # return {"z0": z0, "z1": z1}
     return dict(z0=z0, z1=z1)
+
+
+# def align_with_blanks(
+#     x0: list[int], x1: list[int], sub_cost: int = 1, gap_cost: int = 1
+# ) -> dict:
+#     """
+#     Needleman–Wunsch with a secondary objective that defers gaps to the end:
+#       - 'up' (gap in z1) is penalized if j < m
+#       - 'left' (gap in z0) is penalized if i < n
+#     This pushes blanks (-1) to the *right* whether x0 > x1 or x0 < x1.
+#     """
+#     n, m = len(x0), len(x1)
+
+#     dp_cost = [[0] * (m + 1) for _ in range(n + 1)]
+#     dp_pen = [[0] * (m + 1) for _ in range(n + 1)]
+#     ptr = [[None] * (m + 1) for _ in range(n + 1)]  # 'diag' | 'up' | 'left'
+
+#     # Left edge: all 'up' moves with j=0 (< m) → penalize each step
+#     for i in range(1, n + 1):
+#         dp_cost[i][0] = i * gap_cost
+#         dp_pen[i][0] = i  # i early 'up' moves
+#         ptr[i][0] = "up"
+
+#     # Top edge: all 'left' moves with i=0 (< n) → penalize each step
+#     for j in range(1, m + 1):
+#         dp_cost[0][j] = j * gap_cost
+#         dp_pen[0][j] = j  # j early 'left' moves
+#         ptr[0][j] = "left"
+
+#     for i in range(1, n + 1):
+#         xi = x0[i - 1]
+#         for j in range(1, m + 1):
+#             yj = x1[j - 1]
+
+#             # diag
+#             cost_diag = dp_cost[i - 1][j - 1] + (0 if xi == yj else sub_cost)
+#             pen_diag = dp_pen[i - 1][j - 1]
+#             cand_diag = (cost_diag, pen_diag)
+
+#             # up: add blank to z1, penalize if j < m (early)
+#             cost_up = dp_cost[i - 1][j] + gap_cost
+#             pen_up = dp_pen[i - 1][j] + (1 if j < m else 0)
+#             cand_up = (cost_up, pen_up)
+
+#             # left: add blank to z0, penalize if i < n (early)
+#             cost_left = dp_cost[i][j - 1] + gap_cost
+#             pen_left = dp_pen[i][j - 1] + (1 if i < n else 0)
+#             cand_left = (cost_left, pen_left)
+
+#             # choose (cost,pen) min; deterministic tie-break: diag > left > up
+#             best = min(cand_diag, cand_left, cand_up)
+#             dp_cost[i][j], dp_pen[i][j] = best
+#             if best == cand_diag:
+#                 ptr[i][j] = "diag"
+#             elif best == cand_left:
+#                 ptr[i][j] = "left"
+#             else:
+#                 ptr[i][j] = "up"
+
+#     # traceback
+#     z0, z1 = [], []
+#     i, j = n, m
+#     while i > 0 or j > 0:
+#         p = ptr[i][j]
+#         if p == "diag":
+#             z0.append(x0[i - 1])
+#             z1.append(x1[j - 1])
+#             i -= 1
+#             j -= 1
+#         elif p == "up":
+#             z0.append(x0[i - 1])
+#             z1.append(BLANK)
+#             i -= 1
+#         else:  # 'left'
+#             z0.append(BLANK)
+#             z1.append(x1[j - 1])
+#             j -= 1
+
+#     z0.reverse()
+#     z1.reverse()
+#     return dict(z0=z0, z1=z1)
 
 
 def strip_blanks(z: list[int]) -> list[int]:
@@ -313,56 +313,56 @@ class EditFlowTrainer(transformers.Trainer):
 
         # -------- 7) Positive edit terms --------
         # For each remaining edit e:  -log true rate(e)  - log token prob(e) if tokenized
-        loss_pos_per = sub_rate_hat.new_zeros(B)  # [B]
-        for b, edits in enumerate(edits_list):
-            if not edits:
-                continue
-            cur_len = int(x_mask[b].sum().item())
-            for e in edits:
-                pos = e.pos
-                assert 0 <= pos < cur_len, f"pos {pos} out of range {cur_len}"
-                if e.kind == "SUB":
-                    loss_pos_per[b] -= logQ_sub[b, pos, e.token] + safe_log(
-                        sub_rate_hat[b, pos]
-                    )
-                elif e.kind == "DEL":
-                    loss_pos_per[b] -= safe_log(del_rate_hat[b, pos])
-                else:  # "INS"
-                    loss_pos_per[b] -= logQ_ins[b, pos, e.token] + safe_log(
-                        ins_rate_hat[b, pos]
-                    )
+        # loss_pos_per = sub_rate_hat.new_zeros(B)  # [B]
+        # for b, edits in enumerate(edits_list):
+        #     if not edits:
+        #         continue
+        #     cur_len = int(x_mask[b].sum().item())
+        #     for e in edits:
+        #         pos = e.pos
+        #         assert 0 <= pos < cur_len, f"pos {pos} out of range {cur_len}"
+        #         if e.kind == "SUB":
+        #             loss_pos_per[b] -= logQ_sub[b, pos, e.token] + safe_log(
+        #                 sub_rate_hat[b, pos]
+        #             )
+        #         elif e.kind == "DEL":
+        #             loss_pos_per[b] -= safe_log(del_rate_hat[b, pos])
+        #         else:  # "INS"
+        #             loss_pos_per[b] -= logQ_ins[b, pos, e.token] + safe_log(
+        #                 ins_rate_hat[b, pos]
+        #             )
 
         # -------- 7) Positive edit terms (vectorized) --------
-        # pos_sub, tok_sub, pos_ins, tok_ins, pos_del = [], [], [], [], []
-        # for b, edits in enumerate(edits_list):
-        #     cur_len = int(x_mask[b].sum().item())
-        #     ps, ts, pi, ti, pd = [], [], [], [], []
-        #     for e in edits:
-        #         if not (0 <= e.pos < cur_len):
-        #             raise AssertionError(f"pos {e.pos} out of range {cur_len} for b={b}")
-        #         if e.kind == "SUB":
-        #             ps.append(e.pos); ts.append(e.token)
-        #         elif e.kind == "INS":
-        #             pi.append(e.pos); ti.append(e.token)
-        #         else:
-        #             pd.append(e.pos)
-        #     pos_sub.append(torch.tensor(ps, device=x_tok.device, dtype=torch.long) if ps else None)
-        #     tok_sub.append(torch.tensor(ts, device=x_tok.device, dtype=torch.long) if ts else None)
-        #     pos_ins.append(torch.tensor(pi, device=x_tok.device, dtype=torch.long) if pi else None)
-        #     tok_ins.append(torch.tensor(ti, device=x_tok.device, dtype=torch.long) if ti else None)
-        #     pos_del.append(torch.tensor(pd, device=x_tok.device, dtype=torch.long) if pd else None)
+        pos_sub, tok_sub, pos_ins, tok_ins, pos_del = [], [], [], [], []
+        for b, edits in enumerate(edits_list):
+            cur_len = int(x_mask[b].sum().item())
+            ps, ts, pi, ti, pd = [], [], [], [], []
+            for e in edits:
+                if not (0 <= e.pos < cur_len):
+                    raise AssertionError(f"pos {e.pos} out of range {cur_len} for b={b}")
+                if e.kind == "SUB":
+                    ps.append(e.pos); ts.append(e.token)
+                elif e.kind == "INS":
+                    pi.append(e.pos); ti.append(e.token)
+                else:
+                    pd.append(e.pos)
+            pos_sub.append(torch.tensor(ps, device=x_tok.device, dtype=torch.long) if ps else None)
+            tok_sub.append(torch.tensor(ts, device=x_tok.device, dtype=torch.long) if ts else None)
+            pos_ins.append(torch.tensor(pi, device=x_tok.device, dtype=torch.long) if pi else None)
+            tok_ins.append(torch.tensor(ti, device=x_tok.device, dtype=torch.long) if ti else None)
+            pos_del.append(torch.tensor(pd, device=x_tok.device, dtype=torch.long) if pd else None)
 
-        # loss_pos_terms = []
-        # for b in range(B):
-        #     lp = x_tok.new_zeros(())
-        #     if pos_sub[b] is not None:
-        #         lp = lp - (logQ_sub[b, pos_sub[b], tok_sub[b]] + safe_log(sub_rate_hat[b, pos_sub[b]])).sum()
-        #     if pos_ins[b] is not None:
-        #         lp = lp - (logQ_ins[b, pos_ins[b], tok_ins[b]] + safe_log(ins_rate_hat[b, pos_ins[b]])).sum()
-        #     if pos_del[b] is not None:
-        #         lp = lp - safe_log(del_rate_hat[b, pos_del[b]]).sum()
-        #     loss_pos_terms.append(lp)
-        # loss_pos_per = torch.stack(loss_pos_terms)  # [B]
+        loss_pos_terms = []
+        for b in range(B):
+            lp = x_tok.new_zeros(())
+            if pos_sub[b] is not None:
+                lp = lp - (logQ_sub[b, pos_sub[b], tok_sub[b]] + safe_log(sub_rate_hat[b, pos_sub[b]])).sum()
+            if pos_ins[b] is not None:
+                lp = lp - (logQ_ins[b, pos_ins[b], tok_ins[b]] + safe_log(ins_rate_hat[b, pos_ins[b]])).sum()
+            if pos_del[b] is not None:
+                lp = lp - safe_log(del_rate_hat[b, pos_del[b]]).sum()
+            loss_pos_terms.append(lp)
+        loss_pos_per = torch.stack(loss_pos_terms)  # [B]
 
         # # Average positive term per sequence (MC estimator across batch)
         loss_pos = ((w * loss_pos_per) / denom).mean()

@@ -1,5 +1,5 @@
 import os
-import functools
+from functools import partial
 from dataclasses import dataclass, field
 
 import transformers
@@ -17,6 +17,7 @@ class ModelArguments(dllm.utils.ModelArguments):
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
     dataset_args: str = "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    load_preprocessed_data: bool = False
     mask_prompt_loss: bool = field(
         default=True,
         metadata={"help": "Whether to mask the loss on the prompt tokens"},
@@ -58,6 +59,35 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     )
 
 
+def sft_map_fn(row, *, tokenizer, mask_prompt_loss: bool = True) -> dict:
+    # - `input_ids`` = prompt + response
+    # - `prompt_len` marks the prompt span to EXCLUDE from loss.
+    #   (Remove prompt_len to train on all tokens—if so, ensure a BOS is prepended.)
+    prompt_response_tokens = tokenizer.apply_chat_template(
+        row["messages"],
+        tokenize=True,
+        add_generation_prompt=False,
+    )
+    if mask_prompt_loss:
+        prompt_tokens = tokenizer.apply_chat_template(
+            row["messages"][:-1],
+            tokenize=True,
+            add_generation_prompt=True,
+        )
+        return {
+            "input_ids": prompt_response_tokens,
+            "prompt_len": len(prompt_tokens),
+        }
+    else:
+        # When training on all tokens, prepend a BOS token (if missing)
+        # so the model can insert to the left of the very first token.
+        if prompt_response_tokens[0] != tokenizer.bos_token_id:
+            prompt_response_tokens = [
+                tokenizer.bos_token_id
+            ] + prompt_response_tokens
+        return {"input_ids": prompt_response_tokens}
+
+
 def train(
     model_args: ModelArguments,
     data_args: DataArguments,
@@ -84,37 +114,15 @@ def train(
     tokenizer = dllm.utils.get_tokenizer(model_args=model_args)
 
     # ----- Dataset ----------------------------------------------------------------
-    # - `input_ids`` = prompt + response
-    # - `prompt_len` marks the prompt span to EXCLUDE from loss.
-    #   (Remove prompt_len to train on all tokens—if so, ensure a BOS is prepended.)
-    def sft_map_fn(row) -> dict:
-        prompt_response_tokens = tokenizer.apply_chat_template(
-            row["messages"],
-            tokenize=True,
-            add_generation_prompt=False,
-        )
-        if data_args.mask_prompt_loss:
-            prompt_tokens = tokenizer.apply_chat_template(
-                row["messages"][:-1],
-                tokenize=True,
-                add_generation_prompt=True,
-            )
-            return {
-                "input_ids": prompt_response_tokens,
-                "prompt_len": len(prompt_tokens),
-            }
-        else:
-            # When training on all tokens, prepend a BOS token (if missing)
-            # so the model can insert to the left of the very first token.
-            if prompt_response_tokens[0] != tokenizer.bos_token_id:
-                prompt_response_tokens = [
-                    tokenizer.bos_token_id
-                ] + prompt_response_tokens
-            return {"input_ids": prompt_response_tokens}
-
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_sft_dataset(data_args.dataset_args)
-        dataset = dataset.map(sft_map_fn, num_proc=data_args.num_proc)
+        if not data_args.load_preprocessed_data:
+            map_fn = partial(
+                sft_map_fn,
+                tokenizer=tokenizer,
+                mask_prompt_loss=data_args.mask_prompt_loss,
+            )
+            dataset = dataset.map(map_fn, num_proc=data_args.num_proc)
         # truncate / filter long sequences if needed
         dataset = dllm.utils.post_process_dataset(dataset, data_args)
 
