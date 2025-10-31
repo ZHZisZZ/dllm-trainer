@@ -97,15 +97,16 @@ def train():
         )
 
     # ----- Tokenizer --------------------------------------------------------------
-    tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
+    tokenizer = dllm.utils.get_tokenizer(model_args=model_args)
     # ----- Optional PEFT: LoRA ----------------------------------------------------
     model = dllm.utils.load_peft(model=model, model_args=model_args)
 
     # ----- Dataset ----------------------------------------------------------------
-    # pack sequences to fixed length (no padding at all); infinite for training
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_pt_dataset(
-            data_args.dataset_args, streaming=data_args.streaming)
+            data_args.dataset_args, 
+            streaming=data_args.streaming,
+        )
         dataset = dataset.map(
             functools.partial(
                 dllm.utils.tokenize_and_group, 
@@ -115,8 +116,10 @@ def train():
                 insert_eos=data_args.insert_eos,
                 drop_tail=data_args.drop_tail),
             batched=True,
+            num_proc=None if data_args.streaming else data_args.num_proc,
             remove_columns=dataset["train"].column_names,
         )
+        if data_args.streaming: dataset = dataset.shuffle(seed=training_args.seed)
 
     # ----- Training --------------------------------------------------------------
     @dataclass

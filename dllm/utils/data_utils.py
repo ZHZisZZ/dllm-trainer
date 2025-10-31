@@ -1,10 +1,12 @@
 import random
 import warnings
+from dataclasses import dataclass
 from itertools import chain
 from typing import TYPE_CHECKING
 
 import torch
 import datasets
+import transformers
 
 if TYPE_CHECKING:
     from dllm.utils.configs import ModelArguments, DataArguments, TrainingArguments
@@ -176,3 +178,43 @@ def post_process_dataset_streaming(
 
     else:
         raise NotImplementedError
+
+
+@dataclass
+class NoAttentionMaskCollator(transformers.DataCollatorForSeq2Seq):
+    def __call__(self, features, return_tensors=None):
+        outputs = super().__call__(features, return_tensors)
+        # fintune on padding <eos_token>; should not mask them out
+        outputs.pop("attention_mask")
+        return outputs
+
+
+def default_sft_map_fn(row, *, tokenizer, mask_prompt_loss: bool = True) -> dict:
+    """
+    Build input_ids and labels for SFT.
+
+    Args:
+        row: a dataset row with `messages`
+        tokenizer: a HF tokenizer
+        mask_prompt_loss: whether to mask prompt tokens (set their labels to -100)
+
+    Returns:
+        dict with keys: input_ids, labels, and optionally prompt_len
+    """
+    prompt_response_tokens = tokenizer.apply_chat_template(
+        row["messages"], tokenize=True, add_generation_prompt=False
+    )
+    labels = prompt_response_tokens.copy()
+
+    if mask_prompt_loss:
+        prompt_tokens = tokenizer.apply_chat_template(
+            row["messages"][:-1], tokenize=True, add_generation_prompt=True
+        )
+        labels[: len(prompt_tokens)] = [-100] * len(prompt_tokens)
+        return {
+            "input_ids": prompt_response_tokens,
+            "labels": labels,
+            "prompt_len": len(prompt_tokens),
+        }
+
+    return {"input_ids": prompt_response_tokens, "labels": labels}

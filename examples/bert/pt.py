@@ -1,94 +1,30 @@
 """
-srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:1 --cpus-per-task=12 --time=03:00:000 \
-    accelerate launch --config_file scripts/accelerate_configs/ddp.yaml --num_processes 1 \
-        examples/bert/pt.py \
-        --model_name_or_path "FacebookAI/roberta-large" \
-        --dataset_args "Trelis/tiny-shakespeare" \
-        --text_field "Text" \
-        --max_length 256 \
-        --output_dir "models/roberta-large/tiny-shakespeare"
+Local users
+------------
+- 1 GPU:
+    accelerate launch \
+        --config_file scripts/accelerate_configs/ddp.yaml --num_processes 1 \
+        examples/bert/pt.py
 
-srun -p $PARTITION --quotatype=$QUOTATYPE --gres=gpu:8 --cpus-per-task=12 --time=03:00:000 \
-    accelerate launch --config_file scripts/accelerate_configs/zero2.yaml --num_processes 8 \
-        examples/bert/pt.py \
-        --model_name_or_path "microsoft/deberta-v2-xxlarge" \
-        --dataset_args "wikitext[name:wikitext-103-v1]" \
-        --text_field "text" \
-        --max_length 512 \
-        --per_device_train_batch_size 8 \
-        --per_device_eval_batch_size 8 \
-        --output_dir "models/deberta-v2-xxlarge/wikitext-103-v1"
+- 8 GPUs (DDP):
+    accelerate launch \
+        --config_file scripts/accelerate_configs/ddp.yaml \
+        examples/bert/pt.py
 
-
-# wikitext-103-v1
-        
-sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
-    --accelerate_config "ddp" \
-    --script_path "examples/bert/pt.py" \
-    --model_name_or_path "FacebookAI/roberta-large" \
-    --dataset_args "wikitext[name:wikitext-103-v1]" \
-    --text_field "text" \
-    --max_length 512 \
-    --num_train_epochs 20 \
-    --per_device_train_batch_size 64 \
-    --per_device_eval_batch_size 64 \
-    --save_steps 0.1 \
-    --output_dir "models/roberta-large/wikitext-103-v1"
-
-sbatch --nodes=1 --gres=gpu:8 scripts/train.slurm.sh \
-    --accelerate_config "ddp" \
-    --script_path "examples/bert/pt.py" \
-    --model_name_or_path "FacebookAI/roberta-base" \
-    --dataset_args "wikitext[name:wikitext-103-v1]" \
-    --text_field "text" \
-    --max_length 512 \
-    --num_train_epochs 20 \
-    --per_device_train_batch_size 64 \
-    --per_device_eval_batch_size 64 \
-    --save_steps 0.1 \
-    --output_dir "models/roberta-base/wikitext-103-v1"
-
-
-# openwebtext
-
-sbatch --nodes=8 --gres=gpu:8 scripts/train.slurm.sh \
-    --accelerate_config "ddp" \
-    --script_path "examples/bert/pt.py" \
-    --model_name_or_path "FacebookAI/roberta-large" \
-    --dataset_args "dylanebert/openwebtext" \
-    --text_field "text" \
-    --streaming True \
-    --insert_eos True \
-    --max_steps 60000 \
-    --max_length 512 \
-    --per_device_train_batch_size 64 \
-    --eval_strategy "no" \
-    --eval_on_start False \
-    --save_steps 0.05 \
-    --output_dir "models/roberta-large/openwebtext"
-
-sbatch --nodes=16 --gres=gpu:8 scripts/train.slurm.sh \
-    --accelerate_config "ddp" \
-    --script_path "examples/bert/pt.py" \
-    --model_name_or_path "FacebookAI/roberta-large" \
-    --dataset_args "dylanebert/openwebtext" \
-    --text_field "text" \
-    --streaming True \
-    --insert_eos True \
-    --max_steps 50000 \
-    --max_length 512 \
-    --per_device_train_batch_size 64 \
-    --eval_strategy "no" \
-    --eval_on_start False \
-    --save_steps 0.05 \
-    --output_dir "models/roberta-large/openwebtext"
+Slurm users
+# Note: run `mkdir logs` before running sbatch; and adjust 
+#       `partition` and `quotatype` in `scripts/train.slurm.sh` for your cluster.
+------------
+- 8 GPUs (DDP):
+    sbatch --gres=gpu:8 scripts/train.slurm.sh \
+        --accelerate_config "ddp" \
+        --script_path "examples/bert/pt.py"
 """
 
 import os
 import functools
 from dataclasses import dataclass, field
 
-import torch
 import transformers
 import accelerate
 
@@ -98,13 +34,12 @@ import dllm
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
     # Uses only the configuration from model_name_or_path to initialize the model from scratch
-    model_name_or_path: str = (
-        "FacebookAI/roberta-large"  # "FacebookAI/roberta-base"
-    )
+    model_name_or_path: str = "FacebookAI/roberta-large"
+
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
-    dataset_args: str = "wikitext[name:wikitext-103-v1]"
+    dataset_args: str = "wikitext[name:wikitext-2-v1]"
     max_length: int = 512
     text_field: str = "text"
     streaming: bool = False
@@ -115,10 +50,11 @@ class DataArguments(dllm.utils.DataArguments):
             "help": "False when adjacent samples from the datasets are semantically coherent."
         },
     )
+    load_preprocessed_data: bool = False
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = "models/roberta-large/wikitext-103-v1"
+    output_dir: str = "models/roberta-large/wikitext-2-v1"
     learning_rate: float = 1e-4
     num_train_epochs: int = 20
     per_device_train_batch_size: int = 64
@@ -139,27 +75,29 @@ def train():
     # ----- Model ------------------------------------------------------------------
     model = dllm.utils.get_model(model_args=model_args)
     # ----- Tokenizer --------------------------------------------------------------
-    tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
+    tokenizer = dllm.utils.get_tokenizer(model_args=model_args)
 
     # ----- Dataset ----------------------------------------------------------------
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_pt_dataset(
-            data_args.dataset_args, streaming=data_args.streaming)
-        def pack(dataset_):
-            return dataset_.map(
-            functools.partial(
-                dllm.utils.tokenize_and_group, 
-                tokenizer=tokenizer, 
-                text_field=data_args.text_field, 
-                seq_length=data_args.max_length, 
-                insert_eos=data_args.insert_eos,
-                drop_tail=data_args.drop_tail),
-            batched=True,
-            remove_columns=dataset_["train"].column_names,
+            data_args.dataset_args, 
+            streaming=data_args.streaming,
+            load_preprocessed_data=data_args.load_preprocessed_data,
         )
-        if not data_args.streaming: dataset = pack(dataset) # trainer will shuffle for us
-        elif data_args.insert_eos: dataset = pack(dataset.shuffle(seed=training_args.seed))
-        else: dataset = pack(dataset).shuffle(seed=training_args.seed)
+        if not data_args.load_preprocessed_data:
+            dataset = dataset.map(
+                functools.partial(
+                    dllm.utils.tokenize_and_group, 
+                    tokenizer=tokenizer, 
+                    text_field=data_args.text_field, 
+                    seq_length=data_args.max_length, 
+                    insert_eos=data_args.insert_eos,
+                    drop_tail=data_args.drop_tail),
+                batched=True,
+                num_proc=None if data_args.streaming else data_args.num_proc,
+                remove_columns=dataset["train"].column_names,
+            )
+        if data_args.streaming: dataset = dataset.shuffle(seed=training_args.seed)
 
     # ----- Training --------------------------------------------------------------
     accelerate.PartialState().wait_for_everyone()

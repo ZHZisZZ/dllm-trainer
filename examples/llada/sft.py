@@ -16,7 +16,7 @@ Slurm users
 # Note: run `mkdir logs` before running sbatch; and adjust 
 #       `partition` and `quotatype` in `scripts/train.slurm.sh` for your cluster.
 ------------
-- 1 Nodes, 8 GPUs (FSDP):
+- 1 Node, 8 GPUs (FSDP):
     sbatch --gres=gpu:8 scripts/train.slurm.sh \
         --accelerate_config "fsdp" \
         --script_path "examples/llada/sft.py"
@@ -39,9 +39,7 @@ import dllm
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
-    model_name_or_path: str = (
-        "GSAI-ML/LLaDA-8B-Base"  # "inclusionAI/LLaDA-MoE-7B-A1B-Base"
-    )
+    model_name_or_path: str = "GSAI-ML/LLaDA-8B-Base"
 
 
 @dataclass
@@ -60,40 +58,6 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     group_by_length: bool = True
 
 
-# -----------------------------
-# SFT map function
-# -----------------------------
-def sft_map_fn(row, *, tokenizer, mask_prompt_loss: bool = True) -> dict:
-    """
-    Build input_ids and labels for SFT.
-
-    Args:
-        row: a dataset row with `messages`
-        tokenizer: a HF tokenizer
-        mask_prompt_loss: whether to mask prompt tokens (set their labels to -100)
-
-    Returns:
-        dict with keys: input_ids, labels, and optionally prompt_len
-    """
-    prompt_response_tokens = tokenizer.apply_chat_template(
-        row["messages"], tokenize=True, add_generation_prompt=False
-    )
-    labels = prompt_response_tokens.copy()
-
-    if mask_prompt_loss:
-        prompt_tokens = tokenizer.apply_chat_template(
-            row["messages"][:-1], tokenize=True, add_generation_prompt=True
-        )
-        labels[: len(prompt_tokens)] = [-100] * len(prompt_tokens)
-        return {
-            "input_ids": prompt_response_tokens,
-            "labels": labels,
-            "prompt_len": len(prompt_tokens),
-        }
-
-    return {"input_ids": prompt_response_tokens, "labels": labels}
-
-
 def train():
     # ----- Argument parsing -------------------------------------------------------
     parser = transformers.HfArgumentParser(
@@ -106,36 +70,22 @@ def train():
     # ----- Model ------------------------------------------------------------------
     model = dllm.utils.get_model(model_args=model_args)
     # ----- Tokenizer --------------------------------------------------------------
-    tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
+    tokenizer = dllm.utils.get_tokenizer(model_args=model_args)
 
     # ----- Dataset ----------------------------------------------------------------
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_sft_dataset(data_args.dataset_args)
-
-        # Use functools.partial so this fn can be imported elsewhere without binding tokenizer/flags.
         if not data_args.load_preprocessed_data:
             map_fn = partial(
-                sft_map_fn,
+                dllm.utils.default_sft_map_fn,
                 tokenizer=tokenizer,
                 mask_prompt_loss=data_args.mask_prompt_loss,
             )
             dataset = dataset.map(map_fn, num_proc=data_args.num_proc)
-
         # truncate / filter long sequences if needed
         dataset = dllm.utils.post_process_dataset(dataset, data_args)
 
     # ----- Training --------------------------------------------------------------
-    @dataclass
-    class LLaDASFTCollator(transformers.DataCollatorForSeq2Seq):
-        # Reference: https://github.com/ML-GSAI/LLaDA/blob/main/GUIDELINES.md#sft
-        #
-        # LLaDA is finetuned on all tokens, including padding (<eos_token>).
-        # Therefore, the attention_mask — which normally ignores padding tokens — should be disabled.
-        def __call__(self, features, return_tensors=None):
-            outputs = super().__call__(features, return_tensors)
-            outputs.pop("attention_mask")
-            return outputs
-
     accelerate.PartialState().wait_for_everyone()
     dllm.utils.print_main("start training...")
     trainer = dllm.core.trainers.MDLMTrainer(
@@ -144,7 +94,7 @@ def train():
         train_dataset=dataset["train"],
         eval_dataset=dataset.get("test", None),
         args=training_args,
-        data_collator=LLaDASFTCollator(
+        data_collator=dllm.utils.NoAttentionMaskCollator(
             tokenizer,
             return_tensors="pt",
             padding=True,

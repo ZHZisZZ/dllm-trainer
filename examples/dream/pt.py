@@ -103,25 +103,31 @@ def train():
         model = transformers.AutoModel.from_config(config, dtype=torch.bfloat16)
 
     # ----- Tokenizer -----------------------------------------------------------
-    tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
+    tokenizer = dllm.utils.get_tokenizer(model_args=model_args)
     # ----- Optional PEFT: LoRA -------------------------------------------------
     model = dllm.utils.load_peft(model=model, model_args=model_args)
 
     # ----- Dataset -------------------------------------------------------------
     with accelerate.PartialState().local_main_process_first():
         dataset = dllm.data.load_pt_dataset(
-            data_args.dataset_args, streaming=data_args.streaming)
-        dataset = dataset.map(
-            functools.partial(
-                dllm.utils.tokenize_and_group, 
-                tokenizer=tokenizer, 
-                text_field=data_args.text_field, 
-                seq_length=data_args.max_length, 
-                insert_eos=data_args.insert_eos,
-                drop_tail=data_args.drop_tail),
-            batched=True,
-            remove_columns=dataset["train"].column_names,
+            data_args.dataset_args, 
+            streaming=data_args.streaming,
+            load_preprocessed_data=data_args.load_preprocessed_data,
         )
+        if not data_args.load_preprocessed_data:
+            dataset = dataset.map(
+                functools.partial(
+                    dllm.utils.tokenize_and_group, 
+                    tokenizer=tokenizer, 
+                    text_field=data_args.text_field, 
+                    seq_length=data_args.max_length, 
+                    insert_eos=data_args.insert_eos,
+                    drop_tail=data_args.drop_tail),
+                batched=True,
+                num_proc=None if data_args.streaming else data_args.num_proc,
+                remove_columns=dataset["train"].column_names,
+            )
+        if data_args.streaming: dataset = dataset.shuffle(seed=training_args.seed)
 
     # ----- Training --------------------------------------------------------------
     accelerate.PartialState().wait_for_everyone()

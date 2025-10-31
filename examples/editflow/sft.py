@@ -26,7 +26,7 @@ class DataArguments(dllm.utils.DataArguments):
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = None  # overwrite this
-    per_device_train_batch_size: int = 3
+    per_device_train_batch_size: int = 2
     gradient_accumulation_steps: int = 2
     learning_rate: float = 5e-5
     # EditFlow specific args
@@ -81,7 +81,7 @@ def train(
     model.floating_point_ops = _no_flops
 
     # ----- Tokenizer --------------------------------------------------------------
-    tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
+    tokenizer = dllm.utils.get_tokenizer(model_args=model_args)
 
     # ----- Dataset ----------------------------------------------------------------
     # - `input_ids`` = prompt + response
@@ -119,6 +119,8 @@ def train(
         dataset = dllm.utils.post_process_dataset(dataset, data_args)
 
     # ----- Training --------------------------------------------------------------
+    accelerate.PartialState().wait_for_everyone()
+    dllm.utils.print_main("start training...")
     trainer = editflow.EditFlowTrainer(
         model=model,
         tokenizer=tokenizer,

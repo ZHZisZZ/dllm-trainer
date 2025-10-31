@@ -94,14 +94,17 @@ def train(
     ef_cfg = ef_config_cls.from_pretrained(model_args.model_name_or_path)
     with dllm.utils.init_device_context_manager():
         model = transformers.AutoModel.from_config(ef_cfg, dtype=torch.bfloat16)
-    if model_args.init_editflow_from_src:
-        # Load src model config & weights (bf16 on CUDA) for intializing EditFlow model
-        src_model = dllm.utils.get_model(model_args=model_args)
-        # Initialize EditFlow model from the src model: copies backbone & clones lm_head
-        editflow.utils.init_editflow_from_src(
-            model, src_model, lm_head_key=model_args.lm_head_key
-        )
-        del src_model
+        if model_args.init_editflow_from_src:
+            # Load src model config & weights (bf16 on CUDA) for intializing EditFlow model
+            src_model = transformers.AutoModelForMaskedLM.from_pretrained(
+                model_args.model_name_or_path, dtype=torch.bfloat16
+            )
+            # Initialize EditFlow model from the src model: copies backbone & clones lm_head
+            editflow.utils.init_editflow_from_src(
+                model, src_model, lm_head_key=model_args.lm_head_key
+            )
+            del src_model
+    model = dllm.utils.load_peft(model, model_args)
 
     def _no_flops(*args, **kwargs):
         return 0.0
@@ -109,7 +112,7 @@ def train(
     model.floating_point_ops = _no_flops
 
     # ----- Tokenizer --------------------------------------------------------------
-    tokenizer = dllm.utils.get_tokenizer(model=model, model_args=model_args)
+    tokenizer = dllm.utils.get_tokenizer(model_args=model_args)
 
     # ----- Dataset ----------------------------------------------------------------
     def pt_map_fn(
@@ -129,6 +132,8 @@ def train(
         )  # truncate / filter long sequences if needed
 
     # ----- Training --------------------------------------------------------------
+    accelerate.PartialState().wait_for_everyone()
+    dllm.utils.print_main("start training...")
     trainer = editflow.EditFlowTrainer(
         model=model,
         tokenizer=tokenizer,
