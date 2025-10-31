@@ -1,3 +1,0 @@
-dataset_name: control_modal_vs_raising_modal
-include: _template_yaml
-task: zhoblimp_control_modal_vs_raising_modal

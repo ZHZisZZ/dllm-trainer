@@ -1,3 +1,0 @@
-include: _cabbq_common_yaml
-task: cabbq_gender
-dataset_name: Gender

@@ -9,14 +9,15 @@ It supports diverse model architectures and evaluation paradigms through a **con
 1. [Setup](#setup)
    - [Environment Variables](#environment-variables)
    - [Dependencies](#dependencies)
-2. [File Structure](#file-structure)
-3. [Evaluation](#evaluation)
+2. [Evaluation](#evaluation)
    - [Run Command](#run-command)
    - [Plausible Tasks](#plausible-tasks)
    - [Example Evaluation Results](#example-evaluation-results)
-4. [Framework and Further Extension](#framework-and-further-extension)
+3. [Framework and Further Extension](#framework-and-further-extension)
+   - [File Structure](#file-structure)
 
 
+---
 
 ## Setup
 
@@ -49,42 +50,26 @@ pip install -e ".[ifeval,math]"
 
 
 
-## File Structure
-
-| File | Purpose |
-|------|---------|
-| [`scripts/eval_model.sh`](/scripts/eval_model.sh) | Main launcher for model evaluation. Sets up distributed environment variables, loads task configs, and runs the evaluation script. |
-| [`scripts/eval_configs.sh`](/scripts/eval_configs.sh) | Contains unified per-task configurations (few-shot, max length, temperature, etc.) for all model classes. |
-| [`dllm/eval/eval_*.py`](/dllm/eval/) | Defines model-specific evaluation logic extending `lm_eval.api.model.LM`. Each file handles generation, NLL computation, and task integration. |
-
-
-
 ## Evaluation
 
 ### Run Command
 
 > [!NOTE]
-> All configuration parameters (few-shot, steps, temperature, etc.) are **automatically loaded** from `eval_configs.sh` — no manual configuration needed!
+> All configuration parameters (few-shot, max length, temperature, etc.) are aligned with model's original repo.
+> You can now directly execute task-specific shell scripts under `scripts/` for one-line evaluation.
 
-**Basic usage:**
-
-```bash
-bash eval_model.sh <model_class> <task_name> <model_path>
-```
-
-**Example:**
+**Example commands:**
 
 ```bash
-bash eval_model.sh dream gsm8k Dream-org/Dream-v0-Instruct-7B
+bash scripts/eval_dream_instruct.sh
+bash scripts/eval_dream_base.sh
+bash scripts/eval_llada_base.sh
+bash scripts/eval_llada_instruct.sh
+bash scripts/eval_bert_base.sh
 ```
 
-**Arguments:**
-
-| Argument | Description | Examples |
-|----------|-------------|----------|
-| `<model_class>` | Model type identifier | `dream`, `llada` |
-| `<task_name>` | Evaluation benchmark | `gsm8k`, `mmlu`, `mbpp` |
-| `<model_path>` | Model location | `Dream-org/Dream-v0-Instruct-7B` (HF) or `/path/to/model` (local) |
+Each script loads its corresponding configurations and launches evaluation automatically.
+You no longer need to manually specify `model_class`, `task_name`, or `model_path` arguments.
 
 ### Plausible Tasks
 
@@ -94,7 +79,7 @@ bash eval_model.sh dream gsm8k Dream-org/Dream-v0-Instruct-7B
 | **Base** | `humaneval`, `gsm8k_cot`, `mbpp`, `minerva_math`, `bbh`, `mmlu`, `arc_easy`, `arc_challenge`, `hellaswag`, `piqa`, `gpqa_main_n_shot`, `winogrande`, `race` |
 
 > [!NOTE]
-> Choose **Instruct** tasks for instruction-tuned models and **Base** tasks for pretrained models. Model's task-specific parameter are stored within /eval/eval_configs.sh
+> Certain dataset configurations were refined to match the model templates and ensure optimal evaluation performance.
 
 
 ### Example Evaluation Results

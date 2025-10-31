@@ -1,3 +1,0 @@
-dataset_name: fci_renhe_suoyou
-include: _template_yaml
-task: zhoblimp_fci_renhe_suoyou

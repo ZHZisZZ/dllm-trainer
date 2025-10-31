@@ -1,3 +1,0 @@
-dataset_name: quantifiers
-include: _template_yaml
-task: turblimp_quantifiers

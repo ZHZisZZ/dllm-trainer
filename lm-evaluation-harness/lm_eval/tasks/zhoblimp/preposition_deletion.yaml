@@ -1,3 +1,0 @@
-dataset_name: preposition_deletion
-include: _template_yaml
-task: zhoblimp_preposition_deletion

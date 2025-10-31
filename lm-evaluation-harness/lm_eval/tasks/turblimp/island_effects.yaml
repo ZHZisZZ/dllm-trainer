@@ -1,3 +1,0 @@
-dataset_name: island_effects
-include: _template_yaml
-task: turblimp_island_effects

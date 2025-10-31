@@ -1,3 +1,0 @@
-dataset_name: renhe_no_episodic_sentences
-include: _template_yaml
-task: zhoblimp_renhe_no_episodic_sentences

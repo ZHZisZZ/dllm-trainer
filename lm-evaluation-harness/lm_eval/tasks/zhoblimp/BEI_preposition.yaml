@@ -1,3 +1,0 @@
-dataset_name: BEI_preposition
-include: _template_yaml
-task: zhoblimp_BEI_preposition

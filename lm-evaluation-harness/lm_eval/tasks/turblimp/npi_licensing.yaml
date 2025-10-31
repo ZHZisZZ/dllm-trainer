@@ -1,3 +1,0 @@
-dataset_name: npi_licensing
-include: _template_yaml
-task: turblimp_npi_licensing

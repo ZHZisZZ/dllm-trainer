@@ -1,3 +1,0 @@
-dataset_name: verb_phrase_left_adverbial
-include: _template_yaml
-task: zhoblimp_verb_phrase_left_adverbial

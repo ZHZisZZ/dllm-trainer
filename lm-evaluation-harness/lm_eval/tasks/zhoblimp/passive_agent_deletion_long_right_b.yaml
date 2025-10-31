@@ -1,3 +1,0 @@
-dataset_name: passive_agent_deletion_long_right_b
-include: _template_yaml
-task: zhoblimp_passive_agent_deletion_long_right_b

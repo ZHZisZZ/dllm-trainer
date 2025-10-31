@@ -1,3 +1,0 @@
-dataset_name: ellipsis
-include: _template_yaml
-task: turblimp_ellipsis

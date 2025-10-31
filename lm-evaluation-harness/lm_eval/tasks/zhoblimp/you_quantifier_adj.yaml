@@ -1,3 +1,0 @@
-dataset_name: you_quantifier_adj
-include: _template_yaml
-task: zhoblimp_you_quantifier_adj

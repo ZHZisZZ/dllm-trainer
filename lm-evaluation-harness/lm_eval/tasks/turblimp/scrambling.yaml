@@ -1,3 +1,0 @@
-dataset_name: scrambling
-include: _template_yaml
-task: turblimp_scrambling

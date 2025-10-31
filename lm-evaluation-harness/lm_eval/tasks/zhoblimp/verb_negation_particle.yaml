@@ -1,3 +1,0 @@
-dataset_name: verb_negation_particle
-include: _template_yaml
-task: zhoblimp_verb_negation_particle

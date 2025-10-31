@@ -1,3 +1,0 @@
-dataset_name: left_dou
-include: _template_yaml
-task: zhoblimp_left_dou

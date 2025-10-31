@@ -1,3 +1,0 @@
-dataset_name: passive_no_adj
-include: _template_yaml
-task: zhoblimp_passive_no_adj

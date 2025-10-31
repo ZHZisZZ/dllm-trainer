@@ -1,3 +1,0 @@
-dataset_name: noun_phrase_conjunction_jian
-include: _template_yaml
-task: zhoblimp_noun_phrase_conjunction_jian

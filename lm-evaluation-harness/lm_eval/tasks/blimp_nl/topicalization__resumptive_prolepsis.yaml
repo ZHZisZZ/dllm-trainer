@@ -1,3 +1,0 @@
-dataset_name: topicalization__resumptive_prolepsis
-include: _template_yaml
-task: blimp_nl__topicalization__resumptive_prolepsis

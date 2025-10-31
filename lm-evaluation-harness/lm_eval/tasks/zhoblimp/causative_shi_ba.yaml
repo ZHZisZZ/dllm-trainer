@@ -1,3 +1,0 @@
-dataset_name: causative_shi_ba
-include: _template_yaml
-task: zhoblimp_causative_shi_ba

@@ -1,3 +1,0 @@
-dataset_name: question_particle_nandao
-include: _template_yaml
-task: zhoblimp_question_particle_nandao

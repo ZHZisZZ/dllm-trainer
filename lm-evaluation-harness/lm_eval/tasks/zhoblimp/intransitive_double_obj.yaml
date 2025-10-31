@@ -1,3 +1,0 @@
-dataset_name: intransitive_double_obj
-include: _template_yaml
-task: zhoblimp_intransitive_double_obj

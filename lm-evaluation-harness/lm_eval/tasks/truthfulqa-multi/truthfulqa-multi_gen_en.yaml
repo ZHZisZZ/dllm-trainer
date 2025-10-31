@@ -1,3 +1,0 @@
-include: truthfulqa-multi_gen_common
-task: truthfulqa-multi_gen_en
-dataset_name: en

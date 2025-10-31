@@ -1,3 +1,0 @@
-dataset_name: left_adverbial_d
-include: _template_yaml
-task: zhoblimp_left_adverbial_d

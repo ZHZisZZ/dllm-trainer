@@ -1,3 +1,0 @@
-include: _esbbq_common_yaml
-task: esbbq_race_ethnicity
-dataset_name: RaceEthnicity

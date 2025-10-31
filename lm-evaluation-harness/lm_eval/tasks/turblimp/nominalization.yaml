@@ -1,3 +1,0 @@
-dataset_name: nominalization
-include: _template_yaml
-task: turblimp_nominalization

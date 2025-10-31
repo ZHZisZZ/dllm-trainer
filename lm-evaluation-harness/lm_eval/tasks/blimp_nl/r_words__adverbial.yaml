@@ -1,3 +1,0 @@
-dataset_name: r_words__adverbial
-include: _template_yaml
-task: blimp_nl__r_words__adverbial

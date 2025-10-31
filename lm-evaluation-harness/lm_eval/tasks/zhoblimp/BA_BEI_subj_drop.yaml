@@ -1,3 +1,0 @@
-dataset_name: BA_BEI_subj_drop
-include: _template_yaml
-task: zhoblimp_BA_BEI_subj_drop

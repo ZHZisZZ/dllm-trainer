@@ -1,3 +1,0 @@
-dataset_name: BA_duplicate_argument
-include: _template_yaml
-task: zhoblimp_BA_duplicate_argument

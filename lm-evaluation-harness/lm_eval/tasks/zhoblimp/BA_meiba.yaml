@@ -1,3 +1,0 @@
-dataset_name: BA_meiba
-include: _template_yaml
-task: zhoblimp_BA_meiba

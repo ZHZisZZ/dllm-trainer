@@ -1,3 +1,0 @@
-dataset_name: passive_body_part
-include: _template_yaml
-task: zhoblimp_passive_body_part

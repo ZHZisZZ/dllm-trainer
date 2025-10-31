@@ -1,3 +1,0 @@
-include: truthfulqa-multi_gen_common
-task: truthfulqa-multi_gen_ca
-dataset_name: ca

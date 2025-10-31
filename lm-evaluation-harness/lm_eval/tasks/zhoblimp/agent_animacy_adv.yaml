@@ -1,3 +1,0 @@
-dataset_name: agent_animacy_adv
-include: _template_yaml
-task: zhoblimp_agent_animacy_adv

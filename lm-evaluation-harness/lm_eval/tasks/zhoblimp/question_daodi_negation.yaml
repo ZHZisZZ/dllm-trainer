@@ -1,3 +1,0 @@
-dataset_name: question_daodi_negation
-include: _template_yaml
-task: zhoblimp_question_daodi_negation

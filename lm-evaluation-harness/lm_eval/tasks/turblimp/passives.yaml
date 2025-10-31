@@ -1,3 +1,0 @@
-dataset_name: passives
-include: _template_yaml
-task: turblimp_passives

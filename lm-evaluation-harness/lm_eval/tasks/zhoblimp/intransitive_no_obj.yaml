@@ -1,3 +1,0 @@
-dataset_name: intransitive_no_obj
-include: _template_yaml
-task: zhoblimp_intransitive_no_obj

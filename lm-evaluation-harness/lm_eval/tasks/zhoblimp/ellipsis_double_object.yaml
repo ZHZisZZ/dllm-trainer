@@ -1,3 +1,0 @@
-dataset_name: ellipsis_double_object
-include: _template_yaml
-task: zhoblimp_ellipsis_double_object

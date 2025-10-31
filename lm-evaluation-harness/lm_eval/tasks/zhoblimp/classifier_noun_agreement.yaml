@@ -1,3 +1,0 @@
-dataset_name: classifier_noun_agreement
-include: _template_yaml
-task: zhoblimp_classifier_noun_agreement

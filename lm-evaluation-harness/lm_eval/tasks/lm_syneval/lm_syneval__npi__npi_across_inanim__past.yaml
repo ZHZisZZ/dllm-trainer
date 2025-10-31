@@ -1,3 +1,0 @@
-dataset_name: lm_syneval__npi__npi_across_inanim__past
-include: _template_yaml
-task: lm_syneval__npi__npi_across_inanim__past

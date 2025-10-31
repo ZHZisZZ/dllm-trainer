@@ -1,3 +1,0 @@
-include: _template_yaml
-dataset_name: lav
-task: multiblimp_lav

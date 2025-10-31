@@ -1,3 +1,0 @@
-include: _cabbq_common_yaml
-task: cabbq_nationality
-dataset_name: Nationality

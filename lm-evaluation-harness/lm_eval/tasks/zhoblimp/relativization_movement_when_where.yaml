@@ -1,3 +1,0 @@
-dataset_name: relativization_movement_when_where
-include: _template_yaml
-task: zhoblimp_relativization_movement_when_where

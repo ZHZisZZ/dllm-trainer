@@ -1,3 +1,0 @@
-include: _template_yaml
-dataset_name: myv
-task: multiblimp_myv

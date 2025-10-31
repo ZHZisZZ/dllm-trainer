@@ -1,3 +1,0 @@
-dataset_name: relative_clauses
-include: _template_yaml
-task: turblimp_relative_clauses

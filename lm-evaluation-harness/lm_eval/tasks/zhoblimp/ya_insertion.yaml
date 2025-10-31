@@ -1,3 +1,0 @@
-dataset_name: ya_insertion
-include: _template_yaml
-task: zhoblimp_ya_insertion

@@ -1,3 +1,0 @@
-dataset_name: topicalization_OSV_mei
-include: _template_yaml
-task: zhoblimp_topicalization_OSV_mei

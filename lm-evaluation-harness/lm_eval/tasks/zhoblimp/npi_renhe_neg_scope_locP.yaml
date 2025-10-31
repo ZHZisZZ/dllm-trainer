@@ -1,3 +1,0 @@
-dataset_name: npi_renhe_neg_scope_locP
-include: _template_yaml
-task: zhoblimp_npi_renhe_neg_scope_locP

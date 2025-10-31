@@ -1,3 +1,0 @@
-dataset_name: complementive__transitive
-include: _template_yaml
-task: blimp_nl__complementive__transitive

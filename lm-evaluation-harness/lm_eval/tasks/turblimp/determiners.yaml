@@ -1,3 +1,0 @@
-dataset_name: determiners
-include: _template_yaml
-task: turblimp_determiners

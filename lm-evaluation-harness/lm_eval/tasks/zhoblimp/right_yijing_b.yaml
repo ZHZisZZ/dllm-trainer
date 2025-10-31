@@ -1,3 +1,0 @@
-dataset_name: right_yijing_b
-include: _template_yaml
-task: zhoblimp_right_yijing_b

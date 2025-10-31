@@ -1,3 +1,0 @@
-dataset_name: relative_operator_who
-include: _template_yaml
-task: zhoblimp_relative_operator_who

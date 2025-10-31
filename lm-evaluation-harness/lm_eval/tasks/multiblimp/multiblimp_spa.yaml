@@ -1,3 +1,0 @@
-include: _template_yaml
-dataset_name: spa
-task: multiblimp_spa

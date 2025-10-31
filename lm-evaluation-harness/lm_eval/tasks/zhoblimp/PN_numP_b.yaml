@@ -1,3 +1,0 @@
-dataset_name: PN_numP_b
-include: _template_yaml
-task: zhoblimp_PN_numP_b

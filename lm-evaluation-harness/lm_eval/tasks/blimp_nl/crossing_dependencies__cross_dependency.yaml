@@ -1,3 +1,0 @@
-dataset_name: crossing_dependencies__cross_dependency
-include: _template_yaml
-task: blimp_nl__crossing_dependencies__cross_dependency
