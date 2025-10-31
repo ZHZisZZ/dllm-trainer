@@ -1,16 +1,16 @@
 export PYTHONPATH=.:$PYTHONPATH
-export BASE_DATASETS_DIR="/home/lingjie7/datasets/huggingface"
-export BASE_MODELS_DIR="/home/lingjie7/models/huggingface/"
-export HF_DATASETS_CACHE="/home/lingjie7/datasets/huggingface"
+export BASE_DATASETS_DIR="/mnt/lustrenew/mllm_aligned/datasets/huggingface"
+export BASE_MODELS_DIR="/mnt/lustrenew/mllm_aligned/shared/models/huggingface"
+export HF_DATASETS_CACHE="/mnt/lustrenew/mllm_safety-shared/datasets/huggingface"
+export HF_EVALUATE_CACHE="/mnt/lustrenew/mllm_safety-shared/tmp/fanyuyu/.cache/hf_evaluate_rank_${SLURM_PROCID}"
 export HF_ALLOW_CODE_EVAL=1
 export HF_DATASETS_TRUST_REMOTE_CODE=true  # For CMMLU dataset
 
-export CUDA_VISIBLE_DEVICES=2,3,4
 main_port=29515
-pretrained="/home/lingjie7/models/huggingface/GSAI-ML/LLaDA-8B-Instruct,dtype=bfloat16"
-common_args="--model llada_dist --seed 1234 --apply_chat_template --limit 200" #  --limit None
+num_gpu=6
+pretrained="/mnt/lustrenew/mllm_aligned/shared/models/huggingface/GSAI-ML/LLaDA-8B-Instruct,dtype=bfloat16"
+common_args="--model llada --seed 1234 --apply_chat_template  --limit 24" #  --limit None
 base_path="dllm/eval/eval_llada.py"
-num_gpu=3
 
 # PYTHONBREAKPOINT=0 \
 # accelerate launch \
@@ -147,25 +147,26 @@ num_gpu=3
 # |gpqa_main_n_shot|      2|none  |     5|acc     |↑  | 0.25|±  |0.1118|
 # |                |       |none  |     5|acc_norm|↑  | 0.25|±  |0.1118|
 
+# main_port=29516
+# num_gpu=4
+# pretrained="/mnt/lustrenew/mllm_aligned/shared/models/huggingface/GSAI-ML/LLaDA-8B-Instruct,dtype=bfloat16"
+# common_args="--model llada --seed 1234 --apply_chat_template  --limit 48" #  --limit None
+# base_path="dllm/eval/eval_llada.py"
 
-common_args="--model llada_dist --seed 1234 --apply_chat_template" #  --limit None
-export CUDA_VISIBLE_DEVICES=0,1,2,3
-num_gpu=4
-main_port=29519
-
-PYTHONBREAKPOINT=0 \
-accelerate launch \
-    --num_processes ${num_gpu} \
-    --num_machines 1 \
-    --main_process_port ${main_port} \
-    ${base_path} \
-    --tasks gpqa_n_shot_gen \
-    --batch_size 1 \
-    ${common_args} \
-    --model_args "pretrained=${pretrained},max_new_tokens=32,steps=32,block_length=32" \
-    --device cuda \
-    --output_path llada_gpqa_gen.json \
-    --log_samples
+# PYTHONBREAKPOINT=0 \
+# srun -p mllm_safety --quotatype=spot --gres=gpu:${num_gpu} --time=01:00:00 \
+# accelerate launch \
+#     --num_processes ${num_gpu} \
+#     --num_machines 1 \
+#     --main_process_port ${main_port} \
+#     ${base_path} \
+#     --tasks gpqa_n_shot_gen \
+#     --batch_size 1 \
+#     ${common_args} \
+#     --model_args "pretrained=${pretrained},max_new_tokens=128,steps=128,block_length=64" \
+#     --device cuda \
+#     --output_path llada_gpqa_gen.json \
+#     --log_samples
 
 # |     Tasks     |Version|      Filter       |n-shot|  Metric   |   |Value |   |Stderr|
 # |---------------|------:|-------------------|-----:|-----------|---|-----:|---|-----:|
@@ -190,8 +191,11 @@ accelerate launch \
 # |truthfulqa_mc2|      3|none  |     0|acc   |↑  |0.5656|±  |0.1253|
 
 
+# main_port=29516
+# num_gpu=4
 
 # PYTHONBREAKPOINT=0 \
+# srun -p mllm_safety --quotatype=spot --gres=gpu:${num_gpu} --time=01:00:00 \
 # accelerate launch \
 #     --num_processes ${num_gpu} \
 #     --num_machines 1 \
@@ -210,6 +214,7 @@ accelerate launch \
 
 
 # PYTHONBREAKPOINT=0 \
+# srun -p mllm_safety --quotatype=spot --gres=gpu:${num_gpu} --time=01:00:00 \
 # accelerate launch \
 #     --num_processes 4 \
 #     --num_machines 1 \
@@ -229,6 +234,7 @@ accelerate launch \
 
 
 # PYTHONBREAKPOINT=0 \
+# srun -p mllm_safety --quotatype=spot --gres=gpu:${num_gpu} --time=01:00:00 \
 # accelerate launch \
 #     --num_processes ${num_gpu} \
 #     --num_machines 1 \
@@ -243,24 +249,24 @@ accelerate launch \
 #     --output_path llada_hellaswag_gen.json \
 #     --log_samples
 
-# llada_dist (pretrained=/home/lingjie7/models/huggingface/GSAI-ML/LLaDA-8B-Instruct,dtype=bfloat16,max_new_tokens=3,steps=3,block_length=3), gen_kwargs: (None), limit: None, num_fewshot: 0, batch_size: 1                                                                                                                                             
+# llada (pretrained=/home/lingjie7/models/huggingface/GSAI-ML/LLaDA-8B-Instruct,dtype=bfloat16,max_new_tokens=3,steps=3,block_length=3), gen_kwargs: (None), limit: None, num_fewshot: 0, batch_size: 1                                                                                                                                             
 # |    Tasks    |Version|      Filter       |n-shot|  Metric   |   |Value |   |Stderr|                                                                                       
 # |-------------|-------|-------------------|-----:|-----------|---|-----:|---|-----:|                                                                                       
 # |hellaswag_gen|Yaml   |first_option_filter|     0|exact_match|↑  |0.7665|±  |0.0042|  
 
 
 # PYTHONBREAKPOINT=0 \
-# accelerate launch \
-#     --num_processes 4 \
-#     --num_machines 1 \
-#     --main_process_port ${main_port} \
-#     ${base_path} \
-#     --tasks winogrande \
-#     --batch_size 8 \
-#     --num_fewshot 5 \
-#     ${common_args} \
-#     --model_args "pretrained=${pretrained},cfg=0.0,is_check_greedy=False,mc_num=128" \
-#     --device cuda
+accelerate launch \
+    --num_processes 4 \
+    --num_machines 1 \
+    --main_process_port ${main_port} \
+    ${base_path} \
+    --tasks winogrande \
+    --batch_size 8 \
+    --num_fewshot 5 \
+    ${common_args} \
+    --model_args "pretrained=${pretrained},cfg=0.0,is_check_greedy=False,mc_num=128" \
+    --device cuda
 
 # |  Tasks   |Version|Filter|n-shot|Metric|   |Value|   |Stderr|
 # |----------|------:|------|-----:|------|---|----:|---|-----:|
@@ -308,8 +314,7 @@ accelerate launch \
 # | - stem           |      2|none  |      |acc   |↑  |0.2928|±  |0.0257|
 
 
-# common_args="--model llada_dist --seed 1234 --apply_chat_template" #  --limit None
-# export CUDA_VISIBLE_DEVICES=2,3
+# common_args="--model llada --seed 1234 --apply_chat_template" #  --limit None
 # num_gpu=1
 # main_port=29516
 
@@ -334,8 +339,7 @@ accelerate launch \
 # | - social sciences|       |get_response|      |exact_match|↑  |0.8333|±  |0.0538|
 # | - stem           |       |get_response|      |exact_match|↑  |0.6447|±  |0.0603|
 
-common_args="--model llada_dist --seed 1234 --apply_chat_template --limit 4" #  --limit None
-export CUDA_VISIBLE_DEVICES=4,5,6,7
+common_args="--model llada --seed 1234 --apply_chat_template --limit 4" #  --limit None
 num_gpu=4
 
 # PYTHONBREAKPOINT=0 \

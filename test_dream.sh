@@ -6,7 +6,6 @@ export HF_DATASETS_CACHE="/home/lingjie7/datasets/huggingface"
 export HF_ALLOW_CODE_EVAL=1
 export HF_DATASETS_TRUST_REMOTE_CODE=true  # For CMMLU dataset
 
-export CUDA_VISIBLE_DEVICES=4,5,6,7
 main_port=29511
 pretrained="/home/lingjie7/models/huggingface/Dream-org/Dream-v0-Instruct-7B,dtype=bfloat16"
 common_args="--model dream --limit 32 --seed 1234 --apply_chat_template" #  --limit None
