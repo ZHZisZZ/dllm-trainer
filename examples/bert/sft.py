@@ -38,7 +38,7 @@ import dllm
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
-    model_name_or_path: str = "FacebookAI/roberta-large"
+    model_name_or_path: str = "answerdotai/ModernBERT-large"
 
 
 @dataclass
@@ -54,7 +54,7 @@ class DataArguments(dllm.utils.DataArguments):
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = "models/roberta-large/alpaca"
+    output_dir: str = "models/ModernBERT-large/alpaca"
     group_by_length: bool = True
     learning_rate: float = 1e-4
     num_train_epochs: int = 20

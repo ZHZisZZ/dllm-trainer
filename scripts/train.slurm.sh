@@ -2,7 +2,7 @@
 #SBATCH --job-name=dllm
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:8
-#SBATCH --cpus-per-task=96
+#SBATCH --cpus-per-task=24
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=mllm_safety
 #SBATCH --quotatype=spot

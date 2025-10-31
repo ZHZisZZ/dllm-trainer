@@ -98,6 +98,7 @@ def get_tokenizer(model_args) -> transformers.PreTrainedTokenizer:
 
     if not tokenizer.pad_token: tokenizer.pad_token = tokenizer.eos_token
     if not tokenizer.eos_token: tokenizer.eos_token = tokenizer.pad_token
+    if not tokenizer.bos_token: tokenizer.bos_token = tokenizer.pad_token
 
     # If model is not provided, return as-is
     model_cfg = transformers.AutoConfig.from_pretrained(model_name_or_path)

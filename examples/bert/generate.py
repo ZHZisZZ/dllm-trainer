@@ -13,7 +13,7 @@ from dllm.pipelines import llada
 
 @dataclass
 class ScriptArguments:
-    model_name_or_path: str = "models/ModernBERT-large/tulu-3-smoltalk/epochs-10-bs-384-len-1024/checkpoint-final"
+    model_name_or_path: str = "models/ModernBERT-large/tulu-3-smoltalk/epochs-10-bs-384-len-1024/checkpoint-final" # [TODO]
     seed: int = 42
     visualize: bool = True
     def __post_init__(self):
@@ -27,7 +27,7 @@ class GeneratorConfig(llada.LLaDAGeneratorConfig):
     max_new_tokens: int = 128
     block_length: int = 64
     temperature: float = 0.0
-    remasking: str = "random"
+    remasking: str = "low_confidence"
 
 
 parser = transformers.HfArgumentParser(

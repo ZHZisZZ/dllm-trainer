@@ -50,18 +50,10 @@ examples/editflow
 
 ## Training
 
-<!-- > [!NOTE]
-> Use `--dataset_args "allenai/tulu-3-sft-mixture[train:10000,test:1000]"` to train / eval only on a subset; 
-> 
-> Use `--dataset_args "allenai/tulu-3-sft-mixture | OpenCoder-LLM/opc-sft-stage2[name:educational_instruct]"` to concatenate datasets. -->
-
 ### Adapting [LLaDA-8B-Instruct](https://huggingface.co/GSAI-ML/LLaDA-8B-Instruct) to support *insertion* and *deletion*
 
 The original LLaDA model generated text by iteratively substituting the given `<mask>` tokens to real tokens. 
 
-<!-- <div style="display: flex; justify-content: center; flex-wrap: wrap;">
-    <img src="https://github.com/ML-GSAI/LLaDA/blob/main/imgs/example_gradio.gif" style="width: 80%" />
-</div> -->
 <p align="center">
   <img src="https://github.com/ML-GSAI/LLaDA/blob/main/imgs/example_gradio.gif" alt="LLaDA demo" width="80%">
 </p>

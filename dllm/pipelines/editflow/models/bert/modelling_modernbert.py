@@ -19,6 +19,8 @@ class EditFlowModernBertModel(transformers.ModernBertForMaskedLM):
     }  # fully fintuned even using lora
 
     def __init__(self, config):
+        # fa2 has bugs when forward(output_hidden_states=True)
+        config._attn_implementation = "sdpa"
         super().__init__(config)
         in_lm, out_lm = self.decoder.in_features, self.decoder.out_features
         use_bias = self.decoder.bias is not None

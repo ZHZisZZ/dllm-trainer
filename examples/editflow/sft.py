@@ -12,11 +12,27 @@ from dllm.pipelines import editflow
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = None  # overwrite this
+    lm_head_key: str = field(
+        default=None,
+        metadata={
+            "help": (
+                "The key to the `lm_head` in the source model for initializing operation heads in the EditFlow model. "
+                "Overwrite this when `init_editflow_from_src` = True"
+            )
+        },
+    )
+    init_editflow_from_src: bool = field(
+        default=True,
+        metadata={
+            "help": "Whether to initialize EditFlow model from the source model."
+        },
+    )
+    init_editflow_from_editflow: bool = False
 
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
-    dataset_args: str = "allenai/tulu-3-sft-mixture[train:10000,test:1000]"
+    dataset_args: str = "tatsu-lab/alpaca"
     load_preprocessed_data: bool = False
     mask_prompt_loss: bool = field(
         default=True,
@@ -82,9 +98,7 @@ def sft_map_fn(row, *, tokenizer, mask_prompt_loss: bool = True) -> dict:
         # When training on all tokens, prepend a BOS token (if missing)
         # so the model can insert to the left of the very first token.
         if prompt_response_tokens[0] != tokenizer.bos_token_id:
-            prompt_response_tokens = [
-                tokenizer.bos_token_id
-            ] + prompt_response_tokens
+            prompt_response_tokens = [tokenizer.bos_token_id] + prompt_response_tokens
         return {"input_ids": prompt_response_tokens}
 
 
@@ -92,7 +106,7 @@ def train(
     model_args: ModelArguments,
     data_args: DataArguments,
     training_args: TrainingArguments,
-    model: transformers.PreTrainedModel | None = None,
+    ef_config_cls: type[transformers.PretrainedConfig],
 ):
     # necessary when batch does not contain "labels" field
     training_args.label_names = []
@@ -101,9 +115,28 @@ def train(
     dllm.utils.print_args_main(model_args, data_args, training_args)
     dllm.utils.initial_training_setup(model_args, data_args, training_args)
 
-    # # ----- Load EditFlow Model --------------------------------------------------
-    if not model:
+    # ----- Load EditFlow Model ----------------------------------------------------
+    if model_args.init_editflow_from_editflow:
         model = dllm.utils.get_model(model_args=model_args)
+    else:
+        ef_cfg = ef_config_cls.from_pretrained(
+            model_args.model_name_or_path,
+            dtype=model_args.dtype,
+            attn_implementation=model_args.attn_implementation,
+        )
+        with dllm.utils.init_device_context_manager():
+            model = transformers.AutoModel.from_config(ef_cfg)
+            if model_args.init_editflow_from_src:
+                # Load src model config & weights (bf16 on CUDA) for intializing EditFlow model
+                src_model = transformers.AutoModelForMaskedLM.from_pretrained(
+                    model_args.model_name_or_path, dtype=model_args.dtype
+                )
+                # Initialize EditFlow model from the src model: copies backbone & clones lm_head
+                editflow.utils.init_editflow_from_src(
+                    model, src_model, lm_head_key=model_args.lm_head_key
+                )
+                del src_model
+        model = dllm.utils.load_peft(model, model_args)
 
     def _no_flops(*args, **kwargs):
         return 0.0

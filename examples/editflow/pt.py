@@ -33,18 +33,21 @@ class ModelArguments(dllm.utils.ModelArguments):
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
     dataset_args: str = "mlfoundations/dclm-baseline-1.0[train:10_000_000,test:10_000]"
-    truncation: str = "right"
+    text_field: str = "text"
+    streaming: bool = False
 
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
     output_dir: str = None  # overwrite this
+    num_train_epochs: float = 20
     learning_rate: float = 3e-4
-    max_steps: int = 2_000
+    # max_steps: int = 2_000
     per_device_train_batch_size: int = 3
-    gradient_accumulation_steps: int = 4
-    eval_steps: float = 0.05
-    save_steps: float = 0.05
+    per_device_eval_batch_size: int = 3
+    gradient_accumulation_steps: int = 1
+    eval_steps: float = 0.1
+    save_steps: float = 0.1
     # EditFlow specific args
     scheduler_cls: str = field(
         default="LinearKappaScheduler",
@@ -61,16 +64,16 @@ class TrainingArguments(dllm.utils.TrainingArguments):
     )
     max_w: float = field(
         default=20.0,
+        metadata={"help": "The maximum weight (κ'(t) / (1 - κ(t))) for the loss."},
+    )
+    x0_sampler: str = field(
+        default="masks[length:128]",
         metadata={
             "help": (
                 "Choose the x0 sampler. "
                 "Available options: see `dllm/pipelines/editflow/utils.py`"
             )
         },
-    )
-    x0_sampler: str = field(
-        default="masks[length:128]",
-        metadata={"help": "The x0 sampler to use. Default to 128 mask tokens."},
     )
 
 
@@ -92,9 +95,9 @@ def train(
     # ----- Load base Model and initialize EditFlow Model ---------------------------
     # Create EditFlow model (bf16 init on CUDA)
     ef_cfg = ef_config_cls.from_pretrained(
-        model_args.model_name_or_path, 
+        model_args.model_name_or_path,
         dtype=model_args.dtype,
-        attn_implementation=model_args.attn_implementation
+        attn_implementation=model_args.attn_implementation,
     )
     with dllm.utils.init_device_context_manager():
         model = transformers.AutoModel.from_config(ef_cfg)
@@ -123,13 +126,15 @@ def train(
         row,
         tokenizer: transformers.PreTrainedTokenizer,
     ) -> dict:
-        input_ids = tokenizer.encode(row["text"])
+        input_ids = tokenizer.encode(
+            row[data_args.text_field],
+            add_special_tokens=False,
+        )
         if input_ids[0] != tokenizer.bos_token_id:
             input_ids = [tokenizer.bos_token_id] + input_ids
-        return {"input_ids": input_ids, "labels": input_ids}
+        return {"input_ids": input_ids}
 
     with accelerate.PartialState().local_main_process_first():
-        # [TODO]: modify this
         dataset = dllm.data.load_pt_dataset(
             data_args.dataset_args,
             streaming=data_args.streaming,
@@ -138,10 +143,17 @@ def train(
             functools.partial(pt_map_fn, tokenizer=tokenizer),
             num_proc=None if data_args.streaming else data_args.num_proc,
         )
-        dataset = dllm.utils.post_process_dataset_streaming(
-            dataset, data_args
-        )  # truncate / filter long sequences if needed
-        if data_args.streaming: dataset = dataset.shuffle(seed=training_args.seed)
+        # TODO: see whether we need this
+        if data_args.streaming:
+            dataset = dllm.utils.post_process_dataset_streaming(
+                dataset, data_args
+            )  # truncate / filter long sequences if needed
+        else:
+            dataset = dllm.utils.post_process_dataset(
+                dataset, data_args
+            )
+        if data_args.streaming:
+            dataset = dataset.shuffle(seed=training_args.seed)
 
     # ----- Training --------------------------------------------------------------
     accelerate.PartialState().wait_for_everyone()

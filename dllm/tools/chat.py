@@ -172,9 +172,9 @@ def single_turn_generate(generator, gen_config, visualize: bool):
             print("\n" + banner_line("Exiting. Bye!", width=len(DIV)))
             return
 
-        if not user_text:
-            print("(Empty input, skipped)\n")
-            continue
+        # if not user_text:
+        #     print("(Empty input, skipped)\n")
+        #     continue
 
         inputs = tokenizer([user_text], add_special_tokens=False)["input_ids"]
         outputs = generator.generate(inputs, gen_config, return_dict_in_generate=True)

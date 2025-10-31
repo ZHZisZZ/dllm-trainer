@@ -33,19 +33,18 @@ import dllm
 
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
-    # Uses only the configuration from model_name_or_path to initialize the model from scratch
-    model_name_or_path: str = "FacebookAI/roberta-large"
+    model_name_or_path: str = "answerdotai/ModernBERT-large"
 
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
-    dataset_args: str = "wikitext[name:wikitext-2-v1]"
-    max_length: int = 512
-    text_field: str = "text"
+    dataset_args: str = "Trelis/tiny-shakespeare"
+    text_field: str = "Text"
+    max_length: int = 128
     streaming: bool = False
     drop_tail: bool = True
     insert_eos: bool = field(
-        default=False,
+        default=True,
         metadata={
             "help": "False when adjacent samples from the datasets are semantically coherent."
         },
@@ -54,9 +53,9 @@ class DataArguments(dllm.utils.DataArguments):
 
 @dataclass
 class TrainingArguments(dllm.utils.TrainingArguments):
-    output_dir: str = "models/roberta-large/wikitext-2-v1"
-    learning_rate: float = 1e-4
+    output_dir: str = "models/ModernBERT-base/tiny-shakespeare"
     num_train_epochs: int = 20
+    learning_rate: float = 1e-4
     per_device_train_batch_size: int = 64
     per_device_eval_batch_size: int = 64
     eval_steps: float = 0.1

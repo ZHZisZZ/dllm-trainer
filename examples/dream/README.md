@@ -60,7 +60,7 @@ examples/dream
 > - Train with LoRA and 4bit quantization: `--load_in_4bit True --lora True`. -->
 
 ### Finetuning
-For example, to SFT [Dream-v0-Base-7B](https://huggingface.co/Dream-org/Dream-v0-Base-7B) for instruction following on 8 GPUs, run:
+For example, to SFT [`Dream-v0-Base-7B`](https://huggingface.co/Dream-org/Dream-v0-Base-7B) for instruction following on 8 GPUs, run:
 ```shell
 accelerate launch \
     --config_file scripts/accelerate_configs/fsdp.yaml \
@@ -86,7 +86,7 @@ sbatch --nodes=4 --gres=gpu:8 scripts/train.slurm.sh \
 ```
 
 <!-- **Reproducing [Dream-v0-Instruct-7B](https://huggingface.co/Dream-org/Dream-v0-Base-7B)**. We tried our best to reproduce Dream-v0-Instruct-7B by finetuning Dream-v0-Base-7B using our training pipeline on the public instruction-following dataset [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture): -->
-#### Reproducing [Dream-v0-Instruct-7B](https://huggingface.co/Dream-org/Dream-v0-Base-7B)
+#### Reproducing [`Dream-v0-Instruct-7B`](https://huggingface.co/Dream-org/Dream-v0-Base-7B)
 We tried our best to reproduce Dream-v0-Instruct-7B by finetuning Dream-v0-Base-7B using our training pipeline on the public instruction-following dataset [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture):
 
 ```shell
@@ -125,7 +125,7 @@ Training curves are on Wandb; checkpoints with evaluation results are available 
 <!-- > [!NOTE]
 > This is an educational example demonstrating how to reproduce Dream pretraining and finetuning on public data. We do not guarantee performance comparable to the official Dream models. -->
 
-Pretrain on [mlfoundations/dclm-baseline-1.0](https://huggingface.co/datasets/mlfoundations/dclm-baseline-1.0) from scratch using 192 GPUs (24x8) and FSDP:
+Pretrain on [`mlfoundations/dclm-baseline-1.0`](https://huggingface.co/datasets/mlfoundations/dclm-baseline-1.0) from scratch using 192 GPUs (24x8) and FSDP:
 ```shell
 sbatch --nodes=24 --gres=gpu:8 scripts/train.slurm.sh \
     --accelerate_config "fsdp" \
