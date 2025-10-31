@@ -29,7 +29,7 @@ It supports diverse model architectures and evaluation paradigms through a **con
 
 Before running evaluations, export the following environment variables to specify where datasets, pretrained models, and caches are stored:
 
-```bash
+```shell
 export BASE_DATASETS_DIR=<path_to_huggingface_datasets>
 export BASE_MODELS_DIR=<path_to_local_or_shared_models>
 export HF_DATASETS_CACHE=<path_to_hf_dataset_cache>
@@ -42,14 +42,14 @@ export PYTHONPATH=.:$PYTHONPATH
 
 Install the core dependencies:
 
-```bash
+```shell
 pip install -e lm-evaluation-harness
 pip install accelerate transformers datasets
 pip install -e ".[ifeval,math]"
 ```
 
 Make sure to initialize submodules before installation:
-```bash
+```shell
 git submodule update --init --recursive
 ```
 
@@ -64,12 +64,12 @@ git submodule update --init --recursive
 
 **Example commands:**
 
-```bash
+```shell
 bash scripts/eval_dream_instruct.sh
 bash scripts/eval_dream_base.sh
 bash scripts/eval_llada_base.sh
 bash scripts/eval_llada_instruct.sh
-bash scripts/eval_bert_base.sh
+bash scripts/eval_bert.sh
 ```
 
 Each script loads its corresponding configurations and launches evaluation automatically.
