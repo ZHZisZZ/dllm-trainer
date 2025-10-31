@@ -1,3 +1,17 @@
+"""
+accelerate launch \
+    --num_processes 2 \
+    --num_machines 1 \
+    --main_process_port 20000 \
+    dllm/eval/eval_dream.py \
+    --tasks gsm8k \
+    --batch_size 1 \
+    --model dream \
+    --device cuda
+    --num_fewshot 0 \
+    --model_args "pretrained=Dream-org/Dream-v0-Base-7B,mc_num=1,max_new_tokens=512,max_length=512,steps=512,temperature=0.2,top_p=0.95,add_bos_token=true,escape_until=true"
+"""
+
 import logging
 import gc
 from datetime import timedelta

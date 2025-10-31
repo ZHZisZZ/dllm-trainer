@@ -1,6 +1,17 @@
-'''
-This file is inspired by the code from https://github.com/ML-GSAI/SMDM
-'''
+"""
+accelerate launch \
+    --num_processes 2 \
+    --num_machines 1 \
+    --main_process_port 20000 \
+    dllm/eval/eval_llada.py \
+    --tasks gsm8k \
+    --batch_size 1 \
+    --model llada \
+    --device cuda \
+    --num_fewshot 8 \
+    --model_args "pretrained=GSAI-ML/LLaDA-8B-Base,is_check_greedy=False,mc_num=1,max_new_tokens=1024,steps=1024,block_length=32,cfg=0.0"
+"""
+
 import os
 import dllm
 import accelerate
@@ -26,7 +37,7 @@ from dllm.pipelines.llada import LLaDAGenerator
 from types import SimpleNamespace
 
 
-@register_model("llada_dist")
+@register_model("llada")
 class LLaDAEvalHarness(LM):
     def __init__(
         self,
@@ -97,10 +108,10 @@ class LLaDAEvalHarness(LM):
             model_name_or_path=pretrained, 
             model=self.model
             ))
-        self.mask_id = self.tokenizer.mask_token_id
         # Because when we use distributed process, model_types are  <class 'torch.nn.parallel.distributed.DistributedDataParallel'>
         self.tokenizer.mask_token = "<|mdm_mask|>"
         self.tokenizer.mask_token_id = self.tokenizer.convert_tokens_to_ids("<|mdm_mask|>")
+        self.mask_id = self.tokenizer.mask_token_id
         # fix bugs in chat template
         self.tokenizer.chat_template = """
 {% set loop_messages = messages -%}

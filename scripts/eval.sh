@@ -28,7 +28,7 @@ export HF_DATASETS_TRUST_REMOTE_CODE=true # For CMMLU
 export MASTER_ADDR MASTER_PORT WORLD_SIZE
 
 # ===== Load configs =====
-source ./eval_configs.sh
+source ./eval_configs_debug.sh
 
 MODEL_CLASS=${1,,}   # "llada" or "dream"
 TASK=${2:-"gsm8k"}   # dataset name
@@ -52,7 +52,7 @@ case "${MODEL_CLASS}" in
     IFS="|" read -r NUM_FEWSHOT LIMIT USE_CHAT_TEMPLATE MAX_NEW_TOKENS STEPS BLOCK_LENGTH SEED BATCH_SIZE MC_NUM CFG <<< "${CONFIG}"
 
     MODEL_PATH="${BASE_MODELS_DIR}/${MODEL_NAME}"
-    MODEL_TYPE="llada_dist"
+    MODEL_TYPE="llada"
     SCRIPT_PATH="dllm/eval/eval_llada.py"
     MODEL_ARGS="pretrained=${MODEL_PATH},is_check_greedy=False,mc_num=${MC_NUM},max_new_tokens=${MAX_NEW_TOKENS},steps=${STEPS},block_length=${BLOCK_LENGTH},cfg=${CFG}"
     ;;

@@ -34,11 +34,6 @@ export NCCL_ASYNC_ERROR_HANDLING=1
 export NCCL_DEBUG=warn
 export TORCH_DISTRIBUTED_DEBUG=DETAIL
 export PYTHONPATH=.:$PYTHONPATH
-export BASE_DATASETS_DIR="/mnt/lustrenew/mllm_aligned/datasets/huggingface"
-# export BASE_MODELS_DIR="/mnt/lustrenew/mllm_aligned/shared/models/huggingface"
-export BASE_MODELS_DIR="/mnt/lustrenew/mllm_aligned/shared/models/tmp"
-export HF_DATASETS_CACHE="/mnt/lustrenew/mllm_safety-shared/datasets/huggingface"
-export HF_EVALUATE_CACHE="/mnt/lustrenew/mllm_safety-shared/tmp/fanyuyu/.cache/hf_evaluate_rank_${SLURM_PROCID}"
 export HF_ALLOW_CODE_EVAL=1
 export HF_DATASETS_TRUST_REMOTE_CODE=True # For cmmlu dataset
 export MASTER_ADDR MASTER_PORT WORLD_SIZE
@@ -77,7 +72,7 @@ case "${MODEL_CLASS}" in
     # ---- Match new config order ----
     IFS="|" read -r NUM_FEWSHOT LIMIT MAX_NEW_TOKENS STEPS BLOCK_LENGTH SEED MC_NUM CFG <<< "${CONFIG}"
 
-    MODEL_TYPE="llada_dist"
+    MODEL_TYPE="llada"
     SCRIPT_PATH="dllm/eval/eval_llada.py"
     MODEL_ARGS="pretrained=${MODEL_PATH},is_check_greedy=False,mc_num=${MC_NUM},max_new_tokens=${MAX_NEW_TOKENS},steps=${STEPS},block_length=${BLOCK_LENGTH},cfg=${CFG}"
     ;;
@@ -114,7 +109,7 @@ case "${MODEL_CLASS}" in
     ;;
 
   *)
-    echo "❌ Invalid model_class '${MODEL_CLASS}'. Must be 'llada' or 'dream'."
+    echo "❌ Invalid model_class '${MODEL_CLASS}'. Must be 'llada' or 'dream' or 'bert."
     exit 1
     ;;
 esac
@@ -124,7 +119,7 @@ esac
 [[ "${LIMIT}" == "None" ]] && LIMIT_ARG="" || LIMIT_ARG="--limit ${LIMIT}"
 [[ "${USE_LOG}" == "True" ]] && \
   LOG_ARG="--log_samples --output_path ./logs/${MODEL_CLASS}_${TASK}_${SLURM_JOB_ID}_samples.json" \
-  || LOG_ARG="--output_path ./logs/${MODEL_CLASS}_${TASK}_${SLURM_JOB_ID}_samples.json""
+  || LOG_ARG="--output_path ./logs/${MODEL_CLASS}_${TASK}_${SLURM_JOB_ID}_samples.json"
 
 # ===== Run =====
 echo -e "\nLaunching ${MODEL_CLASS} on ${TASK} using ${MODEL_PATH}"
