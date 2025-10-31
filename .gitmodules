@@ -1,0 +1,4 @@
+[submodule "lm-evaluation-harness"]
+	path = lm-evaluation-harness
+	url = https://github.com/ZHZisZZ/lm-evaluation-harness
+	branch = dllm
