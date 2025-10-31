@@ -24,6 +24,7 @@ It supports diverse model architectures and evaluation paradigms through a **con
 > [!IMPORTANT]
 > Before running evaluations, you **must** export the required environment variables to specify dataset and model paths.
 > These paths tell the evaluation framework where to locate model checkpoints and datasets, and where to cache evaluation results for lm-eval.
+> Remember to use git submodule update --init --recursive to ensure lm-evaluation-harness are properly initialized.
 
 ### Environment Variables
 
