@@ -91,13 +91,17 @@ def train(
 
     # ----- Load base Model and initialize EditFlow Model ---------------------------
     # Create EditFlow model (bf16 init on CUDA)
-    ef_cfg = ef_config_cls.from_pretrained(model_args.model_name_or_path, dtype=torch.bfloat16)
+    ef_cfg = ef_config_cls.from_pretrained(
+        model_args.model_name_or_path, 
+        dtype=model_args.dtype,
+        attn_implementation=model_args.attn_implementation
+    )
     with dllm.utils.init_device_context_manager():
         model = transformers.AutoModel.from_config(ef_cfg)
         if model_args.init_editflow_from_src:
             # Load src model config & weights (bf16 on CUDA) for intializing EditFlow model
             src_model = transformers.AutoModelForMaskedLM.from_pretrained(
-                model_args.model_name_or_path, dtype=torch.bfloat16
+                model_args.model_name_or_path, dtype=model_args.dtype
             )
             # Initialize EditFlow model from the src model: copies backbone & clones lm_head
             editflow.utils.init_editflow_from_src(
@@ -125,11 +129,19 @@ def train(
         return {"input_ids": input_ids, "labels": input_ids}
 
     with accelerate.PartialState().local_main_process_first():
-        dataset = dllm.data.load_pt_dataset(data_args.dataset_args)
-        dataset = dataset.map(functools.partial(pt_map_fn, tokenizer=tokenizer))
+        # [TODO]: modify this
+        dataset = dllm.data.load_pt_dataset(
+            data_args.dataset_args,
+            streaming=data_args.streaming,
+        )
+        dataset = dataset.map(
+            functools.partial(pt_map_fn, tokenizer=tokenizer),
+            num_proc=None if data_args.streaming else data_args.num_proc,
+        )
         dataset = dllm.utils.post_process_dataset_streaming(
             dataset, data_args
         )  # truncate / filter long sequences if needed
+        if data_args.streaming: dataset = dataset.shuffle(seed=training_args.seed)
 
     # ----- Training --------------------------------------------------------------
     accelerate.PartialState().wait_for_everyone()

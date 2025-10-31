@@ -33,7 +33,7 @@ import torch
 import transformers
 
 import dllm
-from .. import sft as editflow_sft
+from examples.editflow import sft as editflow_sft
 
 
 @dataclass

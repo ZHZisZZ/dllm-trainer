@@ -23,25 +23,10 @@ def get_model(
     Returns:
         transformers.PreTrainedModel
     """
-
-    # Map string dtype to torch dtype
-    dtype_map = {
-        "bf16": torch.bfloat16,
-        "bfloat16": torch.bfloat16,
-        "fp16": torch.float16,
-        "float16": torch.float16,
-        "fp32": torch.float32,
-        "float32": torch.float32,
-        "fp": torch.float32,
-        "float": torch.float32,
-    }
-
     model_name_or_path = getattr(model_args, "model_name_or_path")
     dtype = getattr(model_args, "dtype", "bfloat16")
     load_in_4bit = getattr(model_args, "load_in_4bit", False)
-
-    # Prefer argument > model_args
-    dtype = dtype_map.get(str(dtype).lower(), torch.bfloat16)
+    attn_implementation = getattr(model_args, "attn_implementation", None)
 
     # Device map: skip when ZeRO-3
     device_map = (
@@ -63,7 +48,8 @@ def get_model(
         'dtype': dtype,
         'device_map': device_map,
         'quantization_config': quant_config,
-        'config': config
+        'attn_implementation': attn_implementation,
+        'config': config,
     }
 
     try:

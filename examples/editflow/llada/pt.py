@@ -32,7 +32,7 @@ from dataclasses import dataclass
 import transformers
 
 import dllm
-from .. import pt as editflow_pt
+from examples.editflow import pt as editflow_pt
 
 
 @dataclass

@@ -42,14 +42,14 @@ if __name__ == "__main__":
     dllm.utils.initial_training_setup(model_args, data_args, training_args)
     # Create EditFlow model (bf16 init on CUDA)
     ef_cfg = dllm.pipelines.editflow.EditFlowModernBertConfig.from_pretrained(
-        model_args.model_name_or_path, dtype=torch.bfloat16, attn_implementation="sdpa",
+        model_args.model_name_or_path, dtype=model_args.dtype, attn_implementation=model_args.attn_implementation,
     )
     with dllm.utils.init_device_context_manager():
         model = transformers.AutoModel.from_config(ef_cfg)
         # Initialize EditFlow model from the src model: copies backbone & clones lm_head
         if model_args.init_editflow_from_src:
             src_model = transformers.AutoModelForMaskedLM.from_pretrained(
-                model_args.model_name_or_path, dtype=torch.bfloat16
+                model_args.model_name_or_path, dtype=model_args.dtype
             )
             dllm.pipelines.editflow.utils.init_editflow_from_src(
                 model, src_model, lm_head_key=model_args.lm_head_key
