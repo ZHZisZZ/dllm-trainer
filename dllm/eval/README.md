@@ -1,6 +1,6 @@
 # Evaluation
 
-We provide a **unified evaluation framework** built on top of **[lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness)**, serving as the standardized backbone for `dllm` model evaluation.  
+We provide a **unified evaluation framework** built on top of **[lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness)**, serving as the standardized backbone for evaluating the [LLaDA series,](https://huggingface.co/GSAI-ML/LLaDA-8B-Base) [Dream series](https://huggingface.co/collections/Dream-org/dream-7b), and BERT-diffusion models.
 It supports diverse model architectures and evaluation paradigms through a **configuration-driven**, **modular**, and **extensible** design.
 
 
@@ -22,9 +22,8 @@ It supports diverse model architectures and evaluation paradigms through a **con
 ## Setup
 
 > [!IMPORTANT]
-> Before running evaluations, you **must** export the required environment variables to specify dataset and model paths.
-> These paths tell the evaluation framework where to locate model checkpoints and datasets, and where to cache evaluation results for lm-eval.
-> Remember to use git submodule update --init --recursive to ensure lm-evaluation-harness are properly initialized.
+> Before running evaluations, you **must** export the required environment variables to specify dataset and model paths.  
+> These paths tell the evaluation framework where to locate model checkpoints and datasets, and where to cache evaluation results for **lm-eval**.  
 
 ### Environment Variables
 
@@ -49,6 +48,10 @@ pip install accelerate transformers datasets
 pip install -e ".[ifeval,math]"
 ```
 
+Make sure to initialize submodules before installation:
+```bash
+git submodule update --init --recursive
+```
 
 
 ## Evaluation
@@ -80,7 +83,7 @@ You no longer need to manually specify `model_class`, `task_name`, or `model_pat
 | **Base** | `humaneval`, `gsm8k_cot`, `mbpp`, `minerva_math`, `bbh`, `mmlu`, `arc_easy`, `arc_challenge`, `hellaswag`, `piqa`, `gpqa_main_n_shot`, `winogrande`, `race` |
 
 > [!NOTE]
-> Certain dataset configurations were refined to match the model templates and ensure optimal evaluation performance.
+> Certain dataset configurations of lm-eval were refined to match the model templates and ensure optimal evaluation performance.
 
 
 ### Example Evaluation Results
@@ -199,3 +202,5 @@ To integrate a new model type:
 > [!NOTE]
 > This approach supports both custom and standard model backends, making the framework highly extensible.
 
+## Acknowledgments
+We sincerely thank [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness) for their outstanding contributions to the open evaluation ecosystem

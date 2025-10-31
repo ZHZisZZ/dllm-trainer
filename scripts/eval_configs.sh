@@ -49,7 +49,6 @@ eval_llada_configs["minerva_math"]="4|None|1024|1024|32|1234|1|0.0"
 eval_llada_configs["humaneval_instruct"]="0|None|1024|1024|32|1234|1|0.0"
 eval_llada_configs["mbpp_llada_instruct"]="3|None|1024|1024|32|1234|1|0.0"
 
-# ---------- Misc / Experimental ----------
 eval_llada_configs["mmlu_generative"]="0|None|3|3|3|1234|1|0.0"
 eval_llada_configs["mmlu_pro"]="0|None|256|256|256|1234|1|0.0"
 eval_llada_configs["hellaswag_gen"]="0|None|3|3|3|1234|1|0.0"
